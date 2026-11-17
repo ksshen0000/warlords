@@ -1,6 +1,6 @@
 # 战旗领主 · Warlords（Godot 客户端 v2）
 
-类骑砍战略层沙盒的可视化前端。所有规则与 AI 都在 Python 模拟服务器（`~/Projects/warlords`），
+类骑砍战略层沙盒的可视化前端。所有规则与 AI 都在 Python 模拟服务器（`../server`），
 本项目只负责显示与操作。
 
 ![大地图](docs/screens/v2_overview.png)
@@ -15,7 +15,7 @@ BRAIN=openai ./play.sh       # OpenAI 领主（OPENAI_API_KEY）
 BRAIN=deepseek ./play.sh     # DeepSeek 领主（DEEPSEEK_API_KEY）
 BRAIN=claude ./play.sh       # Claude 领主（ANTHROPIC_API_KEY）
 ```
-LLM 模式需先在 `~/Projects/warlords` 执行 `uv venv && uv pip install -e '.[llm]'`。
+LLM 模式需先在 `../server` 目录执行 `uv venv && uv pip install -e '.[llm]'`。
 
 ## 操作
 
@@ -52,4 +52,4 @@ godot --path . -- --zoom=640,520,3.2 --select=settlement:lion0 --capture=...
 godot --headless --path . -- --steps=8 --capture=/dev/null      # 冒烟测试，输出 WARLORDS_OK
 ```
 
-字体 Droid Sans Fallback（Apache 2.0，见 `assets/fonts/LICENSE.txt`）。v1 备份在 `~/godot/warlords-v1-backup`。
+字体 Droid Sans Fallback（Apache 2.0，见 `assets/fonts/LICENSE.txt`）。（v1 的点线图版本不在本仓库中。）

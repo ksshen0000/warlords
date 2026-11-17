@@ -4,7 +4,7 @@
 #   BRAIN=claude ./play.sh       Claude 领主（需要 ANTHROPIC_API_KEY）
 set -euo pipefail
 project_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-sim_dir="${WARLORDS_DIR:-$HOME/Projects/warlords}"
+sim_dir="${WARLORDS_DIR:-$project_dir/../server}"
 port="${PORT:-8765}"
 brain="${BRAIN:-rule}"
 godot_bin="${GODOT_BIN:-godot}"
