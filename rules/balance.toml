@@ -1,0 +1,129 @@
+# ============================================================
+# 数值平衡。引擎启动时读取；服务器运行中可通过 POST /reload 热更新。
+# 改平衡 = 改这里，不需要改代码。
+# ============================================================
+
+[time]
+decide_every_hours = 6        # 领主战略决策的检查间隔（小时）
+replan_after_hours = 48       # 一条命令执行多久后重新考虑
+urgent_replan_hours = 6       # 自己的封地被围时，多快放下手头的低优先级命令
+
+[movement]
+base_speed = 5.5              # 普通部队在平原上的速度（地图单位/小时）
+cavalry_bonus = 0.35          # 全骑兵部队的额外速度
+size_penalty_per_troop = 0.002  # 每名士兵带来的减速
+min_size_factor = 0.6
+kind_speed = { lord = 1.0, caravan = 0.85, villager = 0.75, bandit = 1.12, hunter = 1.15, merc = 1.0 }
+
+[battle]
+max_rounds = 6
+damage_rate = 0.085           # 每回合把战力转化为伤亡的比例
+luck_sigma = 0.22             # 每回合运气的对数正态分布宽度（越大越随机）
+tactics_bonus = 0.06          # 统帅每点统御带来的战力加成
+attacker_break = 0.45         # 攻方剩余兵力低于开战时的这个比例就溃退
+defender_break = 0.40
+wound_rate = { default = 0.6, bandit = 0.45, villager = 0.4, caravan = 0.55 }   # 伤亡中受伤（而非阵亡）的比例
+xp_per_enemy_power = 2.5      # 胜方获得经验 = 敌方损失战力 × 该值
+
+[troops]
+upkeep_per_tier = 0.35        # 每级每天军饷（骑兵再乘兵种倍率）
+recruit_cost = { t1 = 12, t2 = 30 }
+xp_per_tier_squared = 30      # 升级所需经验 = 该值 × 等级²
+upgrade_cost_per_tier = 8     # 升级花费（骑兵 ×2）
+heal_rate_field = 0.18        # 伤员每天康复率（野外）
+heal_rate_settlement = 0.35   # 在城中
+party_limit_base = 70         # 部队规模上限 = base + 声望/4 + 每块封地 12（君主 +40）
+
+[economy]
+tariff = 0.06                 # 城镇交易关税（归城主）
+town_tax_per_prosperity = 0.9 # 城镇日税 = 繁荣度 × 该值 + 关税
+castle_tax = 20
+village_tax_per_hearth = 0.25
+ruler_stipend = 60            # 君主每日王室收入
+landless_stipend = 25         # 无封地领主每日津贴
+garrison_upkeep_share = 0.5   # 城主承担守军军饷的比例
+grain_need_base = 0.6         # 城镇每日粮食消耗 = base + 繁荣度 × per_prosperity
+grain_need_per_prosperity = 0.02
+farmland_grain = 1.0          # 城郊农田每日产粮
+village_tithe_divisor = 25    # 村庄每日向所属城镇粮仓缴纳 繁荣/该值
+village_production_divisor = 12  # 村庄每日产出 = 繁荣/该值
+prosperity_growth = 0.12      # 吃饱时城镇繁荣日增长
+starvation_prosperity_loss = 1.0
+caravan_capacity = 40
+caravan_respawn_chance = 0.1  # 没有商队的城镇每天组建新商队的概率
+
+[siege]
+progress_per_wall = 2000      # 攻城器械进度：每小时 + 攻方人数 /(城墙等级 × 该值)
+wall_bonus_per_level = 0.35   # 强攻时守方战力 × (1 + 城墙等级 × 该值)
+conquest_prosperity_loss = 15
+garrison_left_share = 0.2     # 攻下后统帅留下的驻军比例
+conquest_loyalty = 25         # 新征服据点的初始民心
+
+[raid]
+duration_hours = 10
+recovery_days = 8
+
+[loyalty]
+# 民心 0..100：异族统治、饥荒、过度扩张会让民心下降；民心太低会叛乱，回归同文化的王国。
+start = 70
+same_culture_drift = 0.5      # 统治者与当地同文化：每天 +
+foreign_culture_drift = -0.35 # 异族统治：每天 +（负数）
+overextension_per_fief = 0.06 # 王国城池数超过「公平份额」后，每多一座，所有异族据点每天额外 -
+starvation_drift = -1.5
+garrison_calm_per_100 = 0.3   # 每 100 名驻军让民心每天 +
+rebellion_threshold = 20      # 民心低于此值时可能叛乱
+rebellion_chance = 0.04       # 每天叛乱概率（民心越低越高）
+
+[capture]
+base_chance = 0.15            # 战败领主被俘的基础概率
+per_loss_chance = 0.6         # 再按兵力损失比例增加
+escape_chance = 0.045         # 被俘领主每天越狱概率
+ransom_chance = 0.12          # 君主每天考虑支付赎金的概率
+ransom_base = 250
+ransom_per_renown = 3
+
+[politics]
+war_proposal_cost = 60        # 提议宣战消耗影响力
+peace_proposal_cost = 40
+min_war_days = 10             # 开战多少天后才能提议议和
+truce_days = 30
+overrule_influence_cost = 30  # 君主违背议会多数意见的影响力代价
+army_base_cost = 30
+army_member_cost = 8
+army_cohesion_decay = 2.0
+army_cohesion_per_member = 0.6
+defection_threshold = 55
+defection_chance = 0.4
+tribute_score_divisor = 2.5   # 岁贡 = 战争分数 / 该值（每日）
+tribute_max = 220
+tribute_days = 20
+
+[bandits]
+max_active_hideouts = 8
+spawn_chance = 0.4            # 每个匪巢每天派出新匪帮的概率
+max_parties_per_hideout = 3
+hideout_respawn_days = 10
+reactivate_chance = 0.35
+bounty_per_bandit = 15
+
+[neutral]
+bounty_hunters = 3
+
+# ------------------------------------------------------------------
+# 规则 AI 的权重（LLM 领主读 doctrine.toml 里的文字准则，规则 AI 读这些数字；
+# 两者描述的是同一套行事逻辑，注释里标出对应的准则 id）
+# ------------------------------------------------------------------
+[ai]
+peace_per_war_day = 0.033         # peace_when_stalemate：战争每多一天更想议和
+peace_per_extra_front = 0.8       # avoid_multi_front：每多一条战线
+peace_tribute_weight = 0.02       # 岁贡对接受和约的吸引力
+peace_loss_eagerness = 0.025      # 战局不利时（每点负分）更想议和
+peace_win_greed = 0.0067          # 战局有利时（每点正分）略不想议和
+peace_accept_threshold = 0.5
+war_per_extra_front = 2.5         # avoid_multi_front：已有战争时不想再开新战线
+war_strength_weight = 4.0
+war_peace_boredom_days = 40       # 和平太久会想打仗
+hegemon_share = 0.33              # balance_of_power：一国城池占比超过此值视为霸主
+hegemon_war_bonus = 8.0           # 对霸主宣战的意愿加成（随超出比例增长）
+hegemon_peace_bonus = 2.0         # 与非霸主议和、集中力量对付霸主
+besiege_idle_days_bonus = 6       # 很久没进攻会更想攻城（每 N 天 +1，最多 +5）

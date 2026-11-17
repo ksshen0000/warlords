@@ -1,0 +1,9 @@
+[project]
+name = "warlords"
+version = "0.1.0"
+description = "AI 领主沙盒：类骑砍战略层模拟（LLM 驱动的领主）"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+llm = ["anthropic>=1.0", "openai>=1.0"]

@@ -1,0 +1,87 @@
+"""Small helpers shared by the simulation modules."""
+from __future__ import annotations
+
+import math
+
+from . import troops as T
+from .model import BANDIT, Party, Settlement, World
+
+
+def nearest_settlement(w: World, pos, pred) -> Settlement | None:
+    best, bd = None, float("inf")
+    for s in w.settlements.values():
+        if pred(s):
+            d = (s.pos[0] - pos[0]) ** 2 + (s.pos[1] - pos[1]) ** 2
+            if d < bd:
+                best, bd = s, d
+    return best
+
+
+def safe_haven(w: World, p: Party, kinds=("town", "castle")) -> Settlement | None:
+    """Nearest settlement this party may enter and that is not under siege."""
+    side = w.side_of(p)
+
+    def ok(s: Settlement) -> bool:
+        if s.kind not in kinds or s.siege:
+            return False
+        if side == BANDIT:
+            return s.kind == "hideout" and s.active
+        if p.kind in ("lord", "merc") and side in w.kingdoms:
+            return s.faction == side
+        return not w.at_war(side, s.faction) if side in w.kingdoms else True
+    if side == BANDIT:
+        kinds = ("hideout",)
+    return nearest_settlement(w, p.pos, ok)
+
+
+def destroy_party(w: World, p: Party) -> None:
+    p.alive = False
+    p.target = None
+    if p.hero:
+        h = w.heroes[p.hero]
+        if h.party == p.id:
+            h.party = None
+    if p.owner and p.owner in w.heroes and p.id in w.heroes[p.owner].caravans:
+        w.heroes[p.owner].caravans.remove(p.id)
+    if p.army and p.army in w.armies:
+        a = w.armies[p.army]
+        if p.hero in a.members:
+            a.members.remove(p.hero)
+    if p.contract and p.contract in w.kingdoms and p.id in w.kingdoms[p.contract].mercenaries:
+        w.kingdoms[p.contract].mercenaries.remove(p.id)
+    w.parties.pop(p.id, None)
+
+
+def war_entry(w: World, a: str, b: str) -> dict | None:
+    k = w.kingdoms.get(a)
+    return k.wars.get(b) if k else None
+
+
+def add_war_score(w: World, winner: str, loser: str, amount: float, losses_w: int = 0, losses_l: int = 0) -> None:
+    ew, el = war_entry(w, winner, loser), war_entry(w, loser, winner)
+    if ew is not None:
+        ew["score"] = round(ew["score"] + amount, 1)
+        ew["losses"][0] += losses_w
+        ew["losses"][1] += losses_l
+    if el is not None:
+        el["score"] = round(el["score"] - amount, 1)
+        el["losses"][0] += losses_l
+        el["losses"][1] += losses_w
+
+
+def party_label(w: World, p: Party) -> str:
+    if p.hero:
+        return w.heroes[p.hero].name
+    return p.name
+
+
+def is_free_hero_party(w: World, p: Party) -> bool:
+    return p.kind == "lord" and p.hero is not None and w.heroes[p.hero].captive_of is None
+
+
+def size(p: Party) -> int:
+    return T.healthy(p.troops)
+
+
+def dist(a, b) -> float:
+    return math.hypot(a[0] - b[0], a[1] - b[1])

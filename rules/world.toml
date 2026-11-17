@@ -1,0 +1,240 @@
+# ============================================================
+# 世界设定：王国、领主、初始关系与战争、地名。
+# 可以手写，也可以让 AI 生成新的世界（保持同样的结构即可）。
+# ============================================================
+
+# 王国：capital 为首都在地图上的大致位置（0..1 比例）；fiefs 为初始封地分配：
+#   [首都, 第二城镇, 城堡1, 城堡2, 城堡3]，名单中没有出现的领主初始无封地
+[[kingdoms]]
+id = "frost"
+name = "霜原王国"
+culture = "frost"
+color = "#5b8def"
+capital = [0.5, 0.17]
+ruler = "edwin"
+fiefs = ["edwin", "hilda", "sigrid", "edwin", "ulf"]
+
+[[kingdoms]]
+id = "sand"
+name = "赤沙苏丹国"
+culture = "sand"
+color = "#e0a030"
+capital = [0.18, 0.62]
+ruler = "karim"
+fiefs = ["karim", "jafar", "safiya", "rashid", "karim"]
+
+[[kingdoms]]
+id = "river"
+name = "翠河联盟"
+culture = "river"
+color = "#3fbf6a"
+capital = [0.82, 0.5]
+ruler = "vera"
+fiefs = ["vera", "marco", "oren", "lin", "vera"]
+
+[[kingdoms]]
+id = "lion"
+name = "金狮王国"
+culture = "lion"
+color = "#d65a4a"
+capital = [0.52, 0.72]
+ruler = "leon"
+fiefs = ["leon", "cassia", "gareth", "leon", "isolde"]
+
+# 领主：traits 取值 -2..2（aggression 好战 / caution 谨慎 / honor 荣誉 / greed 贪婪）；tactics 统御 0..5
+[[lords]]
+id = "edwin"
+name = "艾德温·霜鬃"
+kingdom = "frost"
+traits = { aggression = 0, caution = 1, honor = 2, greed = -1 }
+tactics = 3
+persona = "霜原国王。年迈而重荣誉，厌恶背信者，宁可慢也不愿冒险。"
+
+[[lords]]
+id = "bran"
+name = "布兰·铁拳"
+kingdom = "frost"
+traits = { aggression = 2, caution = -1, honor = 0, greed = 0 }
+tactics = 3
+persona = "边境悍将，渴望战功，觉得国王太过保守。"
+
+[[lords]]
+id = "hilda"
+name = "希尔达·寒鸦"
+kingdom = "frost"
+traits = { aggression = -1, caution = 1, honor = -1, greed = 2 }
+tactics = 1
+persona = "富有的商城领主，精于算计，只在有利可图时出兵。"
+
+[[lords]]
+id = "ulf"
+name = "乌尔夫·雪狼"
+kingdom = "frost"
+traits = { aggression = 1, caution = 0, honor = 1, greed = 0 }
+tactics = 2
+persona = "国王的外甥，年轻而忠诚，一心想证明自己。"
+
+[[lords]]
+id = "sigrid"
+name = "西格丽德·冰语"
+kingdom = "frost"
+traits = { aggression = -1, caution = 2, honor = 1, greed = 0 }
+tactics = 2
+persona = "老练的女伯爵，主张与南方和平通商。"
+
+[[lords]]
+id = "karim"
+name = "卡里姆·炽阳"
+kingdom = "sand"
+traits = { aggression = 2, caution = 0, honor = 0, greed = 1 }
+tactics = 3
+persona = "野心勃勃的苏丹，梦想统一大陆。"
+
+[[lords]]
+id = "safiya"
+name = "萨菲亚·沙刃"
+kingdom = "sand"
+traits = { aggression = 1, caution = 0, honor = 2, greed = -1 }
+tactics = 4
+persona = "忠诚的将军，以守信闻名，敌人也敬她三分。"
+
+[[lords]]
+id = "jafar"
+name = "贾法尔·金舌"
+kingdom = "sand"
+traits = { aggression = -1, caution = 1, honor = -2, greed = 2 }
+tactics = 1
+persona = "巧舌如簧的绿洲领主，对苏丹积怨已久，暗中和外国贵族往来。"
+
+[[lords]]
+id = "rashid"
+name = "拉希德·驼铃"
+kingdom = "sand"
+traits = { aggression = 0, caution = 0, honor = 0, greed = 2 }
+tactics = 1
+persona = "靠商路起家的新贵，最关心的是商队和关税。"
+
+[[lords]]
+id = "zahra"
+name = "扎赫拉·烈风"
+kingdom = "sand"
+traits = { aggression = 2, caution = -1, honor = -1, greed = 0 }
+tactics = 3
+persona = "沙漠骑射手出身，嗜战且残忍，常劫掠边村。"
+
+[[lords]]
+id = "vera"
+name = "薇拉·河语"
+kingdom = "river"
+traits = { aggression = -1, caution = 1, honor = 1, greed = 0 }
+tactics = 2
+persona = "联盟执政官，擅长外交，偏好以和约换取时间。"
+
+[[lords]]
+id = "oren"
+name = "奥伦·石盾"
+kingdom = "river"
+traits = { aggression = 0, caution = 2, honor = 1, greed = 0 }
+tactics = 3
+persona = "防守专家，镇守前线要塞多年，从未失守。"
+
+[[lords]]
+id = "tariq"
+name = "塔里克·狂澜"
+kingdom = "river"
+traits = { aggression = 2, caution = -2, honor = 0, greed = 1 }
+tactics = 1
+persona = "年轻气盛的贵族，鲁莽好战，常常孤军深入。"
+
+[[lords]]
+id = "lin"
+name = "林蔚·白鹭"
+kingdom = "river"
+traits = { aggression = 0, caution = 0, honor = 2, greed = -1 }
+tactics = 2
+persona = "理想主义的骑士，痛恨土匪和劫掠平民的行径。"
+
+[[lords]]
+id = "marco"
+name = "马可·金帆"
+kingdom = "river"
+traits = { aggression = -1, caution = 1, honor = -1, greed = 2 }
+tactics = 1
+persona = "掌握联盟最大商会的议员，金钱至上。"
+
+[[lords]]
+id = "leon"
+name = "里昂·金鬃"
+kingdom = "lion"
+traits = { aggression = 1, caution = 0, honor = 1, greed = 1 }
+tactics = 3
+persona = "金狮国王，自诩骑士精神的化身，渴望恢复古帝国的荣光。"
+
+[[lords]]
+id = "cassia"
+name = "卡西娅·王冠"
+kingdom = "lion"
+traits = { aggression = 0, caution = 1, honor = 0, greed = 1 }
+tactics = 2
+persona = "国王的妹妹，深谙宫廷权谋，觊觎王位。"
+
+[[lords]]
+id = "gareth"
+name = "加雷斯·铁誓"
+kingdom = "lion"
+traits = { aggression = 1, caution = 0, honor = 2, greed = -1 }
+tactics = 4
+persona = "老骑士团长，一生恪守誓言。"
+
+[[lords]]
+id = "roland"
+name = "罗兰·红盾"
+kingdom = "lion"
+traits = { aggression = 2, caution = -1, honor = -1, greed = 1 }
+tactics = 2
+persona = "贪婪的边境男爵，以劫掠为生财之道。"
+
+[[lords]]
+id = "isolde"
+name = "伊索德·麦穗"
+kingdom = "lion"
+traits = { aggression = -2, caution = 1, honor = 1, greed = 0 }
+tactics = 1
+persona = "掌管王国粮仓的女男爵，厌恶战争。"
+
+# 初始好感（单向）：[领主, 对象, 数值]
+relations = [
+  ["jafar", "karim", -25],
+  ["karim", "jafar", -10],
+  ["jafar", "hilda", 20],
+  ["hilda", "jafar", 15],
+  ["bran", "edwin", -5],
+  ["safiya", "karim", 25],
+  ["tariq", "vera", -5],
+  ["edwin", "vera", 15],
+  ["vera", "edwin", 15],
+  ["cassia", "leon", -20],
+  ["gareth", "leon", 25],
+  ["roland", "isolde", -10],
+  ["lin", "zahra", -30],
+  ["zahra", "lin", -10],
+  ["marco", "rashid", 20],
+  ["rashid", "marco", 20],
+  ["leon", "karim", -20],
+  ["karim", "leon", -20],
+  ["sigrid", "isolde", 15],
+  ["ulf", "edwin", 20],
+]
+wars = [["frost", "sand"], ["lion", "river"]]   # 开局时的战争
+caravan_owners = ["hilda", "rashid", "marco"]   # 开局即拥有商队的领主
+
+# 佣兵团：[名称, 主力兵种]
+mercenaries = [["黑鸦佣兵团", "merc_cav"], ["铁誓自由连", "merc_inf"]]
+
+# 地名：每个文化先用于城镇/城堡（前 8 个），其余给村庄
+[names]
+frost = ["寒铁堡", "冰溪城", "白狼要塞", "雪松岗", "霜牙堡", "北风城", "冻河堡", "灰熊岭", "冰泉村", "松针村", "雪狐村", "鹿角村", "白桦村", "冷杉村", "狼嚎村", "霜叶村", "冰湖村", "铁杉村", "驯鹿村", "熊溪村", "寒鸦村", "雪鹰村", "苔原村", "冰钓村", "松鸡村", "北辰村"]
+sand = ["炽阳城", "流沙堡", "绿洲镇", "鹰崖堡", "金沙城", "赤岩堡", "蜃楼堡", "盐湖城", "驼铃村", "枣椰村", "沙泉村", "红柳村", "盐井村", "旱谷村", "烈风村", "月泉村", "胡杨村", "石榴村", "铜铃村", "沙蝎村", "孤烟村", "金砂村", "蜜枣村", "风蚀村", "白盐村", "绿荫村"]
+river = ["翠河城", "苇泽堡", "柳湾镇", "石桥堡", "白鹭城", "青渡堡", "莲塘堡", "双溪城", "芦花村", "渔歌村", "桑田村", "荷塘村", "杏花村", "清溪村", "鸥汀村", "菱角村", "竹林村", "稻香村", "茶山村", "蚕桑村", "燕归村", "水车村", "浣纱村", "青石村", "藕花村", "白沙村"]
+lion = ["金狮城", "王冠堡", "麦浪城", "铁誓堡", "狮心堡", "黄金岭", "骑士堡", "丰收城", "麦穗村", "磨坊村", "橡木村", "葡萄村", "牧场村", "金雀村", "马蹄村", "风车村", "蜂蜜村", "石泉村", "苹果村", "铁匠村", "牛角村", "麦田村", "骑兵村", "钟楼村", "柳林村", "铜锅村"]
+hideouts = ["黑石匪巢", "狼穴", "断崖营地", "鬼林寨", "血沙营", "冰窟", "海蚀洞", "枯骨谷", "乌鸦岭", "毒蛇沼", "野狗坡", "强盗湾", "骷髅岩", "黑风寨", "盗马坳", "流寇谷"]

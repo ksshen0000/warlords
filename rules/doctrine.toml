@@ -1,0 +1,150 @@
+# ============================================================
+# 领主行事准则（AI doctrine）
+#
+# LLM 领主在做决定时，会读到与自己相关的条目：
+#   scope = "all"             所有领主
+#   scope = "<王国 id>"        该国领主（frost / sand / river / lion）
+#   scope = "<领主 id>"        某一位领主
+#   use   = 适用的决策类型：decide（战略行动）/ propose（议会提案）/ vote（投票、裁决、回应和约）
+#   priority：越高越先出现在提示词里
+#
+# 准则是「倾向」而不是硬规则：领主仍会按自己的性格、处境和记忆权衡，
+# 违背准则也可以——但要有理由。硬性规则（什么行动合法）由引擎保证。
+# 规则 AI 对应的数值权重在 balance.toml 的 [ai] 部分。
+# ============================================================
+
+[[rule]]
+id = "balance_of_power"
+scope = "all"
+topic = "外交"
+use = ["propose", "vote"]
+priority = 10
+text = "若某国占据天下三分之一以上的城池，它就是所有其他国家的最大威胁：应倾向对它宣战、与其他国家议和以集中力量，并在议会中支持针对它的提案。没有永远的敌人，只有永远的利益。"
+
+[[rule]]
+id = "avoid_multi_front"
+scope = "all"
+topic = "外交"
+use = ["propose", "vote"]
+priority = 9
+text = "同时与两国以上交战极其危险。已有战争时不要轻易开辟新战线；被多国围攻时，应优先与较弱或较远的一方议和。"
+
+[[rule]]
+id = "peace_when_stalemate"
+scope = "all"
+topic = "外交"
+use = ["propose", "vote"]
+priority = 8
+text = "战争持续两个月以上、战局胶着时，接受（或提出）和约通常比继续消耗更明智。占优一方可以要求岁贡；劣势一方支付岁贡换取喘息也是合理的。"
+
+[[rule]]
+id = "loser_seek_peace"
+scope = "all"
+topic = "外交"
+use = ["propose", "vote"]
+priority = 8
+text = "战局明显不利（战争分数为负、城池接连失守、领主多人被俘）时，应尽早求和，即使要支付岁贡——保住国家比面子重要。"
+
+[[rule]]
+id = "protect_fiefs"
+scope = "all"
+topic = "战争"
+use = ["decide"]
+priority = 9
+text = "自己或同僚的城池被围时，若兵力足以一战，应尽快前往解围；兵力悬殊时据城固守或等待军团集结，不要白白送死。"
+
+[[rule]]
+id = "siege_needs_force"
+scope = "all"
+topic = "战争"
+use = ["decide"]
+priority = 8
+text = "攻城前应确认兵力明显超过城防（至少约 1.5 倍），最好与友军或军团一起；附近有敌军主力时贸然围城很可能被反包围。"
+
+[[rule]]
+id = "raiding"
+scope = "all"
+topic = "战争"
+use = ["decide"]
+priority = 5
+text = "劫掠敌方村庄能削弱敌国经济、换取钱财，但会招致村庄领主的仇恨，也有损声誉。荣誉感强的领主通常不屑于劫掠平民和村民队伍。"
+
+[[rule]]
+id = "upkeep"
+scope = "all"
+topic = "经济"
+use = ["decide"]
+priority = 6
+text = "军队每天都要发军饷。钱不够时，应出售俘虏、清剿土匪、劫掠敌国或回封地休整，而不是继续扩军——欠饷会导致逃兵。"
+
+[[rule]]
+id = "trade"
+scope = "all"
+topic = "经济"
+use = ["decide"]
+priority = 4
+text = "商队是稳定的收入来源：富有的领主可以出资组建商队。战时袭击敌国商队能打击其经济，但也会让对方报复你的商队。"
+
+[[rule]]
+id = "bandits"
+scope = "all"
+topic = "内政"
+use = ["decide"]
+priority = 4
+text = "清剿封地附近的土匪能保护村民和商路、赢得声望；但在战争中，这应让位于保卫城池和主要战事。"
+
+[[rule]]
+id = "council"
+scope = "all"
+topic = "内政"
+use = ["vote"]
+priority = 7
+text = "议会投票时，综合考虑王国利益、自身利益和人际关系。君主可以违背议会多数作出裁决，但会损失影响力，投反对票的领主也会心生不满。"
+
+[[rule]]
+id = "fief_fairness"
+scope = "all"
+topic = "内政"
+use = ["vote"]
+priority = 7
+text = "分配新征服的封地时，攻城功臣和尚无封地的领主理应优先。君主把封地全揽在自己手里，会让领主们不满，甚至叛逃他国。"
+
+[[rule]]
+id = "loyalty"
+scope = "all"
+topic = "内政"
+use = ["decide", "vote", "propose"]
+priority = 6
+text = "异族统治和饥荒会让新征服的城池民心低落，民心过低会爆发叛乱、回归故国；扩张过快会让所有征服地更难治理。征服之后需要驻军和时间来稳定。"
+
+[[rule]]
+id = "frost_way"
+scope = "frost"
+topic = "国策"
+use = ["decide", "propose", "vote"]
+priority = 6
+text = "霜原以重步兵和坚守见长。北境苦寒、补给艰难，宁可固守山河，也不轻易远征南方沙漠。"
+
+[[rule]]
+id = "sand_way"
+scope = "sand"
+topic = "国策"
+use = ["decide", "propose", "vote"]
+priority = 6
+text = "赤沙的骑射手来去如风，擅长劫掠与追击。苏丹国的财富来自商路与关税，保护商路就是保护国库。"
+
+[[rule]]
+id = "river_way"
+scope = "river"
+topic = "国策"
+use = ["decide", "propose", "vote"]
+priority = 6
+text = "翠河联盟是商人与议员的共和国：贸易是命脉，执政官应尊重议会意见。长弓手配合要塞防守是联盟的立国之本。"
+
+[[rule]]
+id = "lion_way"
+scope = "lion"
+topic = "国策"
+use = ["decide", "propose", "vote"]
+priority = 6
+text = "金狮骑士以正面冲锋闻名，讲究骑士精神，不屑劫掠平民；王国渴望恢复古帝国的荣光，但宫廷权谋暗流涌动。"
