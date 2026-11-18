@@ -1,0 +1,289 @@
+# ============================================================
+# 战斗规则（3D 野战，仿骑砍战团）。单位：米、秒、度。
+# 客户端的战斗场景直接读取本文件和 units.toml；改手感 = 改这里。
+# ============================================================
+
+[battle]
+size = 120                    # 同时在场的最大人数（相当于战团的 battle size），其余为援军，分波上场
+spawn_gap = 110               # 两军出生线相距
+field = 300                   # 战场边长
+edge_margin = 6               # 溃兵跑到离战场边缘这么近就算逃离
+reinforce_at = 0.35           # 一方在场人数低于其份额的该比例时，下一波援军从出生线上场
+
+[human]
+hp_base = 70                  # 生命 = base + 等级 × per_tier
+hp_per_tier = 12
+walk = 1.6                    # 列阵慢行
+run = 4.4                     # 冲锋奔跑（重甲会再慢一点：每点护甲 -armor_slow）
+armor_slow = 0.012
+backward = 0.6                # 后退/侧移速度倍率
+accel = 14.0
+turn = 7.0                    # 转身速度（弧度/秒，AI）
+radius = 0.4                  # 站位半径（士兵之间至少隔 2×radius）
+height = 1.75
+
+[horse]
+# 马：速度高、有惯性，冲撞会撞倒步兵
+hp = 110
+speed = 10.5                  # 疾驰
+canter = 5.0                  # 小跑
+accel = 4.5                   # 加速度（米/秒²）——马有惯性，不能急停急转
+turn = 2.2                    # 转向（弧度/秒，高速时更慢）
+bump_speed = 5.5              # 速度高于此值撞到步兵会造成冲撞
+bump_damage = 6               # 冲撞伤害（再乘速度/bump_speed）——战团里马撞人主要是撞倒、拖住，不太伤人
+bump_knock = 0.45             # 被冲撞时倒地的概率
+bump_slow = 0.45              # 冲进人群后马速只剩这么多（骑兵陷进步兵阵里就危险了）
+radius = 0.55
+barded_armor = 28             # 具装马的护甲
+
+[combat]
+# 方向性近战：举起武器（可以按住蓄着）→ 松开挥出 → 收势。
+# 方向：上 = 劈砍（下劈）、左/右 = 横砍、下 = 刺
+ready_time = 0.38             # 举起武器的最短时间（÷ 武器速度）
+strike_time = 0.32            # 挥出到收尾的时间（÷ 武器速度）
+recover_time = 0.28
+active_from = 0.22            # 挥出进度达到这里才开始判定命中（太早贴身碰到 = 磕碰）
+active_to = 0.95
+early_damage = 0.35           # 磕碰：在 active_from 之前碰到对方，伤害只有这么多
+speed_bonus_ref = 6.0         # 攻击方向上的相对速度（米/秒）达到这个值时，伤害加成达到上限
+speed_bonus_max = 1.2         # 速度加成上限（骑兵冲锋的威力就来自这里）
+block_angle = 75              # 兵器格挡：只能挡住正面这个半角内的攻击，而且方向要对
+shield_angle = 100            # 盾牌：正面这个半角内的攻击（任何方向）和箭都能挡
+block_stun = 0.4              # 攻击被挡住后，攻击方的硬直
+hit_stun = 0.45               # 挨打后的硬直（会打断自己的攻击）
+knockdown_damage = 34         # 单次伤害超过这个会被打倒在地
+knockdown_time = 1.6
+wounded_chance = 0.4          # 倒下的士兵有这么大概率只是重伤（钝器打倒一律算重伤）
+friendly_fire = 0.5           # 误伤友军的伤害倍率
+
+[armor]
+# 实际伤害 = (原始伤害 - 护甲 × soak) × (1 - 护甲 × reduce%)；按伤害类型不同
+cut_soak = 0.55
+cut_reduce = 1.0
+pierce_soak = 0.35
+pierce_reduce = 0.65
+blunt_soak = 0.2
+blunt_reduce = 0.5
+max_reduce = 0.85
+
+[ranged]
+gravity = 9.8
+draw_spread = 6.0             # 刚拉弓时的散布（度），瞄得越久越准
+aim_time = 1.1                # 拉满到最准所需时间
+min_spread = 0.6
+move_spread = 3.0             # 移动中射击额外散布
+horse_spread = 2.5            # 马上射箭额外散布
+ai_aim_error = 1.4            # AI 射手的额外误差（度），等级每高一级减 0.25
+arrow_life = 6.0
+speed_damage_ref = 50.0       # 箭速达到这个值（米/秒）时按原始伤害计
+
+[morale]
+# 士气：一方伤亡过半后，士兵开始逐个溃逃；等级越高越坚定
+start_rout = 0.45             # 本方伤亡（含溃逃）比例超过这个才开始有人逃
+rout_check = 1.5              # 每隔多少秒检定一次
+rout_chance = 0.06            # 每次检定的基础溃逃概率（随伤亡比例增加）
+tier_courage = 0.012          # 每级降低的溃逃概率
+leader_bonus = 0.5            # 统帅（玩家）还在场时，溃逃概率 ×该值
+
+[ai]
+think = 0.2                   # 每隔多少秒重新选择目标
+block_base = 0.35             # 看到攻击时成功举挡的基础概率
+block_per_tier = 0.12         # 每级增加
+reaction = 0.22               # 反应时间（秒）：看到对方出手到举起格挡
+reaction_per_tier = -0.03
+attack_cooldown = 0.35        # 两次攻击之间的间隔（+随机）
+archer_range = 85             # 射手开火距离
+archer_min_range = 9          # 敌人近到这个距离就换近战
+spacing = 1.15                # 列阵时每人间距
+crowd = 3                     # 同时围攻一个敌人的最多人数（超过的会找别人）
+cav_pass = 14                 # 骑兵冲过目标后，再跑出这么远才回马
+
+[player]
+auto_block = false            # true = 右键格挡时自动对准最近的来袭方向（新手模式）；战团默认是手动方向
+
+[orders]
+# 战团的命令键：1 步兵 2 射手 3 骑兵 0 全军；F1 原地驻守 F2 跟我来 F3 冲锋 F4 就地站住
+# F5 撤退 F6 前进十步 F7 后退十步 F8 靠拢 F9 散开
+step = 10                     # 前进/后退十步的距离（米）
+spacing_min = 0.8
+spacing_max = 3.0
+
+# ------------------------------------------------------------ 武器
+# kind：one_hand 单手 / two_hand 双手 / polearm 长兵 / lance 骑枪 / bow 弓 / crossbow 弩
+# damage 挥砍伤害，thrust 刺击伤害（0 = 不能刺），dtype 挥砍的伤害类型（刺击一律 pierce）
+# reach 攻击距离（从身体中心算），speed 速度倍率
+[weapons.club]
+name = "木棒"
+kind = "one_hand"
+damage = 20
+thrust = 0
+dtype = "blunt"
+reach = 1.25
+speed = 1.05
+
+[weapons.knife]
+name = "短刀"
+kind = "one_hand"
+damage = 20
+thrust = 16
+dtype = "cut"
+reach = 1.1
+speed = 1.2
+
+[weapons.sword]
+name = "环首刀"
+kind = "one_hand"
+damage = 28
+thrust = 20
+dtype = "cut"
+reach = 1.45
+speed = 1.0
+
+[weapons.mace]
+name = "骨朵"
+kind = "one_hand"
+damage = 26
+thrust = 0
+dtype = "blunt"
+reach = 1.35
+speed = 0.95
+
+[weapons.axe]
+name = "长柄大斧"
+kind = "two_hand"
+damage = 42
+thrust = 0
+dtype = "cut"
+reach = 1.7
+speed = 0.8
+
+[weapons.spear]
+name = "长矛"
+kind = "polearm"
+damage = 18
+thrust = 32
+dtype = "blunt"
+reach = 2.3
+speed = 0.92
+thrust_only = true            # 长矛只能刺（以及上举下砸）
+
+[weapons.ji]
+name = "长戟"
+kind = "polearm"
+damage = 34
+thrust = 30
+dtype = "cut"
+reach = 2.2
+speed = 0.85
+
+[weapons.lance]
+name = "马槊"
+kind = "lance"
+damage = 16
+thrust = 34
+dtype = "blunt"
+reach = 2.6
+speed = 0.85
+couch = 70                    # 马速够快时自动平端冲刺（战团的「端枪冲锋」），伤害再乘速度加成
+couch_speed = 7.5
+
+[weapons.bow]
+name = "弓"
+kind = "bow"
+damage = 22
+speed = 55                    # 箭速
+draw = 0.9                    # 拉弓时间
+ammo = 24
+
+[weapons.strongbow]
+name = "强弓"
+kind = "bow"
+damage = 30
+speed = 62
+draw = 1.1
+ammo = 22
+
+[weapons.horsebow]
+name = "骑弓"
+kind = "bow"
+damage = 20
+speed = 52
+draw = 0.75
+ammo = 26
+
+[weapons.crossbow]
+name = "弩"
+kind = "crossbow"
+damage = 42
+speed = 70
+draw = 2.6                    # 上弦时间
+ammo = 18
+
+[shields.round]
+name = "圆盾"
+size = 0.55
+
+[shields.rattan]
+name = "藤牌"
+size = 0.6
+
+[shields.large]
+name = "大橹"
+size = 0.8
+
+# ------------------------------------------------------------ 兵种配装
+# 键 = 兵种类别 + 等级（inf1..inf4 / arc2..arc4 / cav3..cav4）；文化表覆盖默认表；
+# melee 第一件是主武器；armor 护甲值；horse = "horse" / "barded"（具装）
+[loadout.default]
+inf0 = { melee = ["club"], armor = 2 }
+inf1 = { melee = ["club"], armor = 5 }
+inf2 = { melee = ["sword"], shield = "round", armor = 14 }
+inf3 = { melee = ["spear", "sword"], shield = "round", armor = 24 }
+inf4 = { melee = ["axe"], armor = 36 }
+arc1 = { ranged = "bow", melee = ["knife"], armor = 5 }
+arc2 = { ranged = "bow", melee = ["knife"], armor = 8 }
+arc3 = { ranged = "bow", melee = ["sword"], armor = 14 }
+arc4 = { ranged = "strongbow", melee = ["sword"], armor = 20 }
+cav2 = { horse = "horse", melee = ["sword"], armor = 12 }
+cav3 = { horse = "horse", melee = ["lance", "sword"], shield = "round", armor = 22 }
+cav4 = { horse = "horse", melee = ["lance", "sword"], shield = "round", armor = 32 }
+
+[loadout.zhou]                # 江左：弩与长戟，骑兵不多
+inf3 = { melee = ["ji"], armor = 24 }
+arc2 = { ranged = "crossbow", melee = ["knife"], armor = 10 }
+arc3 = { ranged = "crossbow", melee = ["sword"], armor = 16 }
+arc4 = { ranged = "crossbow", melee = ["sword"], shield = "large", armor = 24 }
+
+[loadout.yan]                 # 辽东：甲骑具装
+cav4 = { horse = "barded", melee = ["lance", "mace"], armor = 42 }
+
+[loadout.zhao]
+inf3 = { melee = ["sword"], shield = "round", armor = 24 }
+
+[loadout.liang]               # 河西：弩、长斧、驼甲
+arc2 = { ranged = "crossbow", melee = ["knife"], armor = 10 }
+cav4 = { horse = "barded", melee = ["lance", "sword"], armor = 36 }
+
+[loadout.shu]                 # 巴蜀：藤牌刀斧、连弩
+inf2 = { melee = ["sword"], shield = "rattan", armor = 12 }
+inf3 = { melee = ["axe"], shield = "rattan", armor = 20 }
+arc3 = { ranged = "crossbow", melee = ["sword"], armor = 14 }
+arc4 = { ranged = "crossbow", melee = ["sword"], armor = 20 }
+
+[loadout.rou]                 # 漠北：骑射手
+cav3 = { horse = "horse", ranged = "horsebow", melee = ["sword"], armor = 14 }
+cav4 = { horse = "horse", ranged = "horsebow", melee = ["lance", "sword"], armor = 26 }
+
+[loadout.troops]              # 按兵种 id 指定（土匪、中立）
+bandit_liukou = { melee = ["club"], armor = 4 }
+bandit_shan = { melee = ["axe"], armor = 8 }
+bandit_jiang = { ranged = "bow", melee = ["knife"], armor = 6 }
+bandit_ma = { horse = "horse", melee = ["sword"], armor = 8 }
+bandit_boss = { melee = ["sword"], shield = "round", armor = 18 }
+villager = { melee = ["club"], armor = 0 }
+militia = { ranged = "bow", melee = ["club"], armor = 6 }
+caravan_guard = { horse = "horse", melee = ["spear", "sword"], shield = "round", armor = 20 }
+hunter = { horse = "horse", melee = ["spear", "sword"], armor = 18 }
+merc_inf = { melee = ["ji"], armor = 24 }
+merc_arc = { ranged = "strongbow", melee = ["sword"], armor = 16 }
+merc_cav = { horse = "horse", melee = ["lance", "sword"], shield = "round", armor = 26 }

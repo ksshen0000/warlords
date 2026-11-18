@@ -64,8 +64,9 @@ LLM 调用是异步的：将军思考时游戏照常进行；失败自动退回�
 | 目录 | 内容 |
 |---|---|
 | [`server/`](server/README.md) | Python 模拟服务器：地图生成、行军、战斗、经济、政治、玩家、AI 路由、HTTP 接口 |
-| [`server/rules/`](server/rules) | 规则即文档：`balance.toml` 数值、`doctrine.toml` 领主准则、`ai.toml` AI 档位、`units.toml` 兵种货物地形、`world.toml` 王国与领主 |
+| [`server/rules/`](server/rules) | 规则即文档：`balance.toml` 数值、`doctrine.toml` 领主准则、`ai.toml` AI 档位、`units.toml` 兵种货物地形、`world.toml` 王国与领主、`battle.toml` 3D 野战 |
 | [`client/`](client/README.md) | Godot 4 客户端：大地图、菜单、交易、对话、部队/详情/诸国/议会面板、编年史与战报 |
+| [`client/battle/`](client/battle/README.md) | 3D 野战（仿骑砍战团，`battle` 分支开发中，暂时独立运行：`client/battle.sh`）；规则在 `server/rules/battle.toml` |
 
 （`client/docs/.gdignore` 是 Godot 的标记文件——让 Godot 不把文档截图当作游戏资源导入，不是 .gitignore。）
 

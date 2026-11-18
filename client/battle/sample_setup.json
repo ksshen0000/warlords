@@ -1,0 +1,23 @@
+{
+  "terrain": "plains",
+  "seed": 7,
+  "night": false,
+  "player_side": 0,
+  "sides": [
+    {
+      "name": "你的部队（周）",
+      "kingdom": "zhou",
+      "color": "#c0503f",
+      "hero": {"name": "你", "player": true, "troop": "zhou_cav3",
+               "loadout": {"melee": ["sword", "spear"], "shield": "round", "ranged": "bow", "horse": "horse", "armor": 26}},
+      "troops": {"zhou_t1": 12, "zhou_inf2": 14, "zhou_inf3": 10, "zhou_arc2": 12, "zhou_arc3": 6, "zhou_cav3": 8}
+    },
+    {
+      "name": "拓延骁的部曲（燕）",
+      "kingdom": "yan",
+      "color": "#4f7fd8",
+      "hero": {"name": "拓延骁", "troop": "yan_cav4"},
+      "troops": {"yan_t1": 10, "yan_inf2": 12, "yan_inf3": 6, "yan_arc2": 10, "yan_arc3": 4, "yan_cav3": 12, "yan_cav4": 6}
+    }
+  ]
+}
