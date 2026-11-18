@@ -1,0 +1,5 @@
+# secrets & local machine config — never commit API keys
+*.key
+*api_key*
+.env
+server/local.toml

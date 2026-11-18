@@ -6,22 +6,22 @@
 ## 运行
 
 ```bash
-python3 -m warlords --days 120 --seed 3            # 命令行观看（规则 AI，零依赖）
-python3 -m warlords.server --port 8765             # 给 Godot 客户端用的服务器
+python3 -m warlords --days 120 --seed 3            # 命令行观看（规则 AI，零依赖，无玩家）
+python3 -m warlords.server --port 8765             # 给 Godot 客户端用的服务器（AI 档位取 ai.toml）
 
 uv venv && uv pip install -e '.[llm]'              # LLM 依赖
-OPENAI_API_KEY=...    .venv/bin/python -m warlords --brain openai   --days 30 --verbose
-DEEPSEEK_API_KEY=...  .venv/bin/python -m warlords --brain deepseek --days 30 --verbose
-ANTHROPIC_API_KEY=... .venv/bin/python -m warlords --brain claude   --days 30 --verbose
+.venv/bin/python -m warlords --tier 3 --days 30 --verbose                    # 用 ai.toml / local.toml 里的 LLM
+OPENAI_API_KEY=... .venv/bin/python -m warlords --tier 3 --provider openai --days 30
 ```
 
 | AI | 默认模型 | 换模型 |
 |---|---|---|
 | `openai` | `gpt-5-mini`（reasoning_effort=low） | `--model` / `OPENAI_MODEL`；`OPENAI_REASONING_EFFORT` |
-| `deepseek` | `deepseek-v4-flash` | `--model` / `DEEPSEEK_MODEL`；`DEEPSEEK_BASE_URL` |
+| `deepseek`（默认） | `deepseek-flash`（关闭推理，约 1.2 秒/次） | `--model` / `DEEPSEEK_MODEL`；`DEEPSEEK_BASE_URL`；ai.toml `thinking` |
 | `claude` | `claude-opus-5-5`（effort=low） | `--model` |
 
-LLM 出错（认证、限流、无法解析）时自动退回规则 AI，模拟不会中断。
+API key：环境变量（`DEEPSEEK_API_KEY` 等）、`DEEPSEEK_API_KEY_FILE`，或 `server/local.toml` 的 `[llm] key_file`（该文件被 git 忽略）。
+LLM 出错（认证、限流、无法解析）时自动退回规则 AI，模拟不会中断。AI 参与程度见 `rules/ai.toml` 的档位。
 
 ## 规则即文档（`rules/`）
 
@@ -29,6 +29,7 @@ LLM 出错（认证、限流、无法解析）时自动退回规则 AI，模拟�
 |---|---|---|
 | `balance.toml` | 所有数值：军饷、税收、攻城速度、城墙加成、民心、俘虏、议会成本、土匪刷新……以及规则 AI 的权重 | 引擎、规则 AI |
 | `doctrine.toml` | 领主行事准则：均势、避免多线作战、僵持时议和、解围、攻城需兵力优势、劫掠的代价、分封公平……可按王国/领主分别设定 | LLM 领主（写进提示词） |
+| `ai.toml` | AI 档位：每档哪些环节（议会裁决、投票、提案、君主/领主战略、对话）用 LLM；LLM 提供商与模型 | AI 路由 |
 | `units.toml` | 地形、货物、文化与兵种树、土匪类型 | 引擎 |
 | `world.toml` | 王国、领主人设与性格、初始关系、战争、封地、地名 | 引擎、LLM |
 
@@ -64,9 +65,11 @@ warlords/
   economy.py    生产、市场、商队贸易、税收军饷、招募升级
   politics.py   议会、军团、赎金、和约、叛逃、民心与起义、佣兵合同
   options.py    领主的合法战略选项（附带决策所需的情报）
-  sim.py        主循环（每小时 / 每 6 小时战略决策 / 每日议会）
+  sim.py        主循环（每小时 / 每 6 小时战略决策 / 每日议会）；玩家菜单打开时时间停止
+  ai.py         AI 路由：按档位把每次决策交给 LLM 或规则 AI；LLM 异步调用、结果回来后再校验执行
+  player.py     玩家：行军、城镇/遭遇/对话菜单、交易、招募、俘虏、佣兵与封臣、被俘与逃脱、与领主对话
   brains/       rule.py 规则 AI；llm_common.py 提示词（含准则）；claude.py；openai_compat.py
-  server.py     HTTP 服务：/map /state /step /reset /reload /events
+  server.py     HTTP 服务：/map /state /step /player/move /player/act /player/talk /reset /config /reload
 ```
 
 ## 路线图（AI 原生）

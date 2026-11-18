@@ -6,12 +6,31 @@ from __future__ import annotations
 from . import movement as M
 from . import troops as T
 from .common import destroy_party, dist, nearest_settlement
-from .model import BANDIT, Decision, Hero, World
+from .data import CAPTIVE_RECRUIT, KIND_NAMES, PEDIGREE, PEDIGREE_NAMES, PEDIGREE_WEIGHT, TOWN_MIN_PEDIGREE
+from .model import BANDIT, DEAD, Decision, Hero, World
 from .options import Option
 from .rules import B
 
 
 # ------------------------------------------------------------ helpers
+def pedigree_of(w: World, hid: str) -> str:
+    if hid == "player":
+        return w.player.get("pedigree") or "low"
+    return PEDIGREE.get(hid, "mid")
+
+
+def pedigree_rank(w: World, hid: str) -> float:
+    return float(B.pedigree.rank.get(pedigree_of(w, hid), 2))
+
+
+def town_allowed(w: World, kid: str, hid: str) -> bool:
+    """周: a lowborn general, however brave, is not given a city (only frontier fortresses)."""
+    need = TOWN_MIN_PEDIGREE.get(kid) or ""
+    if not need or hid == w.kingdoms[kid].ruler:
+        return True
+    return pedigree_rank(w, hid) >= float(B.pedigree.rank.get(need, 0))
+
+
 def ruler(w: World, kid: str) -> Hero:
     return w.heroes[w.kingdoms[kid].ruler]
 
@@ -87,7 +106,7 @@ def apply_proposal(w: World, h: Hero, opt: Option, reason: str = "") -> Decision
                  [{"id": "yes", "label": f"支持：{label_yes}"}, {"id": "no", "label": "反对"}])
     d.note = reason
     w.decisions[d.id] = d
-    w.log("decision_opened", f"{h.name}在{w.kingdoms[h.kingdom].name}议会提议{label_yes}" +
+    w.log("decision_opened", f"{h.name}在{w.kingdoms[h.kingdom].name}朝议上提议{label_yes}" +
           (f"——「{reason}」" if reason else ""), decision=d.id, kingdom=h.kingdom, hero=h.id)
     return d
 
@@ -96,35 +115,53 @@ def open_fief_decision(w: World, s, contributors: list[str]) -> None:
     kid = s.faction
     cands: list[str] = []
     for hid in contributors:
-        if hid and hid not in cands and w.heroes[hid].kingdom == kid:
+        if hid == "player":
             cands.append(hid)
-    landless = sorted((h for h in w.kingdom_heroes(kid) if h.id not in cands),
-                      key=lambda h: (len(w.fiefs_of(h.id)), -h.renown))
+        elif hid and hid not in cands and w.heroes[hid].kingdom == kid:
+            cands.append(hid)
+    pw = PEDIGREE_WEIGHT.get(kid, 0.5)
+    landless = sorted((h for h in w.kingdom_heroes(kid) if h.id not in cands and h.captive_of != DEAD),
+                      key=lambda h: (len(w.fiefs_of(h.id)), -(h.renown + pw * 30 * pedigree_rank(w, h.id))))
     for h in landless[:2]:
         cands.append(h.id)
     r = w.kingdoms[kid].ruler
     if r not in cands:
         cands.append(r)
+    if s.kind == "town":
+        barred = [hid for hid in cands if not town_allowed(w, kid, hid)]
+        cands = [hid for hid in cands if hid not in barred]
+        if "player" in barred:
+            w.log("player", f"{w.kingdoms[kid].name}朝议议{s.name}归属：你出身{PEDIGREE_NAMES[pedigree_of(w, 'player')]}，"
+                            f"门第不够，未能列入候选（周制：城只封给次门以上，寒门只能守关塞）", player=True)
+        for hid in barred:
+            if hid != "player":
+                w.heroes[hid].remember(w.day, f"攻下{s.name}有功，却因门第寒微不得受封")
+                w.heroes[hid].adjust_rel(r, -3)
     opts = []
     for hid in cands[:5]:
-        h = w.heroes[hid]
         tag = "，攻城功臣" if hid in contributors else ""
-        opts.append({"id": hid, "label": f"封给{h.name}（现有封地{len(w.fiefs_of(hid))}处，声望{h.renown}{tag}）"})
+        ped = PEDIGREE_NAMES.get(pedigree_of(w, hid), "")
+        if hid == "player":
+            opts.append({"id": hid, "label": f"封给玩家（新晋封臣，{ped}，现有封地{len(w.fiefs_of(hid))}处，声望"
+                                             f"{w.player.get('renown', 0):.0f}{tag}）"})
+            continue
+        h = w.heroes[hid]
+        opts.append({"id": hid, "label": f"封给{h.name}（{ped}，现有封地{len(w.fiefs_of(hid))}处，声望{h.renown}{tag}）"})
     d = Decision(w.new_id("dc"), kid, "fief", s.id, None, w.hour, w.hour + 24, opts)
     w.decisions[d.id] = d
-    w.log("decision_opened", f"{w.kingdoms[kid].name}议会商议{s.name}的归属", decision=d.id, kingdom=kid)
+    w.log("decision_opened", f"{w.kingdoms[kid].name}朝议商议{s.name}的归属", decision=d.id, kingdom=kid)
 
 
 def decision_context(w: World, d: Decision) -> str:
     k = w.kingdoms[d.kingdom]
     if d.kind == "fief":
         s = w.settlements[d.subject]
-        return f"{k.name}议会正在决定新攻下的{'城镇' if s.kind == 'town' else '城堡'}「{s.name}」封给谁。"
+        return f"{k.name}朝议正在决定新攻下的{KIND_NAMES[s.kind]}「{s.name}」封给谁。"
     other = w.kingdoms[d.subject].name
     who = w.heroes[d.proposer].name if d.proposer else "有人"
     what = f"向{other}宣战" if d.kind == "war" else f"与{other}议和"
     extra = f"提案理由：「{d.note}」" if d.note else ""
-    return f"{who}在{k.name}议会提议{what}。{extra}"
+    return f"{who}在{k.name}朝议上提议{what}。{extra}"
 
 
 def tally(d: Decision) -> dict[str, float]:
@@ -149,9 +186,9 @@ def resolve(w: World, d: Decision, choice: str, reason: str = "") -> None:
         for hid, v in d.votes.items():
             if v["option"] == majority:
                 w.heroes[hid].adjust_rel(r.id, -4)
-                w.heroes[hid].remember(w.day, f"{r.name}无视议会多数意见")
+                w.heroes[hid].remember(w.day, f"{r.name}无视朝议多数意见")
     w.log("decision_resolved",
-          f"{k.name}议会表决（{tally_txt}）——{r.name}裁决：{label}" + ("【违背多数】" if overruled else "") +
+          f"{k.name}朝议表决（{tally_txt}）——{r.name}裁决：{label}" + ("【违背多数】" if overruled else "") +
           (f"——「{reason}」" if reason else ""),
           decision=d.id, kingdom=k.id, result=choice, overruled=overruled)
     if d.kind == "war" and choice == "yes":
@@ -167,8 +204,11 @@ def grant_fief(w: World, d: Decision, hid: str) -> None:
     s.owner = hid
     for vid in s.villages:
         w.settlements[vid].owner = hid
-    h = w.heroes[hid]
     r = w.kingdoms[d.kingdom].ruler
+    if hid == "player":
+        w.log("fief_granted", f"朝议决定把{s.name}封给你！", settlement=s.id, hero=hid, kingdom=d.kingdom, player=True)
+        return
+    h = w.heroes[hid]
     h.adjust_rel(r, 8)
     h.influence += 5
     h.remember(w.day, f"获封{s.name}")
@@ -273,22 +313,108 @@ def gather_army(w: World, leader: Hero) -> str | None:
 
 
 # ------------------------------------------------------- captives
-def release_hero(w: World, h: Hero, why: str) -> None:
+def release_hero(w: World, h: Hero, why: str, near=None) -> None:
     from .scenario import culture_army, new_lord_party
     at = w.settlements.get(h.captive_at) if h.captive_at else None
     h.captive_of = None
     h.captive_at = None
     h.captive_days = 0
-    home = nearest_settlement(w, at.pos if at else [600, 400],
+    if near is None:
+        near = at.pos if at else [600, 400]
+    home = nearest_settlement(w, near,
                               lambda s: s.faction == h.kingdom and s.kind in ("town", "castle"))
     if home is None:
-        home = nearest_settlement(w, at.pos if at else [600, 400],
+        home = nearest_settlement(w, near,
                                   lambda s: s.kind == "town" and not w.at_war(h.kingdom, s.faction))
     if home is None:
         return
     p = new_lord_party(w, h, home, 0)
     p.troops = culture_army(h.culture, 12, w.rng, 0.3)
     w.log("release", f"{h.name}获释（{why}），回到{home.name}", hero=h.id)
+
+
+def recruit_chance(w: World, h: Hero, captor_kid: str, by_player: bool = False) -> float:
+    """How likely a captive general is to swear himself to his captor's kingdom."""
+    k = w.kingdoms.get(h.kingdom)
+    if k is None or (k.alive and k.ruler == h.id) or captor_kid == h.kingdom or captor_kid not in w.kingdoms:
+        return 0.0
+    c = B.capture.recruit_base - 0.08 * h.traits.get("honor", 0)
+    if k.alive:
+        c += max(0, -h.rel(k.ruler)) / 200          # a grudge against his own lord
+    else:
+        c += 0.25                                   # nothing left to be loyal to
+    c += h.rel("player" if by_player else w.kingdoms[captor_kid].ruler) / 200
+    c += CAPTIVE_RECRUIT.get(captor_kid, 0.0)
+    if w.fiefs_of(h.id):
+        c -= B.capture.recruit_fief_penalty
+    if by_player:
+        c += min(B.capture.recruit_dread_max, w.player.get("dread", 0) * B.capture.recruit_dread)
+    return max(0.02, min(0.85, c))
+
+
+def recruit_captive(w: World, h: Hero, kid: str, near=None) -> None:
+    """The captive swears himself to `kid`. His fiefs stay behind with his old lord."""
+    old = w.kingdoms[h.kingdom]
+    for s in w.fiefs_of(h.id):
+        s.owner = old.ruler
+        for vid in s.villages:
+            w.settlements[vid].owner = old.ruler
+    if old.alive:
+        defect(w, h, kid)
+    else:
+        h.kingdom = kid
+        h.adjust_rel(w.kingdoms[kid].ruler, 15)
+    h.remember(w.day, f"兵败被俘，降了{w.kingdoms[kid].name}")
+    w.log("recruit_captive", f"被俘的{h.name}归降了{w.kingdoms[kid].name}", hero=h.id, kingdom=kid)
+    release_hero(w, h, "归降", near=near)
+
+
+def succession(w: World, kid: str, why: str) -> Hero | None:
+    """Pick a new ruler (the most renowned free general of the realm)."""
+    k = w.kingdoms[kid]
+    pool = w.kingdom_heroes(kid, free_only=True) or w.kingdom_heroes(kid)
+    pool = [h for h in pool if h.id != k.ruler]
+    if not pool:
+        return None
+    # the royal house comes first everywhere; beyond that, renown and (where it counts) pedigree
+    new = max(pool, key=lambda h: h.renown + h.influence / 4 + (200 if pedigree_of(w, h.id) == "royal" else 0)
+              + 20 * pedigree_rank(w, h.id) * PEDIGREE_WEIGHT.get(kid, 0.5))
+    k.ruler = new.id
+    for o in w.kingdom_heroes(kid):
+        if o.id != new.id:
+            o.adjust_rel(new.id, w.rng.randint(-6, 4))
+    new.remember(w.day, f"{why}，被拥立为{k.name}之主")
+    w.log("succession", f"{why}，{new.name}被拥立为{k.name}之主", hero=new.id, kingdom=kid)
+    return new
+
+
+def execute_hero(w: World, h: Hero, by: str = "player") -> None:
+    k = w.kingdoms[h.kingdom]
+    was_ruler = k.ruler == h.id
+    h.captive_of = DEAD
+    h.captive_at = None
+    h.party = None
+    for c in h.caravans:
+        if c in w.parties:
+            w.parties[c].owner = None
+    heir = succession(w, k.id, f"{h.name}被斩") if was_ruler else None
+    lord = heir.id if heir else k.ruler
+    for s in w.fiefs_of(h.id):
+        s.owner = lord
+        for vid in s.villages:
+            w.settlements[vid].owner = lord
+    clan = h.name[:2] if h.name[:2] in ("拓延", "赤云", "屈赫", "郁久", "乞伏") else h.name[:1]
+    for o in w.heroes.values():
+        if o.id == h.id or o.captive_of == DEAD:
+            continue
+        if o.kingdom == h.kingdom:
+            o.adjust_rel(by, B.capture.execute_relation)
+            o.remember(w.day, f"{h.name}被{'玩家' if by == 'player' else by}斩首")
+        if o.name.startswith(clan):
+            o.adjust_rel(by, B.capture.execute_family)
+            o.remember(w.day, f"同族{h.name}被{'玩家' if by == 'player' else by}所杀，此仇必报")
+    w.log("execution", f"{h.name}被斩首" + ("，" + k.name + "国中震动" if was_ruler else ""), hero=h.id,
+          kingdom=k.id, player=by == "player")
 
 
 def respawn_heroes(w: World) -> None:
@@ -349,8 +475,8 @@ def daily(w: World) -> None:
             disband_army(w, aid, "军心涣散" if a.cohesion <= 0 else "")
 
     # captives: escape / ransom
-    for h in w.heroes.values():
-        if not h.captive_of:
+    for h in list(w.heroes.values()):
+        if not h.captive_of or h.captive_of == DEAD:
             continue
         h.captive_days += 1
         if h.captive_of == BANDIT:
@@ -358,8 +484,25 @@ def daily(w: World) -> None:
                 h.gold *= 0.8
                 release_hero(w, h, "向土匪交了赎金")
             continue
+        if h.captive_of == "__player":
+            if h.captive_days >= B.player.ransom_days:
+                payer = ruler(w, h.kingdom) if w.kingdoms[h.kingdom].alive else h
+                ransom = B.capture.ransom_base + h.renown * B.capture.ransom_per_renown
+                ransom = min(ransom, max(0.0, payer.gold))
+                payer.gold -= ransom
+                if "player" in w.parties:
+                    w.parties["player"].gold += ransom
+                h.adjust_rel("player", -5)
+                w.log("ransom", f"{payer.name}向你支付了{ransom:.0f}金，赎回了{h.name}", hero=h.id, player=True)
+                release_hero(w, h, "被赎回")
+            continue
         if rng.random() < B.capture.escape_chance:
             release_hero(w, h, "越狱逃脱")
+            continue
+        captor = h.captive_of
+        if captor in w.kingdoms and w.kingdoms[captor].alive and rng.random() < B.capture.ai_recruit_daily \
+                and rng.random() < recruit_chance(w, h, captor):
+            recruit_captive(w, h, captor)
             continue
         if w.kingdoms[h.kingdom].alive and h.kingdom != h.captive_of:
             payer = ruler(w, h.kingdom)

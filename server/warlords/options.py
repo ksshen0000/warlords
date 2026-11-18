@@ -8,7 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from . import troops as T
-from .common import dist
+from .data import KIND_NAMES
+from .common import dist, realm_sees
 from .data import BANDIT_TYPES, GOODS
 from .model import Hero, Party, World, party_speed
 from .rules import B
@@ -113,7 +114,7 @@ def lord_options(w: World, h: Hero) -> list[Option]:
             extra = f"，友军已在围城（战力{allies:.0f}）" if allies else ""
             extra += f"，附近敌军战力{threat:.0f}" if threat else ""
             opts.append(Option("besiege", s.id,
-                               f"围攻{s.name}（{w.kingdoms[s.faction].name}{'城镇' if s.kind == 'town' else '城堡'}，"
+                               f"围攻{s.name}（{w.kingdoms[s.faction].name}{KIND_NAMES[s.kind]}，"
                                f"城防战力约{defense:.0f}{extra}，{d}天）",
                                {"days": d, "defense": defense, "ally_power": allies, "threat": threat,
                                 "kind": s.kind, "prosperity": s.prosperity}))
@@ -141,6 +142,8 @@ def lord_options(w: World, h: Hero) -> list[Option]:
             if not q.alive or q.inside or q is p or not w.hostile(p, q):
                 continue
             dd = dist(q.pos, p.pos)
+            if dd > 170 or not realm_sees(w, side, q, [p]):
+                continue                                  # only enemies the realm's scouts can actually see
             if dd <= 170:
                 ac.append((dd, q))
         for dd, q in sorted(ac, key=lambda x: x[0])[:5]:
@@ -153,6 +156,8 @@ def lord_options(w: World, h: Hero) -> list[Option]:
                 who = f"{q.name}（{w.kingdoms[q.faction].name if q.faction in w.kingdoms else ''}商队，财货约{value:.0f}金）"
             elif q.kind == "bandit":
                 who = f"一伙{q.name}"
+            elif q.kind == "player":
+                who = "玩家（一位冒险者）的部队"
             else:
                 who = q.name
             opts.append(Option("attack", q.id, f"袭击{who}（{T.healthy(q.troops)}人，战力{qp:.0f}，约{d}天）",

@@ -6,11 +6,11 @@ from . import troops as T
 from .common import nearest_settlement
 from .data import BANDIT_TYPES, GOODS, TROOPS
 from .model import Party, Settlement, World
-from .rules import B
+from .rules import B, RULES
 
-WORKSHOP = {"frost": "cloth", "sand": "spice", "river": "wine", "lion": "cloth"}
-CLASS_PREF = {"frost": {"inf": 1.4, "arc": 1.0, "cav": 0.8}, "sand": {"inf": 0.9, "arc": 1.1, "cav": 1.3},
-              "river": {"inf": 1.0, "arc": 1.4, "cav": 0.8}, "lion": {"inf": 1.0, "arc": 0.8, "cav": 1.5}}
+# per-culture workshop goods and troop-class preference live in rules/units.toml [cultures.*]
+WORKSHOP = {c: v.get("workshop", "cloth") for c, v in RULES.units["cultures"].items()}
+CLASS_PREF = {c: dict(v.get("class_pref", {})) for c, v in RULES.units["cultures"].items()}
 
 
 def party_limit(w: World, hero_id: str) -> int:

@@ -85,3 +85,36 @@ def size(p: Party) -> int:
 
 def dist(a, b) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
+# ------------------------------------------------------------------ sight
+def is_night(w: World) -> bool:
+    from .rules import B
+    h = w.hour % 24
+    return h >= B.vision.night_start or h < B.vision.night_end
+
+
+def sight(w: World, p: Party) -> float:
+    """How far an AI party can see (the player's own radius is player.vision)."""
+    from .rules import B
+    v = B.vision
+    cls = T.class_counts(p.troops)
+    total = max(1, sum(cls.values()))
+    r = v.npc_base + v.cavalry_bonus * cls["cav"] / total
+    return r * (v.night_factor if is_night(w) else 1.0)
+
+
+def realm_sees(w: World, kid: str, q: Party, extra: list | None = None) -> bool:
+    """Kingdom intelligence: q is within sight of one of the realm's parties or fortresses."""
+    from .rules import B
+    for s in w.settlements.values():
+        if s.faction != kid:
+            continue
+        r = B.vision.fort_watch if s.kind in ("town", "castle") else B.vision.village_watch if s.kind == "village" else 0
+        if r and dist(s.pos, q.pos) <= r:
+            return True
+    for p in (extra or []) + [x for x in w.parties.values() if x.alive and x.faction == kid and not x.inside
+                              and x.kind in ("lord", "caravan", "villager")]:
+        if dist(p.pos, q.pos) <= sight(w, p):
+            return True
+    return False

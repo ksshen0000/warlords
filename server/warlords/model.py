@@ -16,6 +16,8 @@ from .terrain import Terrain
 
 BANDIT = "__bandit"
 NEUTRAL = "__neutral"
+PLAYER = "__player"
+DEAD = "__dead"                # Hero.captive_of of an executed general
 
 
 @dataclass
@@ -163,6 +165,7 @@ class World:
     events: list[dict] = field(default_factory=list)
     rng: random.Random = field(default_factory=random.Random)
     counter: int = 0
+    player: dict = field(default_factory=dict)     # see player.py
 
     # ------------------------------------------------------------ basics
     @property
@@ -184,12 +187,17 @@ class World:
             return False
         if a == BANDIT or b == BANDIT:
             return True
+        if PLAYER in (a, b):
+            other = b if a == PLAYER else a
+            return other in self.player.get("wars", [])
         ka = self.kingdoms.get(a)
         return bool(ka and b in ka.wars)
 
     def side_of(self, p: Party) -> str:
         if p.kind == "bandit":
             return BANDIT
+        if p.kind == "player":
+            return self.player.get("kingdom") or self.player.get("contract") or PLAYER
         if p.kind == "merc":
             return p.contract or NEUTRAL
         if p.kind == "hunter":
@@ -204,6 +212,9 @@ class World:
             return True
         if NEUTRAL in (sa, sb):
             return False
+        if (a.kind == "player" and b.memo.get("ignore_player_until", 0) > self.hour) or \
+                (b.kind == "player" and a.memo.get("ignore_player_until", 0) > self.hour):
+            return False
         return self.at_war(sa, sb)
 
     def hostile_to_settlement(self, p: Party, s: Settlement) -> bool:
@@ -212,6 +223,8 @@ class World:
             return side != BANDIT
         if side == BANDIT:
             return s.kind == "village"
+        if s.kind == "hideout":
+            return True
         return self.at_war(side, s.faction)
 
     # ----------------------------------------------------------- lookups
@@ -220,7 +233,7 @@ class World:
 
     def kingdom_heroes(self, kid: str, free_only: bool = False) -> list[Hero]:
         return [h for h in self.heroes.values()
-                if h.kingdom == kid and (not free_only or h.captive_of is None)]
+                if h.kingdom == kid and h.captive_of != DEAD and (not free_only or h.captive_of is None)]
 
     def fiefs_of(self, hero_id: str) -> list[Settlement]:
         return [s for s in self.settlements.values() if s.owner == hero_id and s.kind in ("town", "castle")]
@@ -233,6 +246,8 @@ class World:
         bonus = 1.0
         if p.hero:
             bonus += B.battle.tactics_bonus * self.heroes[p.hero].tactics
+        elif p.kind == "player":
+            bonus = B.player.battle_bonus
         return T.power(p.troops) * bonus
 
     def kingdom_strength(self, kid: str) -> float:

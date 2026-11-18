@@ -10,14 +10,15 @@ from .model import BANDIT, NEUTRAL, Party, Settlement, World
 from .rules import B
 
 JOIN_RADIUS = 18.0
-HOLDS_PRISONERS = ("lord", "merc", "hunter")
+HOLDS_PRISONERS = ("lord", "merc", "hunter", "player")
 
 
 def _unit(w: World, p: Party) -> Unit:
     tac = w.heroes[p.hero].tactics if p.hero else (1 if p.kind in ("merc", "hunter") else 0)
     wr = B.battle.wound_rate
+    bonus = B.player.battle_bonus if p.kind == "player" else 1.0
     return Unit(w.heroes[p.hero].name if p.hero else p.name, p.troops, tac, p.id, p.hero,
-                wr.get(p.kind, wr.default))
+                wr.get(p.kind, wr.default), bonus)
 
 
 def _army_mates(w: World, p: Party, center) -> list[Party]:
@@ -38,7 +39,7 @@ def gather_sides(w: World, att: Party, dfn: Party) -> tuple[list[Party], list[Pa
     for q in list(w.parties.values()):
         if not q.alive or q.inside or q in A or q in D or q.mode == "flee":
             continue
-        if q.kind in ("caravan", "villager") or T.healthy(q.troops) == 0:
+        if q.kind in ("caravan", "villager", "player") or T.healthy(q.troops) == 0:
             continue
         if dist(q.pos, center) > JOIN_RADIUS:
             continue
@@ -75,7 +76,8 @@ def field_battle(w: World, att: Party, dfn: Party) -> dict:
             f"——{'攻方' if res.winner == 'attacker' else '守方'}获胜，伤亡 {res.attacker_losses}:{res.defender_losses}")
     ev = w.log("battle", text, pos=pos, attackers=[p.id for p in A], defenders=[p.id for p in D],
                sides=[w.side_of(A[0]), w.side_of(D[0])], kinds=[A[0].kind, D[0].kind],
-               place=place, terrain=TERRAIN[biome][1], report=rep)
+               place=place, terrain=TERRAIN[biome][1], report=rep,
+               player=any(p.kind == "player" for p in A + D))
     lose_rows = rep["defender"] if res.winner == "attacker" else rep["attacker"]
     if res.winner == "attacker":
         aftermath(w, win, lose, lose_rows, res.defender_losses, res.attacker_losses, rep, ev)
@@ -102,6 +104,10 @@ def aftermath(w: World, win: list[Party], lose: list[Party], lose_rows: list[dic
                 prisoners[tid] = prisoners.get(tid, 0) + v[1]
                 v[1] = 0
         T.prune(p.troops)
+        if p.kind == "player":
+            from .player import defeated
+            defeated(w, p, win)
+            continue
         loot += p.gold * 0.7
         p.gold *= 0.3
         for g, n in p.cargo.items():
@@ -147,6 +153,9 @@ def aftermath(w: World, win: list[Party], lose: list[Party], lose_rows: list[dic
                     p.prisoners[tid] = p.prisoners.get(tid, 0) + k
                     cap[p.id] -= k
                     n -= k
+    if any(p.kind == "player" for p in win):
+        from .player import on_victory
+        on_victory(w, enemy_losses, lose)
     win_heroes = [w.heroes[p.hero] for p in win if p.hero]
     lose_heroes = [w.heroes[p.hero] for p in lose if p.hero]
     for h in win_heroes:
@@ -167,11 +176,20 @@ def aftermath(w: World, win: list[Party], lose: list[Party], lose_rows: list[dic
     ev["loot"] = round(loot)
     ev["prisoners"] = sum(prisoners.values())
     rep["captured"] = list(captured_heroes)
+    # generals beaten by the player's own party are the player's prisoners (to recruit / ransom / execute)
+    by_player = any(p.kind == "player" for p in win)
     for hid in captured_heroes:
-        capture_hero(w, w.heroes[hid], ws, win_heroes[0] if win_heroes else None, ev.get("pos"))
+        capture_hero(w, w.heroes[hid], "__player" if by_player else ws, win_heroes[0] if win_heroes else None, ev.get("pos"))
+        if by_player:
+            from .player import queue_captive
+            queue_captive(w, hid)
 
 
 def retreat(w: World, p: Party) -> None:
+    if p.kind == "player":
+        p.mode, p.target = "idle", None
+        p.memo.pop("siege", None)
+        return
     haven = safe_haven(w, p)
     p.order = {"type": "retreat", "target": haven.id if haven else None, "age": 0, "reason": "战败撤退"}
     p.memo.pop("chase", None)
@@ -202,7 +220,7 @@ def capture_hero(w: World, h, side: str, by_hero, pos) -> None:
         captor = w.kingdoms[side].name
     else:
         h.captive_at = None
-        captor = "土匪" if side == BANDIT else "敌人"
+        captor = "土匪" if side == BANDIT else "你" if side == "__player" else "敌人"
     if by_hero:
         h.adjust_rel(by_hero.id, -10)
         by_hero.renown += 5
@@ -280,6 +298,8 @@ def assault(w: World, s: Settlement, camp: list[Party]) -> None:
     du = [Unit(f"{s.name}守军", s.garrison, 1), Unit(f"{s.name}民兵", militia, 0, wound_rate=0.5)]
     du += [_unit(w, p) for p in inside]
     bonus = 1 + B.siege.wall_bonus_per_level * s.walls
+    if len(w.kingdom_settlements(s.faction, ("town", "castle"))) <= B.siege.last_stand_forts:
+        bonus *= 1 + B.siege.last_stand_bonus      # a realm's last strongholds fight to the death
     res = resolve(w.rng, au, du, w.terrain.biome_at(*s.pos), bonus)
     rep = report(res, au, du)
     rep["walls"] = s.walls
@@ -288,12 +308,14 @@ def assault(w: World, s: Settlement, camp: list[Party]) -> None:
     old_fac = s.faction
     if res.winner == "attacker":
         ev = w.log("conquest", "", settlement=s.id, old=old_fac, new=kid, attackers=[p.id for p in camp],
-                   defenders=[p.id for p in inside], pos=list(s.pos), report=rep, place=s.name)
+                   defenders=[p.id for p in inside], pos=list(s.pos), report=rep, place=s.name,
+                   player=any(p.kind == "player" for p in camp))
         conquer(w, s, camp, inside, ev, res)
     else:
         ev = w.log("assault_failed",
                    f"{_names(w, camp)}强攻{s.name}失败（伤亡 {res.attacker_losses}:{res.defender_losses}）",
-                   settlement=s.id, attackers=[p.id for p in camp], pos=list(s.pos), report=rep, place=s.name)
+                   settlement=s.id, attackers=[p.id for p in camp], pos=list(s.pos), report=rep, place=s.name,
+                   player=any(p.kind == "player" for p in camp))
         s.siege = None
         if kid in w.kingdoms and old_fac in w.kingdoms:
             add_war_score(w, old_fac, kid, 10 + res.attacker_losses / 5, res.defender_losses, res.attacker_losses)
@@ -354,7 +376,10 @@ def conquer(w: World, s: Settlement, camp: list[Party], inside: list[Party], ev:
             capture_hero(w, w.heroes[p.hero], kid, w.heroes.get(lead.hero), s.pos)
         else:
             destroy_party(w, p)
-    open_fief_decision(w, s, [p.hero for p in camp if p.hero])
+    contributors = [p.hero for p in camp if p.hero]
+    if any(p.kind == "player" for p in camp) and w.player.get("kingdom") == kid:
+        contributors.append("player")
+    open_fief_decision(w, s, contributors)
 
 
 # ------------------------------------------------------------- raids
@@ -398,6 +423,8 @@ def raid_tick(w: World) -> None:
         v.militia = 0.0
         p.mode = "idle"
         p.order = None
+        from .scenario import spawn_refugees
+        spawn_refugees(w, v)
         if p.hero:
             h = w.heroes[p.hero]
             h.gold += loot
@@ -454,11 +481,11 @@ def assault_hideout(w: World, p: Party, h: Settlement) -> None:
                 b.home = None
         w.log("hideout_cleared", f"{_names(w, attackers)}剿灭了匪巢{h.name}", settlement=h.id,
               pos=list(h.pos), report=rep, attackers=[q.id for q in attackers], place=h.name,
-              sides=[w.side_of(p), BANDIT], kinds=[p.kind, "hideout"])
+              sides=[w.side_of(p), BANDIT], kinds=[p.kind, "hideout"], player=p.kind == "player")
     else:
         w.log("battle", f"{_names(w, attackers)}进攻匪巢{h.name}失败（伤亡 {res.attacker_losses}:{res.defender_losses}）",
               pos=list(h.pos), report=rep, attackers=[q.id for q in attackers], defenders=[], place=h.name,
-              sides=[w.side_of(p), BANDIT], kinds=[p.kind, "hideout"])
+              sides=[w.side_of(p), BANDIT], kinds=[p.kind, "hideout"], player=p.kind == "player")
         for q in attackers:
             retreat(w, q)
 

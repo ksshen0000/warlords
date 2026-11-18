@@ -8,13 +8,17 @@ from . import economy as E
 from . import movement as M
 from . import troops as T
 from . import warfare as WF
-from .common import destroy_party, dist, nearest_settlement, safe_haven
+from .common import destroy_party, dist, nearest_settlement, realm_sees, safe_haven, sight
 from .model import Party, World
 
 SIGHT = 55.0
 
 
-def _nearby(w: World, p: Party, radius: float):
+def _nearby(w: World, p: Party, radius: float, seen_only: bool = True):
+    # nobody goes after what they cannot see: darkness and a small, slow party narrow the view.
+    # (danger is different: outriders and fleeing peasants warn of a big army well before it is in view)
+    if seen_only:
+        radius = min(radius, sight(w, p))
     for q in w.parties.values():
         if q is p or not q.alive or q.inside:
             continue
@@ -31,8 +35,8 @@ def _threat(w: World, p: Party, radius: float = 40.0, margin: float = 1.15):
     friends = sum(w.party_power(q) for d, q in _nearby(w, p, 20) if not w.hostile(p, q)
                   and q.kind in ("lord", "merc", "hunter"))
     best = None
-    for d, q in _nearby(w, p, radius):
-        if not w.hostile(p, q) or q.kind in ("caravan", "villager") or q.mode == "flee":
+    for d, q in _nearby(w, p, radius, seen_only=False):
+        if not w.hostile(p, q) or q.kind in ("caravan", "villager", "refugee") or q.mode == "flee":
             continue
         if q.kind == "hunter" and p.kind != "bandit":
             continue
@@ -52,7 +56,7 @@ def _prey(w: World, p: Party, radius: float, ratio: float, kinds=None):
             continue
         qp = w.party_power(q)
         if qp * ratio < mine:
-            score = d - (40 if q.kind in ("caravan", "villager") else 0)
+            score = d - (40 if q.kind in ("caravan", "villager", "refugee") else 0)
             if best is None or score < best[0]:
                 best = (score, q)
     return best[1] if best else None
@@ -62,6 +66,9 @@ def _engage_if_contact(w: World, p: Party) -> bool:
     if p.target and p.target["kind"] == "party" and p.mode in ("chase",):
         q = w.parties.get(p.target["id"])
         if q and q.alive and not q.inside and w.hostile(p, q) and dist(p.pos, q.pos) <= M.CONTACT:
+            if q.kind == "player":
+                from .player import encounter_from_ai
+                return encounter_from_ai(w, p)      # the player chooses: fight, flee, pay, surrender
             WF.field_battle(w, p, q)
             return True
     return False
@@ -99,9 +106,10 @@ def bandit(w: World, p: Party) -> None:
         return
     if p.mode == "chase":
         q = w.parties.get(p.target["id"]) if p.target else None
-        if q and q.alive and not q.inside and dist(q.pos, p.pos) < 90 and w.hour < p.memo.get("chase_until", 0):
+        if q and q.alive and not q.inside and dist(q.pos, p.pos) < min(90, sight(w, p) * 1.3) \
+                and w.hour < p.memo.get("chase_until", 0):
             return
-    prey = _prey(w, p, SIGHT, 1.25)
+    prey = _prey(w, p, sight(w, p), 1.25)
     if prey:
         M.set_party(p, prey.id, "chase")
         p.memo["chase_until"] = w.hour + 14
@@ -196,6 +204,42 @@ def villager(w: World, p: Party) -> None:
             destroy_party(w, p)
         elif s.kind == "town":
             E.villager_arrive(w, p, s)
+
+
+# ------------------------------------------------------------- refugees
+def refugee(w: World, p: Party) -> None:
+    """流民: trudge to a town of their realm (or the fief the player sent them to) and settle there."""
+    from .rules import B
+    th = _threat(w, p, 35, 0.3)
+    if th:
+        M.flee_from(w, p, th.pos, p.memo.get("dest"))
+        p.memo["flee_until"] = w.hour + 3
+        return
+    if p.mode == "flee":
+        if p.memo.get("flee_until", 0) > w.hour:
+            return
+        p.mode = "move"
+        p.target = None
+    if w.hour > p.memo.get("until", 0):
+        w.log("refugees", f"{p.name}没能走到城里，四散逃亡", pos=list(p.pos))
+        destroy_party(w, p)
+        return
+    dest = w.settlements.get(p.memo.get("dest"))
+    if dest is None:
+        destroy_party(w, p)
+        return
+    if not p.target:
+        M.set_place(p, dest.id)
+        return
+    if p.target["kind"] == "place" and M.arrived(w, p):
+        n = T.healthy(p.troops)
+        dest.prosperity += n * B.refugee.settle_prosperity
+        mine = dest.owner == "player"
+        w.log("refugees", f"{n}名流民在{dest.name}安了家" + ("（你的封地）" if mine else ""), settlement=dest.id,
+              pos=list(dest.pos), player=mine)
+        if mine and p.memo.get("player_led"):
+            w.player["renown"] = round(w.player.get("renown", 0) + B.refugee.resettle_renown, 1)
+        destroy_party(w, p)
 
 
 # ------------------------------------------------------- bounty hunters
@@ -391,7 +435,12 @@ def _execute(w: World, p: Party, h) -> None:
     t, tgt = o["type"], o.get("target")
     if t == "attack":
         q = w.parties.get(tgt)
-        if not q or not q.alive or not w.hostile(p, q) or o["age"] > 30:
+        lost = q is not None and q.alive and not realm_sees(w, p.faction, q, [p])
+        if lost:
+            o["lost"] = o.get("lost", 0) + 1            # the quarry slipped out of sight (night, hills…)
+        else:
+            o.pop("lost", None)
+        if not q or not q.alive or not w.hostile(p, q) or o["age"] > 30 or o.get("lost", 0) > 4:
             p.order = None
             M.stop(p)
             return
@@ -456,7 +505,7 @@ def hourly(w: World) -> None:
     for p in list(w.parties.values()):
         if not p.alive:
             continue
-        if T.healthy(p.troops) == 0 and p.kind != "lord":
+        if T.healthy(p.troops) == 0 and p.kind not in ("lord", "player"):
             destroy_party(w, p)
             continue
         k = p.kind
@@ -466,6 +515,8 @@ def hourly(w: World) -> None:
             caravan(w, p)
         elif k == "villager":
             villager(w, p)
+        elif k == "refugee":
+            refugee(w, p)
         elif k == "hunter":
             hunter(w, p)
         elif k == "merc":

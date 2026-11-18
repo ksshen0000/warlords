@@ -13,7 +13,7 @@ base_speed = 5.5              # 普通部队在平原上的速度（地图单位
 cavalry_bonus = 0.35          # 全骑兵部队的额外速度
 size_penalty_per_troop = 0.002  # 每名士兵带来的减速
 min_size_factor = 0.6
-kind_speed = { lord = 1.0, caravan = 0.85, villager = 0.75, bandit = 1.12, hunter = 1.15, merc = 1.0 }
+kind_speed = { lord = 1.0, caravan = 0.85, villager = 0.75, bandit = 1.12, hunter = 1.15, merc = 1.0, player = 1.2, refugee = 0.65 }
 
 [battle]
 max_rounds = 6
@@ -53,15 +53,29 @@ caravan_capacity = 40
 caravan_respawn_chance = 0.1  # 没有商队的城镇每天组建新商队的概率
 
 [siege]
-progress_per_wall = 2000      # 攻城器械进度：每小时 + 攻方人数 /(城墙等级 × 该值)
-wall_bonus_per_level = 0.35   # 强攻时守方战力 × (1 + 城墙等级 × 该值)
+progress_per_wall = 3200      # 攻城器械进度：每小时 + 攻方人数 /(城墙等级 × 该值)
+wall_bonus_per_level = 0.45   # 强攻时守方战力 × (1 + 城墙等级 × 该值)
 conquest_prosperity_loss = 15
 garrison_left_share = 0.2     # 攻下后统帅留下的驻军比例
 conquest_loyalty = 25         # 新征服据点的初始民心
+town_garrison = 190           # 开局城的守军（城池少而大：每国只有 4 座）
+castle_garrison = 140         # 开局关塞的守军
+last_stand_bonus = 0.5        # 一国只剩最后 last_stand_forts 座城池时，守方战力额外 ×(1+该值)：困兽犹斗
+last_stand_forts = 2
 
 [raid]
 duration_hours = 10
 recovery_days = 8
+
+[refugee]
+# 流民：村庄被劫掠后，逃难的村民扶老携幼去最近的本国城池；路上会被匪寇盯上
+size_base = 8                 # 人数 = base + 村庄繁荣 × per_prosperity
+size_per_prosperity = 0.25
+days = 7                      # 几天内没走到就散了
+settle_prosperity = 0.5       # 到达城池（或你的封地）后每人增加的繁荣
+heads_per_grain = 4           # 收编：每份粮食能养活几人
+gold_per_head = 9             # 没有粮食时，每人折合多少金
+resettle_renown = 2           # 把他们安置到你的封地，声望增加
 
 [loyalty]
 # 民心 0..100：异族统治、饥荒、过度扩张会让民心下降；民心太低会叛乱，回归同文化的王国。
@@ -81,6 +95,24 @@ escape_chance = 0.045         # 被俘领主每天越狱概率
 ransom_chance = 0.12          # 君主每天考虑支付赎金的概率
 ransom_base = 250
 ransom_per_renown = 3
+# ---- 处置俘虏的将军（玩家：招降 / 索赎 / 释放 / 斩首；AI 国家也会招降）
+recruit_base = 0.22           # 招降基础成功率；另加：-荣誉×0.08、对旧主的不满、对你的好感、国家加成（world.toml captive_recruit）、你的威名
+recruit_dread = 0.004         # 每点「威名」（斩过的将领越多越高）增加的招降成功率，上限见下
+recruit_dread_max = 0.15
+recruit_fief_penalty = 0.12   # 有封地的将军更难背弃旧主
+ai_recruit_daily = 0.035      # AI 国家每天对每个关押的敌将尝试招降的概率（再乘成功率）
+ransom_now_share = 0.8        # 当场索赎能拿到的比例（等待对方君主赎回则是全额，但要等几天）
+release_relation = 15         # 无条件释放：他对你的好感
+release_renown = 3
+execute_renown = -15          # 斩首：声望变化（以残暴闻名）
+execute_dread = 10            # 斩首：威名增加
+execute_relation = -15        # 斩首：其国将领对你好感
+execute_family = -40          # 斩首：其同族对你好感（再叠加上一条）
+
+[pedigree]
+# 门第等级（用于分封权重）；每国看重门第的程度见 world.toml 的 pedigree_weight
+rank = { royal = 4, high = 3, clan = 2.5, mid = 2, low = 1 }
+vote_weight = 1.6             # 规则 AI 投票时：门第等级 × pedigree_weight × 该值
 
 [politics]
 war_proposal_cost = 60        # 提议宣战消耗影响力
@@ -99,7 +131,7 @@ tribute_max = 220
 tribute_days = 20
 
 [bandits]
-max_active_hideouts = 8
+max_active_hideouts = 6
 spawn_chance = 0.4            # 每个匪巢每天派出新匪帮的概率
 max_parties_per_hideout = 3
 hideout_respawn_days = 10
@@ -108,6 +140,37 @@ bounty_per_bandit = 15
 
 [neutral]
 bounty_hunters = 3
+
+[player]
+start_gold = 2000
+start_troops = 22
+battle_bonus = 1.6            # 玩家部队战力倍率（目前给玩家较好的加成）
+party_limit_base = 40         # 部队上限 = base + 声望/4 + 每块封地 10
+cargo_base = 40               # 可携带货物 = base + 每名士兵 1
+renown_per_victory_kill = 0.25  # 胜利时每个敌方伤亡带来的声望
+flee_base_chance = 0.5        # 被追上时脱身的基础概率（速度比越有利越高）
+pay_off_share = 0.3           # 向土匪交出的金钱比例
+defeat_gold_loss = 0.25       # 战败被俘时损失的金钱比例
+captive_days = 3              # 被俘后多少天逃脱
+merc_pay_per_power = 0.12     # 佣兵合同日薪 = 部队战力 × 该值
+merc_contract_days = 30
+vassal_renown = 120           # 宣誓效忠所需声望
+vassal_relation = 0           # 以及与君主的最低好感
+ransom_days = 3               # 你俘虏的领主多少天后由其君主赎回
+
+[vision]
+# 视野（类似骑砍战团的「侦察」技能）：只有视野内的部队会显示在地图上；城池村落始终可见，
+# 但城防、守军和驻扎在里面的部队要走进视野、鼠标移上去才看得清（自家的据点除外）
+base = 70                     # 白天的基础视野半径（地图单位，约等于「里」；骑行一天约 160）
+cavalry_bonus = 30            # 全骑兵部队额外视野（按骑兵比例折算：游骑斥候放得更远）
+renown_bonus_max = 20         # 名望带来的额外视野上限（老兵、向导、耳目），每 10 点名望 +1
+night_factor = 0.55           # 夜里视野乘以该值
+night_start = 20              # 几点入夜
+night_end = 5                 # 几点天亮
+inside_factor = 1.0           # 待在城里时（城头瞭望）
+npc_base = 55                 # AI 部队的视野（同样受夜间和骑兵比例影响）：看不见的敌人就不会去追、也不会躲
+fort_watch = 60               # 城池/关塞的瞭望范围：本国将领知道自家据点附近的敌情
+village_watch = 40            # 村落报信的范围（烽火、乡民跑来报信）
 
 # ------------------------------------------------------------------
 # 规则 AI 的权重（LLM 领主读 doctrine.toml 里的文字准则，规则 AI 读这些数字；
@@ -122,6 +185,7 @@ peace_win_greed = 0.0067          # 战局有利时（每点正分）略不想�
 peace_accept_threshold = 0.5
 war_per_extra_front = 2.5         # avoid_multi_front：已有战争时不想再开新战线
 war_strength_weight = 4.0
+war_dogpile_penalty = 1.6        # lips_and_teeth：目标每多一个交战国，就更不想再落井下石
 war_peace_boredom_days = 40       # 和平太久会想打仗
 hegemon_share = 0.33              # balance_of_power：一国城池占比超过此值视为霸主
 hegemon_war_bonus = 8.0           # 对霸主宣战的意愿加成（随超出比例增长）

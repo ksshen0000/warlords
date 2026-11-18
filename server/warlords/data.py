@@ -21,6 +21,7 @@ TERRAIN_BATTLE = {i: dict(_T[k]["battle"]) for i, k in enumerate(TERRAIN_KEYS) i
 VILLAGE_GOODS = {i: list(_T[k]["village_goods"]) for i, k in enumerate(TERRAIN_KEYS) if "village_goods" in _T[k]}
 RIVER_SPEED = float(_T["river_speed"])
 ROAD_SPEED = float(_T["road_speed"])
+FORD_SPEED = float(_T.get("ford_speed", 0.35))
 
 # ------------------------------------------------------------------ goods
 GOODS = {g: (v["name"], v["price"]) for g, v in _U["goods"].items()}
@@ -86,4 +87,14 @@ LORDS = [(l["id"], l["name"], l["kingdom"],
 INITIAL_RELATIONS = [tuple(r) for r in _W.get("relations", [])]
 INITIAL_WARS = [tuple(r) for r in _W.get("wars", [])]
 CARAVAN_OWNERS = list(_W.get("caravan_owners", []))
+TITLES = {k["id"]: k.get("title", "君主") for k in _W["kingdoms"]}               # ruler title per kingdom
+PEDIGREE = {l["id"]: l.get("pedigree", "mid") for l in _W["lords"]}
+PEDIGREE_NAMES = {"royal": "宗室王族", "high": "高门", "mid": "次门", "low": "寒门", "clan": "部族贵种"}
+LAYOUT = dict(_W.get("layout", {}))
+BLURBS = {k["id"]: k.get("blurb", "") for k in _W["kingdoms"]}
+PEDIGREE_WEIGHT = {k["id"]: float(k.get("pedigree_weight", 0.5)) for k in _W["kingdoms"]}
+TOWN_MIN_PEDIGREE = {k["id"]: k.get("town_min_pedigree", "") for k in _W["kingdoms"]}
+CAPTIVE_RECRUIT = {k["id"]: float(k.get("captive_recruit", 0.0)) for k in _W["kingdoms"]}
+BACKGROUNDS = {b: dict(v) for b, v in _W.get("backgrounds", {}).items()}
+KIND_NAMES = {"town": "城", "castle": "关塞", "village": "村落", "hideout": "匪巢"}
 MERC_COMPANIES = [tuple(m) for m in _W.get("mercenaries", [])]

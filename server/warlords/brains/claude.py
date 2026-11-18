@@ -9,8 +9,8 @@ from __future__ import annotations
 import anthropic
 
 from .base import Brain, Decision
-from .llm_common import (DECISION_SCHEMA, SYSTEM_PROMPT, decide_prompt, parse_decision, propose_prompt,
-                         vote_prompt)
+from .llm_common import (DECISION_SCHEMA, SYSTEM_PROMPT, build_prompt, decide_prompt, parse_decision,
+                         propose_prompt, vote_prompt)
 from .rule import RuleBrain
 
 
@@ -27,6 +27,27 @@ class ClaudeBrain(Brain):
         self.calls = 0
         self.failures = 0
         self.disabled = False
+
+    # ---- async interface used by the simulation's AI router
+    def prompt(self, method: str, world, *args) -> str:
+        return build_prompt(method, world, *args)
+
+    def complete(self, prompt: str, n_options: int) -> Decision | None:
+        return self._ask(prompt, n_options)
+
+    def chat_json(self, system: str, user: str) -> dict | None:
+        import json
+        try:
+            resp = self.client.messages.create(
+                model=self.model, max_tokens=4000, system=system,
+                output_config={"effort": self.effort},
+                messages=[{"role": "user", "content": user}])
+            text = next((b.text for b in resp.content if b.type == "text"), "")
+            text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```")
+            return json.loads(text)
+        except (anthropic.APIError, ValueError) as e:
+            print(f"[claude] 对话失败：{e}")
+            return None
 
     def _ask(self, prompt: str, n_options: int) -> Decision | None:
         if self.disabled:

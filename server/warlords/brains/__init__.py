@@ -1,21 +1,18 @@
 from .base import Brain, Decision
 from .rule import RuleBrain
 
-BRAINS = ["rule", "claude", "openai", "deepseek"]
+PROVIDERS = ["deepseek", "openai", "claude"]
 
 
-def make_brain(name: str, seed: int = 0, model: str | None = None, effort: str = "low") -> Brain:
-    """Create a brain by name. LLM brains fall back to the rule brain on any failure."""
-    fallback = RuleBrain(seed)
-    if name == "rule":
-        return fallback
-    if name == "claude":
+def make_llm(provider: str, model: str | None = None, effort: str = "low"):
+    """Create an LLM brain (raises RuntimeError if the key is missing)."""
+    if provider == "claude":
         from .claude import ClaudeBrain
-        return ClaudeBrain(model=model or "claude-opus-5-5", effort=effort, fallback=fallback)
-    if name in ("openai", "deepseek"):
+        return ClaudeBrain(model=model or "claude-opus-5-5", effort=effort, fallback=None)
+    if provider in ("openai", "deepseek"):
         from .openai_compat import OpenAICompatBrain
-        return OpenAICompatBrain(provider=name, model=model, fallback=fallback)
-    raise ValueError(f"未知的 AI 类型：{name}")
+        return OpenAICompatBrain(provider=provider, model=model, fallback=None)
+    raise ValueError(f"未知的 LLM 提供商：{provider}")
 
 
-__all__ = ["BRAINS", "Brain", "Decision", "RuleBrain", "make_brain"]
+__all__ = ["PROVIDERS", "Brain", "Decision", "RuleBrain", "make_llm"]

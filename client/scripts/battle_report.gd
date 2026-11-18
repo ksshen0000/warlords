@@ -167,7 +167,7 @@ func _side_info(state: Dictionary, side) -> Array:
 	if state.kingdoms.has(sid):
 		return [state.kingdoms[sid].name, Color(state.kingdoms[sid].color)]
 	if sid == "__bandit":
-		return ["土匪", Color("c0605a")]
+		return ["匪寇", Color("c0605a")]
 	return ["中立", Color("d9b44a")]
 
 

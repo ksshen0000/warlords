@@ -7,7 +7,8 @@ from .. import troops as T
 from ..economy import party_limit
 from ..model import World
 from ..options import Option, army_power
-from ..politics import fief_share, hegemon
+from ..data import PEDIGREE_WEIGHT
+from ..politics import fief_share, hegemon, pedigree_rank
 from ..rules import B
 from .base import Brain, Decision
 
@@ -96,6 +97,8 @@ class RuleBrain(Brain):
         s += 0.3 * info["border"] - 1.5
         s += min(2.5, (w.day - k.last_offensive) / a.war_peace_boredom_days) - a.war_per_extra_front * info["wars"]
         share = fief_share(w, target)
+        others = sum(1 for e in w.kingdoms[target].wars if e != k.id)
+        s -= a.war_dogpile_penalty * others          # lips_and_teeth: don't pile onto a beaten realm
         if share > a.hegemon_share:
             s += a.hegemon_war_bonus * (share - a.hegemon_share) * 3
         return s
@@ -172,6 +175,8 @@ class RuleBrain(Brain):
             else:
                 s = hero.rel(hid) / 10 + (3 + t["honor"] if "功臣" in options[i].label else 0)
                 s -= len(w.fiefs_of(hid)) * 0.8
+            # 门第: in 周 a high-born claimant is favoured, in 燕/蜀 it hardly matters
+            s += B.pedigree.vote_weight * PEDIGREE_WEIGHT.get(hero.kingdom, 0.5) * (pedigree_rank(w, hid) - 2)
             s += self.rng.uniform(0, 1)
             if s > best_s:
                 best, best_s = i, s

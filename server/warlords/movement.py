@@ -42,7 +42,8 @@ def target_pos(w: World, p: Party):
         if not q or not q.alive:
             return None
         if q.inside:
-            return tuple(w.settlements[q.inside].pos)
+            s = w.settlements.get(q.inside)      # "__captive" etc. = unreachable
+            return tuple(s.pos) if s else None
         return tuple(q.pos)
     return tuple(t["pos"])
 

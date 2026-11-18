@@ -20,6 +20,7 @@ class Unit:
     party: str | None = None
     hero: str | None = None
     wound_rate: float = 0.6       # share of casualties that are wounded instead of killed
+    bonus: float = 1.0            # flat strength multiplier (e.g. the player's edge)
     start: dict = field(default_factory=dict)
     killed: dict = field(default_factory=dict)
     wounded: dict = field(default_factory=dict)
@@ -43,7 +44,7 @@ def _class_power(units: list[Unit], terrain: int, bonus: float) -> dict[str, flo
     tmod = TERRAIN_BATTLE.get(terrain, {})
     out = {"inf": 0.0, "arc": 0.0, "cav": 0.0}
     for u in units:
-        tac = 1 + B.battle.tactics_bonus * u.tactics
+        tac = (1 + B.battle.tactics_bonus * u.tactics) * u.bonus
         for tid, (h, _w) in u.roster.items():
             if h <= 0:
                 continue

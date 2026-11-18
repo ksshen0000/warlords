@@ -12,26 +12,29 @@ from ..common import dist
 from ..model import Hero, World
 from ..options import Option
 from ..politics import fief_share
+from ..data import KIND_NAMES, PEDIGREE, PEDIGREE_NAMES, TITLES
 from ..rules import RULES
 from .base import Decision
 
-SYSTEM_PROMPT = """你在一个中世纪战略沙盒中扮演一位领主（或君主），替他/她做决定。
+SYSTEM_PROMPT = """你在一个以中国南北朝为原型的架空乱世战略沙盒中扮演一位将军（或君主），替他/她做决定。
 
 这个世界：
-- 大陆上有数个王国，各有城镇、城堡和村庄。领主率领私兵在连续的地图上行军：道路快、森林沼泽慢、河流难渡、山地不可通行。
+- 一统天下的周朝在诸王之乱中崩塌，北方诸部攻陷洛阳，周室南渡建康，据大江以守。如今周、燕、赵、凉、蜀、柔六国并立，坞堡林立，流民遍野。
+- 各国有城、关塞和村落。将军率领部曲在连续的地图上行军：道路快、森林沼泽慢、小河难渡、山地不可通行。大江横贯南北，只能经几处渡口过江，大军渡江很慢；蜀所在的盆地四面环山，只有几处隘口进出。
 - 战斗自动结算，有随机性：兵力、兵种（步兵克骑兵、射手克步兵、骑兵克射手）、兵种等级、地形和统帅能力都有影响。
-- 攻城要先围困数日造攻城器械，城墙让守军更强；敌方援军可能赶来解围。新征服的城池会由王国议会投票分封，君主拥有最终裁决权。
-- 异族统治、饥荒、过度扩张会让城池民心低落，民心过低会叛乱回归故国。
-- 战败的领主可能被俘，需要赎金或越狱才能脱身；部队每天要发军饷，欠饷会有逃兵；封地和商队提供收入。
-- 议会中，领主可以提议宣战或议和并投票；领主之间有好感度，长期受冷落的领主可能叛投他国。
-- 土匪、商队、村民、赏金猎人和佣兵团也在地图上活动。
+- 攻城要先围困数日造攻城器械，城墙让守军更强；敌方援军可能赶来解围。新攻下的城池由朝议推举分封，君主拥有最终裁决权。
+- 异族统治、饥荒、过度扩张会让城池民心低落，民心过低会叛乱、回归故国。
+- 战败的将军可能被俘，需要赎金或越狱才能脱身；部队每天要发军饷，欠饷会有逃兵；封地和商队提供收入。
+- 朝议中，将军可以提议宣战或议和并表态；将军之间有好感度，长期受冷落的将军可能叛投他国——乱世之中，倒戈并不稀奇。
+- 流寇、山贼、江贼、马贼、商队、村民、游侠和义从也在地图上活动。
+- 这是架空世界：不要提及真实历史人物、真实民族名或真实朝代（如「东晋」「前燕」），古地名可以照常使用。
 
 你的任务：
 - 完全以这个角色的身份、性格、处境、记忆和人际关系来思考，而不是追求冷冰冰的最优解。
 - 「行事准则」是你所在世界的常识和王国传统，通常应当遵循；违背时要有符合人物性格的理由。
 - 只能从给出的编号选项中选一个。
 - reason：一句话说明你的考虑（中文，40字内）。
-- speech：这个角色此刻会说的一句台词（中文，30字内，符合人物口吻）。
+- speech：这个角色此刻会说的一句台词（中文，30字内，半文半白、符合人物身份与口吻，不用现代口语）。
 """
 
 DECISION_SCHEMA = {
@@ -63,7 +66,10 @@ def describe_hero(w: World, h: Hero) -> str:
     k = w.kingdoms[h.kingdom]
     ruler = w.heroes[k.ruler]
     traits = "，".join(f"{TRAIT_NAMES[t]}{v:+d}" for t, v in h.traits.items())
-    who = "你是本国君主。" if ruler.id == h.id else f"你效忠于{k.name}君主{ruler.name}（你对其好感{h.rel(ruler.id):+d}）。"
+    title = TITLES.get(k.id, "君主")
+    who = (f"你是{k.name}的{title}（本国君主）。" if ruler.id == h.id else
+           f"你效忠于{k.name}{title}{ruler.name}（你对其好感{h.rel(ruler.id):+d}）。")
+    who += f"门第：{PEDIGREE_NAMES.get(PEDIGREE.get(h.id, 'mid'), '次门')}。"
     lines = [f"今天是第{w.day}天。", f"你是【{h.name}】，{h.persona}", f"性格：{traits}；统御{h.tactics}。{who}",
              f"金币{h.gold:.0f}，影响力{h.influence:.0f}，声望{h.renown}。"]
     p = w.hero_party(h.id)
@@ -82,8 +88,9 @@ def describe_hero(w: World, h: Hero) -> str:
         near = []
         for q in w.parties.values():
             if q.alive and q is not p and not q.inside and dist(q.pos, p.pos) < 120 and w.hostile(p, q) \
-                    and q.kind in ("lord", "merc", "bandit"):
-                near.append(f"{w.heroes[q.hero].name if q.hero else q.name}（{T.healthy(q.troops)}人，"
+                    and q.kind in ("lord", "merc", "bandit", "player"):
+                who = "玩家（一支流亡队伍的首领）" if q.kind == "player" else (w.heroes[q.hero].name if q.hero else q.name)
+                near.append(f"{who}（{T.healthy(q.troops)}人，"
                             f"战力{w.party_power(q):.0f}，约{dist(q.pos, p.pos):.0f}里）")
         if near:
             lines.append("附近的敌对部队：" + "；".join(near[:4]))
@@ -92,7 +99,7 @@ def describe_hero(w: World, h: Hero) -> str:
         fs = []
         for s in fiefs:
             raided = sum(1 for v in s.villages if w.settlements[v].raided_until > w.hour)
-            fs.append(f"{s.name}（{'城镇' if s.kind == 'town' else '城堡'}，守军{T.healthy(s.garrison)}，"
+            fs.append(f"{s.name}（{KIND_NAMES[s.kind]}，守军{T.healthy(s.garrison)}，"
                       f"繁荣{s.prosperity:.0f}，民心{s.loyalty:.0f}，存粮{s.food:.0f}"
                       + (f"，被劫村庄{raided}" if raided else "")
                       + (f"，【正被{w.kingdoms[s.siege['kingdom']].name}围攻】" if s.siege else "") + "）")
@@ -128,7 +135,7 @@ def overview(w: World, me: str) -> str:
     open_ = [d for d in w.decisions.values() if not d.resolved and d.kingdom == me]
     if open_:
         from ..politics import decision_context
-        out.append("本国议会待决议题：" + "；".join(decision_context(w, d) for d in open_))
+        out.append("本国朝议待决议题：" + "；".join(decision_context(w, d) for d in open_))
     return "\n".join(out)
 
 
@@ -150,17 +157,28 @@ def decide_prompt(w: World, h: Hero, options: list[Option]) -> str:
 
 def propose_prompt(w: World, h: Hero, options: list[Option]) -> str:
     return (f"{describe_hero(w, h)}\n\n{doctrine_text(h, 'propose')}\n\n"
-            f"本周王国议会开会。你要在议会提出什么议案吗？（提案会消耗影响力）\n{options_txt(options)}")
+            f"本周朝议。你要在朝议上提出什么建言吗？（提案会消耗影响力）\n{options_txt(options)}")
 
 
 def vote_prompt(w: World, h: Hero, context: str, options: list[Option], tally: dict | None) -> str:
     if tally is not None:
         t = "，".join(f"{o.label.split('（')[0]}：{tally.get(o.target, 0):.1f}票" for o in options)
-        ask = (f"{context}\n议会投票结果（按影响力加权）：{t}。\n你是君主，由你做最终裁决。"
-               f"违背多数意见会损失影响力并让投反对票的领主不满。")
+        ask = (f"{context}\n朝议表态结果（按影响力加权）：{t}。\n你是君主，由你做最终裁决。"
+               f"违背多数意见会损失影响力并让持异议的将军不满。")
     else:
         ask = f"{context}\n请表态："
     return f"{describe_hero(w, h)}\n\n{doctrine_text(h, 'vote')}\n\n{ask}\n{options_txt(options)}"
+
+
+def build_prompt(method: str, w: World, *args) -> str:
+    """Prompt for a brain call; must run on the simulation thread (it reads the world)."""
+    if method == "decide":
+        return decide_prompt(w, *args)
+    if method == "propose":
+        return propose_prompt(w, *args)
+    if method == "vote":
+        return vote_prompt(w, *args)
+    raise ValueError(method)
 
 
 def parse_decision(text: str, n_options: int) -> Decision | None:

@@ -63,6 +63,26 @@ def new_bandits(w: World, hideout: Settlement, size: int | None = None) -> Party
     return p
 
 
+def spawn_refugees(w: World, v: Settlement) -> Party | None:
+    """A raided village empties onto the roads: 流民 walking to the nearest town of their realm."""
+    from .common import nearest_settlement
+    R = B.refugee
+    n = int(R.size_base + v.prosperity * R.size_per_prosperity)
+    if n <= 0:
+        return None
+    dest = nearest_settlement(w, v.pos, lambda s: s.kind == "town" and s.faction == v.faction and not s.siege) \
+        or nearest_settlement(w, v.pos, lambda s: s.kind == "town" and not s.siege)
+    if dest is None:
+        return None
+    pid = w.new_id("rf")
+    troops: dict = {}
+    T.add(troops, "villager", n)
+    p = Party(pid, "refugee", f"{v.name}流民", None, list(v.pos), troops, home=v.id, gold=float(w.rng.randint(5, 40)))
+    p.memo.update({"culture": v.culture, "until": w.hour + 24 * R.days, "dest": dest.id, "origin": v.faction})
+    w.parties[pid] = p
+    return p
+
+
 def new_hunters(w: World, town: Settlement) -> Party:
     pid = w.new_id("bh")
     troops: dict = {}
@@ -82,7 +102,7 @@ def new_lord_party(w: World, hero: Hero, at: Settlement, size: int) -> Party:
     return p
 
 
-def default_world(seed: int = 0) -> World:
+def default_world(seed: int = 0, with_player: bool = True) -> World:
     terrain = generate(seed)
     rng = random.Random(seed)
     w = World(seed=seed, terrain=terrain, rng=rng)
@@ -118,8 +138,9 @@ def default_world(seed: int = 0) -> World:
         sid = f"{kid}{i}"
         town = kind == "town"
         s = Settlement(sid, names[culture].pop(0), kind, [round(pos[0], 1), round(pos[1], 1)], culture, kid,
-                       FIEF_HOLDERS[kid][i] if i < 5 else w.kingdoms[kid].ruler,
-                       garrison=culture_army(culture, 55 if town else 45, rng, 0.35 if town else 0.55),
+                       FIEF_HOLDERS[kid][i] if i < len(FIEF_HOLDERS[kid]) else w.kingdoms[kid].ruler,
+                       garrison=culture_army(culture, B.siege.town_garrison if town else B.siege.castle_garrison, rng,
+                                              0.35 if town else 0.55),
                        militia=40.0 if town else 25.0, walls=(3 if i == 0 else 2) if town else 3,
                        prosperity=float(rng.randint(60, 90)) if town else float(rng.randint(25, 40)),
                        food=140.0 if town else 90.0, loyalty=float(B.loyalty.start))
@@ -154,16 +175,17 @@ def default_world(seed: int = 0) -> World:
     for bt, pos in cands:
         by_type.setdefault(bt, []).append(pos)
     chosen = []
-    while len(chosen) < 14 and any(by_type.values()):
+    n_hide = int(D.LAYOUT.get("hideouts", 14))
+    while len(chosen) < n_hide and any(by_type.values()):
         for bt in list(by_type):
-            if by_type[bt] and len(chosen) < 14:
+            if by_type[bt] and len(chosen) < n_hide:
                 chosen.append((bt, by_type[bt].pop()))
     hn = list(D.HIDEOUT_NAMES)
     for i, (bt, pos) in enumerate(chosen):
         hid = f"hide{i}"
         s = Settlement(hid, (hn[i] if i < len(hn) else f"匪巢{i}"), "hideout",
                        [round(pos[0], 1), round(pos[1], 1)], "bandit", BANDIT, None, bandit_type=bt,
-                       active=i < 8, garrison=bandit_band(bt, rng.randint(14, 24), rng))
+                       active=i < B.bandits.max_active_hideouts, garrison=bandit_band(bt, rng.randint(14, 24), rng))
         w.settlements[hid] = s
 
     for s in w.settlements.values():
@@ -198,6 +220,9 @@ def default_world(seed: int = 0) -> World:
         T.add(troops, "merc_arc", rng.randint(10, 18))
         T.add(troops, "merc_inf", rng.randint(10, 18))
         w.parties[pid] = Party(pid, "merc", name, None, list(town.pos), troops, home=town.id, gold=500.0)
+    if with_player:
+        from .player import create
+        create(w)
     return w
 
 

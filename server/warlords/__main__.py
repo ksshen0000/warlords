@@ -7,7 +7,9 @@ import time
 from pathlib import Path
 
 from . import troops as T
-from .brains import BRAINS, make_brain
+from .ai import AIRouter
+from .brains import PROVIDERS, make_llm
+from .rules import RULES
 from .scenario import default_world
 from .sim import Simulation
 
@@ -39,27 +41,33 @@ def summary(w) -> str:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="AI 领主沙盒模拟")
+    ap = argparse.ArgumentParser(description="AI 将军沙盒模拟（南北朝架空）")
     ap.add_argument("--days", type=int, default=120)
     ap.add_argument("--seed", type=int, default=3)
-    ap.add_argument("--brain", choices=BRAINS, default="rule")
-    ap.add_argument("--model", default=None, help="覆盖默认模型名（各 AI 类型有各自默认值）")
+    ap.add_argument("--tier", type=int, default=0, help="AI 档位（rules/ai.toml）；0 = 只用规则 AI")
+    ap.add_argument("--provider", choices=PROVIDERS, default=None, help="LLM 提供商（默认取 ai.toml / local.toml）")
+    ap.add_argument("--model", default=None, help="覆盖默认模型名")
     ap.add_argument("--effort", default="low", choices=["low", "medium", "high"])
     ap.add_argument("--verbose", action="store_true", help="同时打印命令/招募/台词等琐碎事件")
     ap.add_argument("--out", default="runs/latest")
     args = ap.parse_args()
 
     t0 = time.time()
-    world = default_world(args.seed)
-    try:
-        brain = make_brain(args.brain, args.seed, model=args.model, effort=args.effort)
-    except (RuntimeError, ImportError, ValueError) as e:
-        raise SystemExit(f"无法创建 {args.brain} AI：{e}\n（LLM 依赖：uv pip install -e '.[llm]'）")
+    world = default_world(args.seed, with_player=False)
+    llm = None
+    if args.tier > 0:
+        provider = args.provider or RULES.llm_setting("provider", "deepseek")
+        try:
+            llm = make_llm(provider, args.model, args.effort)
+        except (RuntimeError, ImportError, ValueError) as e:
+            raise SystemExit(f"无法创建 {provider} LLM：{e}\n（LLM 依赖：uv pip install -e '.[llm]'）")
+    router = AIRouter(world, args.tier, llm, wait=True)
     print(f"世界生成完毕（{time.time() - t0:.1f}s）：{len(world.settlements)}处据点，{len(world.parties)}支部队")
-    quiet = set(QUIET) - ({"speech"} if args.brain != "rule" else set())
+    quiet = set(QUIET) - ({"speech"} if llm else set())
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    sim = Simulation(world, brain)
+    sim = Simulation(world, router)
+    print(f"AI 档位 {router.tier}「{router.tier_name}」，LLM：{f'{llm.label} {llm.model}' if llm else '无'}")
     t0 = time.time()
     with open(out / "events.jsonl", "w", encoding="utf-8") as f:
         for _ in range(args.days):
@@ -72,8 +80,10 @@ def main():
     (out / "state.json").write_text(json.dumps(world.to_dict(), ensure_ascii=False), encoding="utf-8")
     if world.day % 30:
         print(summary(world))
-    if hasattr(brain, "calls"):
-        print(f"\nLLM 调用 {brain.calls} 次，失败（已退回规则 AI）{brain.failures} 次")
+    if llm:
+        st = router.stats
+        print(f"\nLLM 作答 {st['llm']} 次，规则 AI 作答 {st['rule']} 次，LLM 失败退回规则 {st['fallback']} 次")
+    router.shutdown()
     print(f"\n模拟耗时 {time.time() - t0:.1f}s；事件日志：{out / 'events.jsonl'}")
 
 

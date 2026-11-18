@@ -8,6 +8,7 @@
 [terrain]
 river_speed = 0.45   # 无桥涉水
 road_speed = 1.35
+ford_speed = 0.35   # 大江渡口（即使有路也这么慢：大军渡江要等船）
 
 [terrain.deep_water]
 name = "深海"
@@ -89,10 +90,10 @@ grain = { name = "粮食", price = 10 }
 wood = { name = "木材", price = 16 }
 salt = { name = "盐", price = 28 }
 iron = { name = "铁矿", price = 38 }
-cloth = { name = "布匹", price = 34 }
+cloth = { name = "丝帛", price = 34 }
 fur = { name = "毛皮", price = 46 }
-wine = { name = "葡萄酒", price = 52 }
-spice = { name = "香料", price = 85 }
+wine = { name = "酒", price = 52 }
+spice = { name = "西域香料", price = 85 }
 horse = { name = "马匹", price = 120 }
 
 # ---------------- 兵种通用 ----------------
@@ -107,73 +108,99 @@ matchup = { inf = { cav = 1.2 }, arc = { inf = 1.2 }, cav = { arc = 1.3 } }
 
 # ---------------- 文化与兵种树 ----------------
 # 每个文化：新兵 -> 步兵线(t2..t4) / 射手线(t2..t4)，步兵 t2 还可转骑兵线(t3..t4)
-# bonus：文化兵种加成；home：主场地形
+# bonus：文化兵种加成（<1 为减益）；home：主场地形；workshop：城中作坊产出的货物；
+# class_pref：该文化将军升级部队时偏好的兵种（权重）
 
-[cultures.frost]
-name = "霜原"
-bonus = { inf = 1.12 }
-home = ["snow", "taiga"]
-recruit = "霜原新兵"
-infantry = ["持盾步兵", "战斧手", "熊皮狂战士"]
-archers = ["林地猎手", "霜原弓手", "雪鹰射手"]
-cavalry = ["霜原游骑", "冰原重骑"]
+[cultures.zhou]
+name = "江左"
+bonus = { arc = 1.10, inf = 1.05, cav = 0.9 }
+home = ["marsh", "forest", "meadow"]
+workshop = "cloth"
+class_pref = { inf = 1.2, arc = 1.4, cav = 0.6 }
+recruit = "江左乡勇"
+infantry = ["持盾甲士", "长戟兵", "北府精兵"]
+archers = ["弓手", "强弩手", "蹶张弩士"]
+cavalry = ["江左轻骑", "部曲骑士"]
 
-[cultures.sand]
-name = "赤沙"
-bonus = { cav = 1.08, arc = 1.05 }
-home = ["desert", "dunes"]
-recruit = "沙漠新兵"
-infantry = ["沙漠矛兵", "弯刀卫士", "苏丹禁卫"]
-archers = ["沙丘投石手", "沙漠弓手", "烈日神射手"]
-cavalry = ["骆驼骑手", "沙暴骑射手"]
+[cultures.yan]
+name = "辽东"
+bonus = { cav = 1.15 }
+home = ["steppe", "plains", "taiga"]
+workshop = "fur"
+class_pref = { inf = 0.8, arc = 0.9, cav = 1.6 }
+recruit = "部落少年"
+infantry = ["汉军步卒", "刀盾卫", "宿卫郎"]
+archers = ["猎手", "辽东射士", "射雕手"]
+cavalry = ["辽东轻骑", "甲骑具装"]
 
-[cultures.river]
-name = "翠河"
-bonus = { arc = 1.12 }
-home = ["meadow", "forest", "marsh"]
-recruit = "河谷新兵"
-infantry = ["河谷枪兵", "联盟长枪兵", "翠河戟卫"]
-archers = ["河谷弓手", "长弓手", "翠羽长弓手"]
-cavalry = ["河谷轻骑", "河谷骑士"]
+[cultures.zhao]
+name = "河北"
+bonus = { inf = 1.05, cav = 1.05 }
+home = ["plains", "hills", "meadow"]
+workshop = "iron"
+class_pref = { inf = 1.3, arc = 0.9, cav = 1.2 }
+recruit = "中原丁壮"
+infantry = ["刀盾兵", "赤帻锐士", "天王亲军"]
+archers = ["弓手", "强弓手", "河北神射"]
+cavalry = ["屈赫游骑", "屈赫铁骑"]
 
-[cultures.lion]
-name = "金狮"
-bonus = { cav = 1.12 }
-home = ["plains", "hills", "steppe"]
-recruit = "金狮新兵"
-infantry = ["王国步兵", "王国重步兵", "金狮近卫"]
-archers = ["王国弩手", "重弩手", "王家神弩手"]
-cavalry = ["王国侍从骑兵", "金狮骑士"]
+[cultures.liang]
+name = "河西"
+bonus = { arc = 1.08, cav = 1.05 }
+home = ["desert", "dunes", "steppe"]
+workshop = "spice"
+class_pref = { inf = 0.9, arc = 1.3, cav = 1.2 }
+recruit = "绿洲丁壮"
+infantry = ["戍卒", "长斧手", "西州重甲"]
+archers = ["弩手", "西州射士", "白羽神射"]
+cavalry = ["河西轻骑", "驼甲骑"]
+
+[cultures.shu]
+name = "巴蜀"
+bonus = { inf = 1.08, arc = 1.08, cav = 0.85 }
+home = ["hills", "forest"]
+workshop = "cloth"
+class_pref = { inf = 1.4, arc = 1.3, cav = 0.5 }
+recruit = "山民"
+infantry = ["藤牌手", "山地刀斧手", "蜀中白甲"]
+archers = ["竹弓手", "连弩手", "蜀中神弩"]
+cavalry = ["山地驮骑", "巴蜀骑士"]
+
+[cultures.rou]
+name = "漠北"
+bonus = { cav = 1.12, arc = 1.05, inf = 0.9 }
+home = ["steppe", "snow", "taiga"]
+workshop = "horse"
+class_pref = { inf = 0.6, arc = 1.0, cav = 1.8 }
+recruit = "牧民"
+infantry = ["部众", "狼卫", "金帐卫士"]
+archers = ["牧猎手", "漠北射手", "落雕手"]
+cavalry = ["漠北游骑", "柔骨重骑"]
 
 # ---------------- 其他兵种（土匪、中立） ----------------
 # tier 0..4；cls：inf 步兵 / arc 射手 / cav 骑兵
-[troops.bandit_mountain]
+[troops.bandit_liukou]
+name = "流寇"
+culture = "bandit"
+tier = 1
+cls = "inf"
+[troops.bandit_shan]
 name = "山贼"
 culture = "bandit"
 tier = 2
 cls = "inf"
-[troops.bandit_forest]
-name = "森林强盗"
+[troops.bandit_jiang]
+name = "江贼"
 culture = "bandit"
 tier = 2
 cls = "arc"
-[troops.bandit_desert]
-name = "沙漠劫匪"
+[troops.bandit_ma]
+name = "马贼"
 culture = "bandit"
 tier = 2
 cls = "cav"
-[troops.bandit_frost]
-name = "冰原掠夺者"
-culture = "bandit"
-tier = 2
-cls = "inf"
-[troops.bandit_sea]
-name = "海寇"
-culture = "bandit"
-tier = 3
-cls = "inf"
 [troops.bandit_boss]
-name = "匪首亲卫"
+name = "匪首亲随"
 culture = "bandit"
 tier = 3
 cls = "inf"
@@ -193,45 +220,41 @@ culture = "neutral"
 tier = 3
 cls = "cav"
 [troops.hunter]
-name = "赏金猎人"
+name = "游侠儿"
 culture = "neutral"
 tier = 3
 cls = "cav"
 [troops.merc_inf]
-name = "佣兵剑士"
+name = "义从刀手"
 culture = "neutral"
 tier = 3
 cls = "inf"
 [troops.merc_arc]
-name = "佣兵弩手"
+name = "义从弩手"
 culture = "neutral"
 tier = 3
 cls = "arc"
 [troops.merc_cav]
-name = "佣兵骑兵"
+name = "义从骑士"
 culture = "neutral"
 tier = 4
 cls = "cav"
 
-# ---------------- 土匪类型 ----------------
+# ---------------- 匪患类型 ----------------
 # troop：主力兵种；terrain：会在这些地形安营扎寨
-[bandits.mountain]
+[bandits.liukou]
+name = "流寇"
+troop = "bandit_liukou"
+terrain = ["plains", "meadow"]
+[bandits.shan]
 name = "山贼"
-troop = "bandit_mountain"
-terrain = ["hills"]
-[bandits.forest]
-name = "森林强盗"
-troop = "bandit_forest"
-terrain = ["forest", "taiga"]
-[bandits.desert]
-name = "沙漠劫匪"
-troop = "bandit_desert"
-terrain = ["desert", "dunes", "steppe"]
-[bandits.frost]
-name = "冰原掠夺者"
-troop = "bandit_frost"
-terrain = ["snow"]
-[bandits.sea]
-name = "海寇"
-troop = "bandit_sea"
-terrain = ["beach"]
+troop = "bandit_shan"
+terrain = ["hills", "forest", "taiga"]
+[bandits.jiang]
+name = "江贼"
+troop = "bandit_jiang"
+terrain = ["marsh", "beach"]
+[bandits.ma]
+name = "马贼"
+troop = "bandit_ma"
+terrain = ["steppe", "desert", "dunes", "snow"]

@@ -52,7 +52,21 @@ class Rules:
         self.units = read("units")
         self.world = read("world")
         self.doctrine = read("doctrine").get("rule", [])
+        self.ai = read("ai")
         B.__init__(self.balance_raw, "balance.")
+        self.local = {}
+        local = RULES_DIR.parent / "local.toml"     # per-machine settings, git-ignored
+        if local.exists():
+            with open(local, "rb") as f:
+                self.local = tomllib.load(f)
+
+    def tier(self, n: int) -> dict:
+        tiers = self.ai.get("tiers", {})
+        return tiers.get(str(n)) or tiers[str(self.ai.get("default_tier", 0))]
+
+    def llm_setting(self, key: str, default=None):
+        """[llm] value: local.toml overrides ai.toml."""
+        return self.local.get("llm", {}).get(key, self.ai.get("llm", {}).get(key, default))
 
     def doctrine_for(self, kingdom: str, hero: str, use: str) -> list[dict]:
         rules = [r for r in self.doctrine
@@ -65,5 +79,5 @@ RULES = Rules()
 
 
 def reload() -> None:
-    """Re-read balance and doctrine (content/world changes need a new game)."""
+    """Re-read balance, doctrine and AI tiers (content/world changes need a new game)."""
     RULES.load()

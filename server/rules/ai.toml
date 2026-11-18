@@ -1,0 +1,53 @@
+# ============================================================
+# AI 参与程度（档位）
+#
+# 每个档位列出哪些「环节」交给 LLM，其余由规则 AI 处理。
+# LLM 调用是异步的：领主在思考时游戏照常进行，想好了再执行。
+# 任何 LLM 失败（网络、限流、无法解析）都会自动退回规则 AI。
+#
+# 环节（component）：
+#   council_ruling  君主对议会议题的最终裁决
+#   peace_offer     君主是否接受敌国的求和
+#   council_propose 领主在议会提出宣战/议和
+#   council_vote    领主在议会投票（分封、宣战、议和）
+#   ruler_strategy  君主（以及军团统帅）的战略行动
+#   lord_strategy   普通领主的战略行动
+#   dialogue        玩家与领主对话时，领主用 LLM 即兴回答（否则是固定台词）
+# ============================================================
+
+default_tier = 3
+
+# LLM 提供商：deepseek / openai / claude。
+# API key 从环境变量读取（DEEPSEEK_API_KEY 等），或从本机 server/local.toml 指定的文件读取。
+[llm]
+provider = "deepseek"
+model = "deepseek-flash"
+max_concurrency = 8          # 同时进行的 LLM 请求数上限
+thinking = false             # DeepSeek：是否先推理再作答（开启约慢 2.5 倍，选择质量相近）
+
+[tiers.0]
+name = "关闭"
+description = "全部由规则 AI 决策，不调用 LLM。"
+components = []
+
+[tiers.1]
+name = "议会"
+description = "只有君主的裁决、和约回应和议会提案用 LLM；调用最少。"
+components = ["council_ruling", "peace_offer", "council_propose", "dialogue"]
+
+[tiers.2]
+name = "君主"
+description = "在「议会」基础上，议会投票和君主/军团统帅的战略也用 LLM。"
+components = ["council_ruling", "peace_offer", "council_propose", "council_vote", "ruler_strategy", "dialogue"]
+
+[tiers.3]
+name = "全体领主"
+description = "所有领主的战略、提案、投票都由 LLM 扮演（推荐）。"
+components = ["council_ruling", "peace_offer", "council_propose", "council_vote", "ruler_strategy", "lord_strategy", "dialogue"]
+
+[tiers.4]
+name = "全开"
+description = "全体领主 + 更频繁地重新思考局势（调用最多）。"
+components = ["council_ruling", "peace_offer", "council_propose", "council_vote", "ruler_strategy", "lord_strategy", "dialogue"]
+[tiers.4.overrides]
+replan_after_hours = 24      # 覆盖 balance.toml [time] 中的同名项

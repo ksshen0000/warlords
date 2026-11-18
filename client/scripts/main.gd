@@ -1,18 +1,19 @@
 extends Control
-## Warlords client: campaign map + side panel (details / realms / council) + chronicle.
+## Warlords client: campaign map with the player's party, M&B-style time (paused unless
+## travelling or holding space), menus, side panel (party / details / realms / council), chronicle.
 ##
-## Command line (after `--`): --server=URL --seed=N --steps=N --select=kind:id --tab=N
-##                            --zoom=x,y,z --report=last --capture=PATH
+## Command line (after `--`): --server=URL --seed=N --steps=N --select=kind:id --hover=settlement:id --tab=N --speed=N
+##                            --zoom=x,y,z --report=last --capture=PATH --goto=x,y --menu=leave
 
 const ApiScript := preload("res://scripts/api.gd")
 const MapViewScript := preload("res://scripts/map_view.gd")
 const BattleReportScript := preload("res://scripts/battle_report.gd")
+const PlayerMenuScript := preload("res://scripts/player_menu.gd")
+const SettingsScript := preload("res://scripts/settings.gd")
 
-const SPEEDS := [["慢（每步1小时）", 1], ["中（每步3小时）", 3], ["快（每步6小时）", 6], ["极速（每步12小时）", 12]]
-const STEP_INTERVAL := 0.45
-const BRAIN_LABELS := {"rule": "规则 AI", "claude": "Claude", "openai": "OpenAI", "deepseek": "DeepSeek"}
-const KIND_NAMES := {"lord": "领主部队", "caravan": "商队", "villager": "村民", "bandit": "土匪",
-	"hunter": "赏金猎人", "merc": "佣兵团"}
+const SPEEDS := [["慢", 0.8], ["正常", 0.45], ["快", 0.22], ["很快", 0.1]]   # real seconds per game hour
+const KIND_NAMES := {"lord": "将军部曲", "caravan": "商队", "villager": "村民", "bandit": "匪寇",
+	"hunter": "游侠", "merc": "义从", "player": "你的部队", "refugee": "流民"}
 const ORDER_NAMES := {"recruit": "招募", "besiege": "围攻", "defend": "驻防", "attack": "追击", "raid": "劫掠",
 	"hideout": "剿匪", "patrol": "巡逻", "sell": "出售俘虏", "rest": "休整", "caravan": "组建商队",
 	"wait": "待命", "retreat": "撤退", "follow": "随军"}
@@ -20,7 +21,7 @@ const MODE_NAMES := {"idle": "驻留", "move": "行军", "siege": "围城", "rai
 	"flee": "撤退", "chase": "追击", "follow": "随军"}
 const TRAITS := {"aggression": "好战", "caution": "谨慎", "honor": "荣誉", "greed": "贪婪"}
 const MINOR := ["order", "recruit", "speech", "release", "siege_end", "flee", "prisoners_sold",
-	"desertion", "raid_start", "caravan_founded", "brain_error", "hideout_new", "decision_opened"]
+	"desertion", "raid_start", "caravan_founded", "brain_error", "hideout_new", "decision_opened", "refugees"]
 const REPORT_TYPES := ["battle", "conquest", "assault_failed", "hideout_cleared"]
 const EVENT_COLORS := {
 	"battle": "e8a25b", "conquest": "f2c75c", "rebellion": "f2c75c", "war": "ff6b5b", "peace": "8fd3a0",
@@ -29,6 +30,7 @@ const EVENT_COLORS := {
 	"decision_resolved": "8fc6ff", "fief_granted": "8fc6ff", "army_formed": "b6d77a", "army_disbanded": "9fb4bf",
 	"merc_hired": "b48ce0", "merc_left": "9fb4bf", "hideout_cleared": "d9b44a", "unrest": "d0a070",
 	"starvation": "a1887f", "speech": "d8dfe2", "order": "7d8f96",
+	"player": "9ff0b0", "player_war": "ff6b5b", "player_defeated": "ff6b5b",
 }
 const PANEL_BG := Color("1b252b")
 const CREAM := Color("efe6d2")
@@ -38,10 +40,13 @@ const GOLD := Color("f2c75c")
 var api: Node
 var map: Control
 var report_popup: Control
+var menu_panel: PanelContainer
+var settings: Control
 var state: Dictionary = {}
+var player: Dictionary = {}
+var ai_info: Dictionary = {}
 var goods := {}
 var connected := false
-var playing := false
 var speed_idx := 1
 var wait_left := 0.0
 var retry_left := 0.0
@@ -49,10 +54,10 @@ var log_lines: Array = []
 var report_events := {}
 var _report_seq := 0
 var show_minor := false
-var auto_report := false
-var brain := "rule"
-var brains: Array = ["rule", "claude", "openai", "deepseek"]
+var follow := true
+var hold := false          # key 1: pause even while travelling (cleared by 2/3/4, Space or a new order)
 var map_seed := -1
+var toast_left := 0.0
 
 var auto_steps := 0
 var capture_path := ""
@@ -60,14 +65,18 @@ var pending_select := ""
 var pending_report := false
 var pending_zoom := ""
 var pending_tab := -1
+var pending_goto := ""
+var pending_menu := ""
 
 var time_label: Label
+var clock_label: Label
 var status_label: Label
-var play_btn: Button
+var toast_label: Label
 var speed_opt: OptionButton
 var seed_box: SpinBox
-var brain_opt: OptionButton
+var tier_opt: OptionButton
 var tabs: TabContainer
+var party_text: RichTextLabel
 var detail_text: RichTextLabel
 var realms_text: RichTextLabel
 var council_text: RichTextLabel
@@ -88,8 +97,7 @@ func _ready() -> void:
 	_build_ui()
 	_parse_args()
 	api.get_map()
-	if not api.busy:
-		api.get_state()
+	api.get_state()
 
 
 func _parse_args() -> void:
@@ -109,11 +117,19 @@ func _parse_args() -> void:
 			speed_opt.selected = speed_idx
 		elif a.begins_with("--tab="):
 			pending_tab = int(a.substr(6))
+		elif a.begins_with("--goto="):
+			pending_goto = a.substr(7)
+		elif a.begins_with("--menu="):
+			pending_menu = a.substr(7)
+		elif a.begins_with("--hover="):
+			map.pin_hover = a.substr(8)
+		elif a == "--settings":
+			settings.open.call_deferred()
 		elif a == "--report=last":
 			pending_report = true
 		elif a.begins_with("--seed="):
 			seed_box.value = int(a.substr(7))
-			api.reset(int(seed_box.value), "rule")
+			api.reset(int(seed_box.value), -1)
 
 
 # ------------------------------------------------------------------ UI
@@ -155,15 +171,37 @@ func _build_ui() -> void:
 	root.add_theme_constant_override("separation", 0)
 	add_child(root)
 
+	var map_holder := Control.new()
+	map_holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	map_holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(map_holder)
 	map = MapViewScript.new()
-	map.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	map.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	map.hint = "左键选择 · 双击放大 · 滚轮缩放 · 右键拖动 / WASD 平移 · 空格 播放/暂停 · N 推进 · F 定位所选 · Home 全图"
+	map.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	map.hint = "左键 行军 · 按住空格 等待 · 1 暂停 2 正常 3 快进 · P 部队 N 百科 K 朝议 L 日志 · 按住 Alt 显示名字 · F 回到自己 · Esc 菜单"
 	map.selection_changed.connect(func(_k, _i):
-		if _k != "":
-			tabs.current_tab = 0
+		if _k != "" and _k != "player":
+			tabs.current_tab = 1
 		_refresh_details())
-	root.add_child(map)
+	map.map_clicked.connect(_on_map_clicked)
+	map_holder.add_child(map)
+
+	clock_label = _label("", 15, GOLD)
+	clock_label.position = Vector2(14, 10)
+	map_holder.add_child(clock_label)
+	toast_label = _label("", 15, Color("9ff0b0"))
+	toast_label.position = Vector2(14, 34)
+	map_holder.add_child(toast_label)
+
+	var menu_anchor := CenterContainer.new()
+	menu_anchor.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	menu_anchor.offset_top = -10
+	menu_anchor.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	menu_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map_holder.add_child(menu_anchor)
+	menu_panel = PlayerMenuScript.new()
+	menu_panel.action.connect(func(id, data): api.act(id, data))
+	menu_panel.say.connect(func(hero, text): api.talk(hero, text))
+	menu_anchor.add_child(menu_panel)
 
 	var side_margin := MarginContainer.new()
 	side_margin.custom_minimum_size = Vector2(500, 0)
@@ -181,37 +219,36 @@ func _build_ui() -> void:
 	head.add_child(spacer)
 	time_label = _label("第 0 天", 20, CREAM)
 	head.add_child(time_label)
+	var gear := Button.new()
+	gear.text = "设置"
+	gear.tooltip_text = "显示模式、分辨率、界面缩放、鼠标锁定（F11 全屏，F10 锁/解鼠标）"
+	gear.focus_mode = Control.FOCUS_NONE
+	gear.pressed.connect(func(): settings.open())
+	head.add_child(gear)
 	side.add_child(head)
 	status_label = _label("连接中…", 13, MUTED)
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	side.add_child(status_label)
 
 	var row := HBoxContainer.new()
-	play_btn = Button.new()
-	play_btn.text = "播放"
-	play_btn.custom_minimum_size = Vector2(70, 0)
-	play_btn.pressed.connect(_toggle_play)
-	row.add_child(play_btn)
-	var step_btn := Button.new()
-	step_btn.text = "推进"
-	step_btn.tooltip_text = "按当前速度推进一步（N）"
-	step_btn.pressed.connect(_step_once)
-	row.add_child(step_btn)
+	row.add_child(_label("时间流速", 14, MUTED))
 	speed_opt = OptionButton.new()
 	for s in SPEEDS:
 		speed_opt.add_item(s[0])
 	speed_opt.selected = speed_idx
 	speed_opt.item_selected.connect(func(i): speed_idx = i)
 	row.add_child(speed_opt)
+	var fol := CheckBox.new()
+	fol.text = "跟随"
+	fol.button_pressed = true
+	fol.tooltip_text = "行军时镜头跟随你的部队"
+	fol.toggled.connect(func(on): follow = on)
+	row.add_child(fol)
 	var minor := CheckBox.new()
 	minor.text = "琐事"
 	minor.tooltip_text = "编年史中显示命令、招募、台词等"
 	minor.toggled.connect(func(on): show_minor = on; _render_log())
 	row.add_child(minor)
-	var auto := CheckBox.new()
-	auto.text = "战报"
-	auto.tooltip_text = "发生攻城等大战时自动弹出战报并暂停"
-	auto.toggled.connect(func(on): auto_report = on)
-	row.add_child(auto)
 	var terr := CheckBox.new()
 	terr.text = "政区"
 	terr.button_pressed = true
@@ -220,25 +257,27 @@ func _build_ui() -> void:
 	side.add_child(row)
 
 	var row2 := HBoxContainer.new()
-	row2.add_child(_label("种子", 14, MUTED))
+	row2.add_child(_label("AI", 14, MUTED))
+	tier_opt = OptionButton.new()
+	tier_opt.tooltip_text = "AI 参与程度（rules/ai.toml）"
+	tier_opt.item_selected.connect(func(i): api.set_tier(tier_opt.get_item_id(i)))
+	row2.add_child(tier_opt)
+	row2.add_child(_label(" 种子", 14, MUTED))
 	seed_box = SpinBox.new()
 	seed_box.min_value = 0
 	seed_box.max_value = 99999
 	seed_box.value = 3
 	row2.add_child(seed_box)
-	brain_opt = OptionButton.new()
-	_fill_brains()
-	row2.add_child(brain_opt)
 	var reset_btn := Button.new()
 	reset_btn.text = "新的一局"
-	reset_btn.pressed.connect(_new_game)
+	reset_btn.pressed.connect(func():
+		api.reset(int(seed_box.value), int(ai_info.get("tier", -1)))
+		status_label.text = "正在生成新世界…")
 	row2.add_child(reset_btn)
 	var reload_btn := Button.new()
 	reload_btn.text = "重载规则"
-	reload_btn.tooltip_text = "重新读取 rules/balance.toml 和 rules/doctrine.toml（不重开游戏）"
-	reload_btn.pressed.connect(func():
-		if api.reload_rules():
-			status_label.text = "正在重载规则文档…")
+	reload_btn.tooltip_text = "重新读取 rules/balance.toml、doctrine.toml、ai.toml（不重开游戏）"
+	reload_btn.pressed.connect(func(): api.reload_rules())
 	row2.add_child(reload_btn)
 	side.add_child(row2)
 
@@ -246,14 +285,18 @@ func _build_ui() -> void:
 	tabs.custom_minimum_size = Vector2(0, 360)
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_stretch_ratio = 1.3
+	party_text = _rich()
+	party_text.name = "部队"
 	detail_text = _rich()
 	detail_text.name = "详情"
 	realms_text = _rich()
 	realms_text.name = "诸国"
 	council_text = _rich()
-	council_text.name = "议会"
-	for r in [detail_text, realms_text, council_text]:
+	council_text.name = "朝议"
+	for r in [party_text, detail_text, realms_text, council_text]:
 		tabs.add_child(r)
+	for i in 4:
+		tabs.set_tab_title(i, ["部队 P", "详情 N", "诸国 N", "朝议 K"][i])
 	tabs.tab_changed.connect(func(_i): _refresh_tabs())
 	side.add_child(tabs)
 
@@ -270,54 +313,128 @@ func _build_ui() -> void:
 
 	report_popup = BattleReportScript.new()
 	add_child(report_popup)
+	settings = SettingsScript.new()
+	add_child(settings)
+	map.settings = settings
 
 
-func _fill_brains() -> void:
-	brain_opt.clear()
-	for b in brains:
-		brain_opt.add_item(BRAIN_LABELS.get(b, str(b)))
-	brain_opt.selected = max(0, brains.find(brain))
+func _fill_tiers() -> void:
+	var tiers: Dictionary = ai_info.get("tiers", {})
+	if tiers.is_empty():
+		return
+	var keys := tiers.keys()
+	keys.sort()
+	if tier_opt.item_count != keys.size():
+		tier_opt.clear()
+		for k in keys:
+			tier_opt.add_item("%s 档 · %s" % [k, tiers[k].name], int(k))
+			tier_opt.set_item_tooltip(tier_opt.item_count - 1, str(tiers[k].description))
+	tier_opt.select(tier_opt.get_item_index(int(ai_info.get("tier", 0))))
 
 
 # ------------------------------------------------------------- control
-func _toggle_play() -> void:
-	playing = not playing
-	play_btn.text = "暂停" if playing else "播放"
-	wait_left = 0.0
+func _menu_open() -> bool:
+	return player.get("menu") != null
 
 
-func _step_once() -> void:
-	if connected and not api.busy:
-		api.step(int(SPEEDS[speed_idx][1]))
-		_busy_status()
+func _typing() -> bool:
+	var f := get_viewport().gui_get_focus_owner()
+	return f is LineEdit or f is TextEdit
 
 
-func _new_game() -> void:
-	var b: String = brains[brain_opt.selected]
-	if api.reset(int(seed_box.value), b):
-		status_label.text = "正在生成新世界…"
+func _on_map_clicked(world_pos: Vector2, kind: String, id: String, shift: bool) -> void:
+	if shift:
+		map.select(kind, id)
+		return
+	if kind != "":
+		map.select(kind, id)
+	if _menu_open() or player.get("captive", false):
+		return
+	if kind == "party" and id == "player":
+		tabs.current_tab = 0
+		return
+	hold = false
+	if kind == "settlement":
+		api.move({"kind": "place", "id": id})
+	elif kind == "party":
+		api.move({"kind": "party", "id": id})
+	else:
+		api.move({"kind": "point", "pos": [world_pos.x, world_pos.y]})
+	if follow:
+		map.follow_id = "player"
 
 
-func _busy_status() -> void:
-	if brain != "rule":
-		status_label.text = "领主们正在思考…（%s）" % BRAIN_LABELS.get(brain, brain)
-
-
+## Mount & Blade style keys. Warband: time passes while you travel or hold Space;
+## Bannerlord: 1 pause / 2 play / 3 fast forward, C·P·I party, N encyclopedia, K kingdom,
+## L / Q log, Alt names, Esc closes the top window or opens the game menu.
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if report_popup.visible:
-			return
-		match event.keycode:
-			KEY_SPACE:
-				_toggle_play()
-			KEY_N:
-				_step_once()
-			KEY_ESCAPE:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var key := (event as InputEventKey).keycode
+	if report_popup.visible:
+		if key in [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER]:
+			report_popup.close()
+			get_viewport().set_input_as_handled()
+		return
+	if settings.visible or _typing():
+		return
+	var handled := true
+	match key:
+		KEY_ESCAPE:
+			if map.sel_kind != "":
 				map.select("", "")
-			KEY_HOME:
-				map.fit()
-			KEY_F:
-				_focus_selection()
+			elif _menu_open() and _menu_has("leave"):
+				api.act("leave")
+			elif _menu_open() and _menu_has("ok"):
+				api.act("ok")
+			else:
+				settings.open()
+		KEY_1:
+			hold = true
+			_toast("暂停（2 继续 · 3 快进）")
+		KEY_2:
+			_set_speed(1)
+		KEY_3:
+			_set_speed(2)
+		KEY_4:
+			_set_speed(3)
+		KEY_C, KEY_P, KEY_I:
+			tabs.current_tab = 0
+		KEY_N:
+			tabs.current_tab = 1 if map.sel_kind != "" else 2
+		KEY_K:
+			tabs.current_tab = 3
+		KEY_L, KEY_Q:
+			log_text.scroll_to_line(max(0, log_text.get_line_count() - 1))
+			log_text.grab_focus()
+		KEY_T:
+			# Warband "Camp": wait here (time passes while held; tap to show the hint)
+			_toast("按住空格在此扎营等待")
+		KEY_HOME:
+			map.fit()
+		KEY_F, KEY_TAB:
+			if state.has("parties") and state.parties.has("player"):
+				map.focus(map.party_world_pos("player"), max(map.zoom, map.fit_zoom * 3.0))
+				if follow:
+					map.follow_id = "player"
+		_:
+			handled = false
+	if handled:
+		get_viewport().set_input_as_handled()
+
+
+func _menu_has(id: String) -> bool:
+	for o in player.get("menu", {}).get("options", []):
+		if o.id == id and bool(o.enabled):
+			return true
+	return false
+
+
+func _set_speed(i: int) -> void:
+	hold = false
+	speed_idx = i
+	speed_opt.selected = i
+	_toast("时间流速：%s" % SPEEDS[i][0])
 
 
 func _focus_selection() -> void:
@@ -327,22 +444,63 @@ func _focus_selection() -> void:
 		map.focus(map.settlement_pos(map.sel_id), max(map.zoom, map.fit_zoom * 3.0))
 
 
+func _time_wanted() -> bool:
+	if not connected or _menu_open() or report_popup.visible or settings.visible or map_seed < 0:
+		return false
+	var space := Input.is_key_pressed(KEY_SPACE) and not _typing()
+	if hold and not space:
+		return false
+	if auto_steps > 0:
+		return true
+	if player.get("captive", false):
+		return true
+	if space:
+		hold = false
+	return bool(player.get("moving", false)) or space
+
+
 func _process(delta: float) -> void:
+	if toast_left > 0:
+		toast_left -= delta
+		if toast_left <= 0:
+			toast_label.text = ""
 	if not connected:
 		retry_left -= delta
-		if retry_left <= 0.0 and not api.busy:
+		if retry_left <= 0.0 and not api.pending():
 			retry_left = 2.0
 			api.get_state()
 			if map_seed < 0:
 				api.get_map()
 		return
-	if playing or auto_steps > 0:
+	var flowing := _time_wanted()
+	map.time_flowing = flowing
+	if flowing:
 		wait_left -= delta
-		if wait_left <= 0.0 and not api.busy and not map.animating():
-			api.step(int(SPEEDS[speed_idx][1]))
-			_busy_status()
-	elif capture_path != "" and not api.busy and not map.animating() and map_seed >= 0:
+		if wait_left <= 0.0 and not api.pending():
+			if api.step(1):
+				wait_left = float(SPEEDS[speed_idx][1])
+	if player.get("captive", false):
+		clock_label.text = "⛓ 被俘中……时间流逝"
+	elif _menu_open():
+		clock_label.text = "⏸ 菜单"
+	elif settings.visible:
+		clock_label.text = "⏸ 设置"
+	elif hold:
+		clock_label.text = "⏸ 已暂停（2 继续 · 3 快进 · 空格等待）"
+	elif flowing:
+		clock_label.text = "▶ 时间流逝 · %s" % SPEEDS[speed_idx][0]
+	else:
+		clock_label.text = "⏸ 暂停（左键行军，按住空格等待）"
+	var ms: String = settings.status_text()
+	if ms != "":
+		clock_label.text += "　·　" + ms
+	if not flowing and capture_path != "" and not api.pending() and not map.animating() and map_seed >= 0:
 		_capture()
+
+
+func _toast(text: String) -> void:
+	toast_label.text = text
+	toast_left = 4.0
 
 
 func _capture() -> void:
@@ -354,31 +512,32 @@ func _capture() -> void:
 		var pick = null
 		for i in range(ids.size() - 1, -1, -1):
 			var ev: Dictionary = report_events[ids[i]]
-			if pick == null or (ev.type == "conquest" and pick.type != "conquest") or \
-					(ev.type == "battle" and pick.type == "battle" and ev.report.attacker_start + ev.report.defender_start > pick.report.attacker_start + pick.report.defender_start):
+			if pick == null or (ev.get("player", false) and not pick.get("player", false)):
 				pick = ev
 		if pick != null:
 			report_popup.open(pick, state)
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await get_tree().create_timer(2.0).timeout
 	await get_tree().process_frame
 	if DisplayServer.get_name() != "headless":
 		get_viewport().get_texture().get_image().save_png(path)
 		print("captured ", path)
-	print("WARLORDS_OK day=%d events=%d parties=%d zoom=%.3f fit=%.3f size=%s" % [int(state.day), log_lines.size(), state.parties.size(), map.zoom, map.fit_zoom, str(map.size)])
+	print("WARLORDS_OK day=%d events=%d parties=%d menu=%s gold=%s" % [int(state.day), log_lines.size(),
+		state.parties.size(), str(player.get("menu") != null), str(player.get("gold"))])
+	print("DISPLAY driver=%s window=%s mode=%d mouse_mode=%d" % [DisplayServer.get_name(), str(get_window().size),
+		get_window().mode, Input.mouse_mode])
 	get_tree().quit()
 
 
 # ------------------------------------------------------------- network
 func _on_failed(kind: String, message: String) -> void:
-	if kind == "reset" or kind == "reload":
-		status_label.text = ("新开局失败：" if kind == "reset" else "重载失败：") + message
+	if kind in ["reset", "reload", "move", "act", "talk", "config"]:
+		_toast(message)
+		if kind == "talk":
+			menu_panel.set_waiting(false)
 		return
 	if kind == "map":
 		map_seed = -1
 	connected = false
-	if playing:
-		_toggle_play()
 	map.status_text = "无法连接模拟服务器，请先运行：python3 -m warlords.server" if state.is_empty() else "与服务器断开，正在重连…"
 	status_label.text = message
 
@@ -389,15 +548,15 @@ func _on_response(kind: String, data: Dictionary) -> void:
 		map.set_map(data.map)
 		_apply_pending_view()
 		return
+	if kind == "talk":
+		menu_panel.set_waiting(false)
+	var result: Dictionary = data.get("result", {})
+	if str(result.get("message", "")) != "":
+		_toast(str(result.message))
 	if kind == "reload":
-		status_label.text = "规则文档已重载（数值与准则立即生效）"
-		return
+		_toast("规则文档已重载（数值、准则、AI 档位立即生效）")
 	connected = true
 	map.status_text = ""
-	brain = str(data.get("brain", brain))
-	if data.has("brains"):
-		brains = data.brains
-		_fill_brains()
 	var seed := int(data.get("seed", 0))
 	if kind == "reset" or (kind == "state" and state.is_empty()):
 		log_lines.clear()
@@ -405,37 +564,74 @@ func _on_response(kind: String, data: Dictionary) -> void:
 		map.speeches.clear()
 		map.effects.clear()
 		report_popup.close()
+		menu_panel.close()
 		seed_box.value = seed
 		if seed != map_seed:
 			api.get_map()
-	var to_open = null
-	var evs: Array = data.get("events", [])
+		map.follow_id = "player"
 	state = data.state
+	var was_creating := bool(player.get("creating", false))
+	player = data.get("player", {})
+	# fog of war: only what the player's scouts can see is drawn (creating a character = see all)
+	map.vision = 0.0 if player.is_empty() or bool(player.get("creating", false)) else float(player.get("vision", 0.0))
+	map.my_kingdom = player.get("kingdom")
+	map.my_fiefs = player.get("fiefs", [])
+	map.known_hideouts = player.get("known_hideouts", [])
+	if was_creating and not bool(player.get("creating", false)) and state.has("parties"):
+		# character creation just finished: fly the camera to where you start
+		var pp: Dictionary = data.get("state", {}).get("parties", {}).get("player", {})
+		if pp.has("pos"):
+			map.focus.call_deferred(Vector2(pp.pos[0], pp.pos[1]), map.fit_zoom * 3.0)
+	ai_info = data.get("ai", {})
 	goods = state.get("goods", {})
-	for ev in evs:
+	_fill_tiers()
+	var to_open = null
+	for ev in data.get("events", []):
 		_handle_event(ev)
-		if auto_report and ev.has("_rid") and ev.type in ["conquest", "assault_failed"]:
+		if ev.has("_rid") and ev.get("player", false):
 			to_open = ev
-	map.set_state(state, STEP_INTERVAL * 0.95)
-	wait_left = STEP_INTERVAL
+	map.set_state(state, float(SPEEDS[speed_idx][1]) * 0.95)
 	if to_open != null:
 		report_popup.open(to_open, state)
-		if playing:
-			_toggle_play()
 	if kind == "step" and auto_steps > 0:
 		auto_steps -= 1
+	if player.get("menu") != null:
+		menu_panel.open(player.menu)
+		map.follow_id = ""
+	else:
+		menu_panel.close()
+	if not bool(player.get("moving", false)) and not player.get("captive", false):
+		map.follow_id = ""
+	_apply_pending_actions()
+	var pend := int(ai_info.get("pending", 0))
+	var llm := str(ai_info.get("llm")) + " " + str(ai_info.get("model")) if ai_info.get("llm") != null else "无（规则 AI）"
+	status_label.text = "AI：%s · %s 档「%s」%s · 种子 %d" % [llm, str(ai_info.get("tier", "?")),
+		str(ai_info.get("tier_name", "")), ("· %d 位将军正在思考" % pend) if pend > 0 else "", seed]
+	if str(ai_info.get("error", "")) != "":
+		status_label.text += "\nLLM 不可用：" + str(ai_info.error)
+	_refresh_all()
+
+
+func _apply_pending_actions() -> void:
 	if pending_select != "":
 		var parts := pending_select.split(":")
 		pending_select = ""
-		if parts[0] == "hero" and state.heroes.has(parts[1]) and state.heroes[parts[1]].party != null:
-			map.select("party", str(state.heroes[parts[1]].party))
-		else:
-			map.select(parts[0], parts[1])
+		map.select(parts[0], parts[1])
 	if pending_tab >= 0:
 		tabs.current_tab = pending_tab
 		pending_tab = -1
-	status_label.text = "已连接 · %s · 种子 %d" % [BRAIN_LABELS.get(brain, brain), seed]
-	_refresh_all()
+	if pending_menu != "" and player.get("menu") != null and not api.pending():
+		# --menu=origin:zhao,background:lowborn,leave  — one step per state update (tests / screenshots)
+		var steps := pending_menu.split(",")
+		var step: String = steps[0]
+		steps.remove_at(0)
+		pending_menu = ",".join(steps)
+		var parts := step.split(":")
+		api.act(parts[0], {"choice": parts[1]} if parts.size() > 1 else {})
+	elif pending_goto != "" and player.get("menu") == null:
+		var v := pending_goto.split(",")
+		pending_goto = ""
+		api.move({"kind": "point", "pos": [float(v[0]), float(v[1])]})
 
 
 func _apply_pending_view() -> void:
@@ -470,6 +666,8 @@ func _handle_event(ev: Dictionary) -> void:
 		var txt: String = ev.text
 		var i := txt.find("「")
 		map.say(ev.hero, txt.substr(i + 1).trim_suffix("」") if i >= 0 else txt)
+	if ev.get("player", false) and t in ["player", "player_war", "player_defeated", "ransom", "fief_granted"]:
+		_toast(str(ev.text))
 	if t in REPORT_TYPES and ev.has("report"):
 		_report_seq += 1
 		ev["_rid"] = _report_seq
@@ -492,10 +690,12 @@ func _refresh_all() -> void:
 func _refresh_tabs() -> void:
 	match tabs.current_tab:
 		0:
-			_refresh_details()
+			party_text.text = _player_panel()
 		1:
-			realms_text.text = _realms()
+			_refresh_details()
 		2:
+			realms_text.text = _realms()
+		3:
 			council_text.text = _council()
 
 
@@ -512,12 +712,16 @@ func _fcol(fid) -> String:
 func _fname(fid) -> String:
 	if fid == null:
 		return "无"
+	if str(fid) == "__player":
+		return "你"
 	if state.kingdoms.has(fid):
 		return state.kingdoms[fid].name
-	return "土匪" if str(fid) == "__bandit" else "中立"
+	return "匪寇" if str(fid) == "__bandit" else "中立"
 
 
 func _hero_link(hid) -> String:
+	if str(hid) == "player":
+		return "[color=#9ff0b0]你[/color]"
 	if hid == null or not state.heroes.has(hid):
 		return "?"
 	var h: Dictionary = state.heroes[hid]
@@ -573,7 +777,9 @@ func _refresh_details() -> void:
 		return
 	var k: String = map.sel_kind
 	var id: String = map.sel_id
-	if k == "party" and state.parties.has(id):
+	if k == "party" and id == "player":
+		detail_text.text = _player_panel()
+	elif k == "party" and state.parties.has(id):
 		var p: Dictionary = state.parties[id]
 		detail_text.text = _hero_details(p.hero) if p.hero != null else _party_details(p)
 	elif k == "hero" and state.heroes.has(id):
@@ -583,10 +789,11 @@ func _refresh_details() -> void:
 	elif k == "kingdom" and state.kingdoms.has(id):
 		detail_text.text = _kingdom_details(id)
 	else:
-		detail_text.text = ("[color=#8c9a94]点击地图上的旗帜、城镇、村庄或其他部队查看详情。\n\n"
-			+ "图例：城墙 = 城镇，塔楼 = 城堡，小屋 = 村庄（冒烟 = 被劫掠），红色帐篷 = 匪巢；\n"
-			+ "旗帜 = 领主（金点 = 君主，大旗 = 军团），紫边旗 = 佣兵团，棕色方块 = 商队，\n"
-			+ "白点 = 村民，暗红菱形 = 土匪，金色三角 = 赏金猎人。\n"
+		detail_text.text = ("[color=#8c9a94]点击地图上的人马、城池、村落查看详情。\n\n"
+			+ "图例：城墙 = 城，塔楼 = 关塞，小屋 = 村落（冒烟 = 被劫掠），红色帐篷 = 匪巢；\n"
+			+ "骑马举旗 = 将军（金边 = 君主，大旗 = 大军），紫边旗 = 义从，驮马 = 商队，\n"
+			+ "牵驴的农夫 = 村民，举破红布的步行者 = 匪寇，两名持矛骑手 = 游侠，\n"
+			+ "一串背包袱的灰衣人 = 流民（可收编、可安置到你的封地）。\n"
 			+ "城池外的红圈 = 正被围攻，金色弧线 = 攻城器械进度。[/color]")
 
 
@@ -600,13 +807,18 @@ func _hero_details(hid: String) -> String:
 	for t in TRAITS:
 		tr.append("%s%+d" % [TRAITS[t], int(h.traits[t])])
 	out += "性格：%s · 统御 %d\n" % ["  ".join(tr), int(h.tactics)]
-	out += "金币 %d · 影响力 %d · 声望 %d" % [int(h.gold), int(h.influence), int(h.renown)]
+	out += "金币 %d · 影响力 %d · 名望 %d" % [int(h.gold), int(h.influence), int(h.renown)]
 	if kd.ruler != hid:
 		out += " · 对君主好感 %+d" % int(h.relations.get(kd.ruler, 0))
 	out += "\n"
-	if h.captive_of != null:
+	if str(h.captive_of) == "__dead":
+		out += "[color=#ff8f8f]已被斩首[/color]\n"
+	elif h.captive_of != null:
 		out += "[color=#c99cff]被%s俘虏%s，已关押 %d 天[/color]\n" % [_fname(h.captive_of),
 			("，关在" + _settle_link(h.captive_at)) if h.captive_at != null else "", int(h.captive_days)]
+	elif h.party != null and state.parties.has(h.party) and not map.party_known(h.party):
+		var ls: String = map.last_seen_text(h.party)
+		out += "[color=#8c9a94]行踪不明（不在你的视野内）%s[/color]\n" % (("——" + ls) if ls != "" else "")
 	elif h.party != null and state.parties.has(h.party):
 		var p: Dictionary = state.parties[h.party]
 		out += "部队：[b]%d[/b] 人（伤 %d）· 战力 %d · 日行 %d 里 · %s\n" % [int(p.size), int(p.wounded), int(p.power),
@@ -648,6 +860,73 @@ func _hero_details(hid: String) -> String:
 	return out
 
 
+func _player_panel() -> String:
+	if player.is_empty() or not state.parties.has("player"):
+		return "[color=#8c9a94]（没有玩家部队）[/color]"
+	if bool(player.get("creating", false)):
+		return "[color=#8c9a94]正在创建角色：先选出身地区，再选家世。\n\n出身决定你的文化、兵源与起点；家世决定起始的钱、部众、名望与门第。[/color]"
+	var p: Dictionary = state.parties["player"]
+	var status := "无主之人"
+	if player.get("kingdom") != null:
+		status = "%s之臣" % _kingdom_link(player.kingdom)
+	elif player.get("contract") != null:
+		status = "%s的义从（日薪 %d 金，至第 %d 天）" % [_kingdom_link(player.contract), int(player.contract_pay), int(player.contract_until)]
+	var out := "[b][font_size=19]你的部队[/font_size][/b]  %s\n" % status
+	if str(player.get("background_name", "")) != "":
+		out += "[color=#8c9a94]出身 %s · %s[/color]\n" % [player.origin_name, player.background_name]
+	if player.get("captive", false):
+		out += "[color=#ff8f8f]你正被关押，第 %d 天 %02d 时前后有机会逃脱[/color]\n" % [int(int(player.captive_until) / 24), int(player.captive_until) % 24]
+	out += "金币 [b]%d[/b] · 名望 %d · 部队 %d/%d 人（伤 %d）· 战力 %d · 日行 %d 里 · 视野 %d 里%s\n" % [int(player.gold), int(player.renown),
+		int(p.size) + int(p.wounded), int(player.limit), int(p.wounded), int(p.power), int(p.speed),
+		int(player.get("vision", 0)), "（夜）" if player.get("night", false) else ""]
+	if int(player.get("dread", 0)) > 0:
+		out += "[color=#ff8f8f]威名 %d[/color] [color=#8c9a94]（斩过敌将，敌将更易畏死归降，但其国人与同族记恨你）[/color]\n" % int(player.dread)
+	var caps: Array[String] = []
+	for c in player.get("captives", []):
+		caps.append(_hero_link(c.id))
+	if caps.size():
+		out += "关押的将军：%s [color=#8c9a94]（进城可提审：招降 / 索赎 / 释放 / 斩首）[/color]\n" % "、".join(caps)
+	var wars: Array[String] = []
+	for k in player.get("wars", []):
+		wars.append(_kingdom_link(k))
+	if wars.size() and player.get("kingdom") == null and player.get("contract") == null:
+		out += "[color=#ff6b5b]与你为敌：[/color]%s\n" % "、".join(wars)
+	var fiefs: Array[String] = []
+	for sid in player.get("fiefs", []):
+		fiefs.append(_settle_link(sid))
+	if fiefs.size():
+		out += "封地：%s\n" % "、".join(fiefs)
+	if int(p.prisoners) > 0:
+		out += "俘虏 %d 人（到城里卖给赎金掮客）\n" % int(p.prisoners)
+	var cargo: Dictionary = player.get("cargo", {})
+	var cs: Array[String] = []
+	for g in cargo:
+		if int(cargo[g]) > 0:
+			cs.append("%s×%d" % [goods.get(g, g), int(cargo[g])])
+	out += "货物（%d/%d）：%s\n" % [_sum_values(cargo), int(player.cargo_cap), "、".join(cs) if cs.size() else "无"]
+	out += _troop_table(p.troops)
+	var rels: Array = []
+	var rd: Dictionary = player.get("relations", {})
+	for hid in rd:
+		rels.append([int(rd[hid]), hid])
+	rels.sort_custom(func(a, b): return abs(a[0]) > abs(b[0]))
+	if rels.size():
+		var parts: Array[String] = []
+		for r in rels.slice(0, 8):
+			parts.append("%s [color=#%s]%+d[/color]" % [_hero_link(r[1]), "8fd3a0" if r[0] > 0 else "ff8f8f", r[0]])
+		out += "诸将对你的看法：%s\n" % "  ".join(parts)
+	out += "\n[color=#8c9a94]提示：在地图上左键点击地点或部队即可前往；靠近敌人会触发遭遇。"
+	out += "进城可以招募、交易、出售俘虏、拜见将军。名望达到要求后，可以向君主称臣、拜官受职。[/color]"
+	return out
+
+
+func _sum_values(d: Dictionary) -> int:
+	var n := 0
+	for k in d:
+		n += int(d[k])
+	return n
+
+
 func _party_details(p: Dictionary) -> String:
 	var out := "[b][font_size=18]%s[/font_size][/b]  %s" % [_esc(p.name), KIND_NAMES.get(p.kind, p.kind)]
 	if p.faction != null and state.kingdoms.has(p.faction):
@@ -674,18 +953,29 @@ func _party_details(p: Dictionary) -> String:
 
 func _settlement_details(sid: String) -> String:
 	var s: Dictionary = state.settlements[sid]
-	var kinds := {"town": "城镇", "castle": "城堡", "village": "村庄", "hideout": "匪巢"}
+	var kinds := {"town": "城", "castle": "关塞", "village": "村落", "hideout": "匪巢"}
 	var out := "[b][font_size=19]%s[/font_size][/b]  %s" % [_esc(s.name), kinds.get(s.kind, s.kind)]
+	var known: bool = map.knows_settlement(sid)
 	if s.kind == "hideout":
+		if not known:
+			return out + "\n[color=#8c9a94]不在视野内，匪众多少不得而知——走近些再看。[/color]\n"
 		return out + "\n匪众约 %d 人\n" % int(s.garrison_size) + _troop_table(s.garrison)
 	out += " · %s\n" % _kingdom_link(s.faction)
-	out += "领主：%s\n" % _hero_link(s.owner)
+	out += "守将：%s\n" % _hero_link(s.owner)
 	if s.kind == "village":
-		out += "所属：%s · 繁荣 %d · 民兵 %d · 特产 %s（库存 %d）\n" % [_settle_link(s.bound), int(s.prosperity),
-			int(s.militia), goods.get(s.produce, s.produce), int(s.stock)]
+		if known:
+			out += "所属：%s · 繁荣 %d · 民兵 %d · 特产 %s（库存 %d）\n" % [_settle_link(s.bound), int(s.prosperity),
+				int(s.militia), goods.get(s.produce, s.produce), int(s.stock)]
+		else:
+			out += "所属：%s · 特产 %s\n" % [_settle_link(s.bound), goods.get(s.produce, s.produce)]
 		if s.raided:
 			out += "[color=#ff9a5a]刚遭劫掠，正在恢复[/color]\n"
 		return out
+	if not known:
+		out += "城墙 %d 级\n[color=#8c9a94]不在视野内：城防、守军与城中驻扎的部队看不清——走近些再看。[/color]\n" % int(s.walls)
+		if s.siege != null:
+			out += "[color=#e5534b]传闻正被%s围攻[/color]\n" % _fname(s.siege.kingdom)
+		return out + _recent_battles(sid)
 	out += "繁荣 %d · 民心 %d · 存粮 %d · 城墙 %d 级 · 民兵 %d\n" % [int(s.prosperity), int(s.loyalty), int(s.food),
 		int(s.walls), int(s.militia)]
 	if int(s.loyalty) < 30:
@@ -698,12 +988,18 @@ func _settlement_details(sid: String) -> String:
 	if vs.size():
 		out += "村庄：%s\n" % "、".join(vs)
 	var here: Array[String] = []
-	for pid in state.parties:
+	var camp: Array[String] = []
+	for pid in map._at.get(sid, []):
 		var p: Dictionary = state.parties[pid]
-		if p.inside == sid:
-			here.append((_hero_link(p.hero) if p.hero != null else _esc(p.name)) + "(%d)" % int(p.size))
+		var txt := (_hero_link(p.hero) if p.hero != null else _esc(p.name)) + "(%d)" % int(p.size)
+		if p.inside == sid or not s.kind in ["town", "castle"]:
+			here.append(txt)
+		else:
+			camp.append(txt)
 	if here.size():
-		out += "城内：%s\n" % "  ".join(here)
+		out += "%s：%s\n" % ["城内" if s.kind in ["town", "castle"] else "此地", "  ".join(here)]
+	if camp.size():
+		out += "城外扎营：%s\n" % "  ".join(camp)
 	out += "[color=#8c9a94]守军 %d 人：[/color]\n" % int(s.garrison_size) + _troop_table(s.garrison)
 	if s.has("market"):
 		out += "[color=#8c9a94]市场：[/color]\n[table=3]"
@@ -743,14 +1039,18 @@ func _kingdom_details(kid: String) -> String:
 	for m in k.mercenaries:
 		if state.parties.has(m):
 			out += "雇佣：%s（%d 人）\n" % [_esc(state.parties[m].name), int(state.parties[m].size)]
-	out += "[color=#8c9a94]领主：[/color]\n"
+	out += "[color=#8c9a94]诸将：[/color]\n"
 	for hid in state.heroes:
 		var h: Dictionary = state.heroes[hid]
 		if h.kingdom != kid:
 			continue
 		var st := ""
-		if h.captive_of != null:
+		if str(h.captive_of) == "__dead":
+			st = "[color=#ff8f8f]已死[/color]"
+		elif h.captive_of != null:
 			st = "[color=#c99cff]被俘[/color]"
+		elif h.party != null and state.parties.has(h.party) and not map.party_known(h.party):
+			st = "[color=#8c9a94]行踪不明[/color]"
 		elif h.party != null and state.parties.has(h.party):
 			var p: Dictionary = state.parties[h.party]
 			st = "%d人 · %s" % [int(p.size), ORDER_NAMES.get(p.order.type, "") if p.order != null else MODE_NAMES.get(p.mode, "")]
@@ -776,9 +1076,9 @@ func _realms() -> String:
 			var h: Dictionary = state.heroes[hid]
 			if h.kingdom != kid:
 				continue
-			var tag := "俘" if h.captive_of != null else ""
+			var tag := "死" if str(h.captive_of) == "__dead" else ("俘" if h.captive_of != null else "")
 			if tag == "" and h.party != null and state.parties.has(h.party):
-				tag = str(int(state.parties[h.party].size))
+				tag = str(int(state.parties[h.party].size)) if map.party_known(h.party) else "?" 
 			hs.append("%s[color=#8c9a94](%s)[/color]" % [_hero_link(hid), tag])
 		out += "    " + "  ".join(hs) + "\n\n"
 	return out
@@ -787,7 +1087,7 @@ func _realms() -> String:
 func _council() -> String:
 	var ds: Array = state.decisions.values()
 	if ds.is_empty():
-		return "[color=#8c9a94]各国议会暂无议题。领主们会定期提议宣战或议和，新征服的城池会交由议会投票分封。[/color]"
+		return "[color=#8c9a94]各国朝议暂无议题。将军们会定期建言宣战或议和，新攻下的城池会交由朝议推举分封。[/color]"
 	ds.sort_custom(func(a, b): return int(a.created) > int(b.created))
 	var out := ""
 	var kinds := {"war": "宣战", "peace": "议和", "fief": "分封"}
@@ -858,7 +1158,8 @@ func _on_meta(meta) -> void:
 			var v := id.split(",")
 			map.focus(Vector2(float(v[0]), float(v[1])), max(map.zoom, map.fit_zoom * 3.0))
 		"hero":
-			if state.heroes.has(id) and state.heroes[id].party != null and state.parties.has(state.heroes[id].party):
+			if state.heroes.has(id) and state.heroes[id].party != null and state.parties.has(state.heroes[id].party) \
+					and map.party_known(str(state.heroes[id].party)):
 				map.select("party", str(state.heroes[id].party))
 				_focus_selection()
 			else:
