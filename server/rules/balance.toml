@@ -26,7 +26,7 @@ wound_rate = { default = 0.6, bandit = 0.45, villager = 0.4, caravan = 0.55 }   
 xp_per_enemy_power = 2.5      # 胜方获得经验 = 敌方损失战力 × 该值
 
 [troops]
-upkeep_per_tier = 0.35        # 每级每天军饷（骑兵再乘兵种倍率）
+upkeep_per_tier = 0.28        # 每级每天军饷（骑兵再乘兵种倍率）
 recruit_cost = { t1 = 12, t2 = 30 }
 xp_per_tier_squared = 30      # 升级所需经验 = 该值 × 等级²
 upgrade_cost_per_tier = 8     # 升级花费（骑兵 ×2）
@@ -37,11 +37,11 @@ party_limit_base = 70         # 部队规模上限 = base + 声望/4 + 每块封
 [economy]
 tariff = 0.06                 # 城镇交易关税（归城主）
 town_tax_per_prosperity = 0.9 # 城镇日税 = 繁荣度 × 该值 + 关税
-castle_tax = 20
+castle_tax = 45
 village_tax_per_hearth = 0.25
 ruler_stipend = 60            # 君主每日王室收入
-landless_stipend = 25         # 无封地领主每日津贴
-garrison_upkeep_share = 0.5   # 城主承担守军军饷的比例
+landless_stipend = 45         # 无封地领主每日津贴
+garrison_upkeep_share = 0.2   # 城主承担守军军饷的比例（其余由国库出；守军很多，城主全担会破产）
 grain_need_base = 0.6         # 城镇每日粮食消耗 = base + 繁荣度 × per_prosperity
 grain_need_per_prosperity = 0.02
 farmland_grain = 1.0          # 城郊农田每日产粮
@@ -58,8 +58,8 @@ wall_bonus_per_level = 0.45   # 强攻时守方战力 × (1 + 城墙等级 × �
 conquest_prosperity_loss = 15
 garrison_left_share = 0.2     # 攻下后统帅留下的驻军比例
 conquest_loyalty = 25         # 新征服据点的初始民心
-town_garrison = 190           # 开局城的守军（城池少而大：每国只有 4 座）
-castle_garrison = 140         # 开局关塞的守军
+town_garrison = 240           # 开局城的守军（城池少而大：每国只有 4 座）
+castle_garrison = 175         # 开局关塞的守军
 last_stand_bonus = 0.5        # 一国只剩最后 last_stand_forts 座城池时，守方战力额外 ×(1+该值)：困兽犹斗
 last_stand_forts = 2
 
@@ -90,7 +90,8 @@ rebellion_chance = 0.04       # 每天叛乱概率（民心越低越高）
 
 [capture]
 base_chance = 0.15            # 战败领主被俘的基础概率
-per_loss_chance = 0.6         # 再按兵力损失比例增加
+per_loss_chance = 0.5         # 再按兵力损失比例增加
+max_per_battle = 2            # 一场战斗最多俘获几位将军（其余的单骑突围；一战尽擒全国将领太少见）
 escape_chance = 0.045         # 被俘领主每天越狱概率
 ransom_chance = 0.12          # 君主每天考虑支付赎金的概率
 ransom_base = 250
@@ -108,6 +109,31 @@ execute_renown = -15          # 斩首：声望变化（以残暴闻名）
 execute_dread = 10            # 斩首：威名增加
 execute_relation = -15        # 斩首：其国将领对你好感
 execute_family = -40          # 斩首：其同族对你好感（再叠加上一条）
+
+[quests]
+# 差事（仿骑砍战团：向城主请缨办事，换钱、名望和好感——这是无名小卒出头的正路）
+max_active = 3                # 同时最多接几件差事
+offers_per_town = 2           # 每座城每天能打听到几件
+min_relation = -10            # 城主对你的好感低于此值就不派差事
+relation_gain = 6             # 办成后委托人好感
+relation_loss = 5             # 逾期 / 办砸后委托人好感下降
+hideout_range = 420           # 剿匪差事：多远之内的匪巢
+hideout_gold = 450
+hideout_renown = 12
+hideout_days = 12
+bandit_range = 180            # 追剿匪帮：城外多远的匪帮
+bandit_gold = 220
+bandit_renown = 6
+bandit_days = 8
+letter_gold_base = 60         # 送信：赏金 = base + 距离 × per_unit
+letter_gold_per_unit = 0.2
+letter_renown = 3
+letter_days = 14
+goods_qty = [6, 12]           # 运送物资：数量范围
+goods_bonus = 180             # 按市价收货之外的辛苦钱
+goods_max_value = 40          # 只派便宜的日用货（粮、木、盐、铁、布）
+goods_renown = 4
+goods_days = 14
 
 [pedigree]
 # 门第等级（用于分封权重）；每国看重门第的程度见 world.toml 的 pedigree_weight
@@ -137,6 +163,8 @@ max_parties_per_hideout = 3
 hideout_respawn_days = 10
 reactivate_chance = 0.35
 bounty_per_bandit = 15
+hideout_team = 12             # 亲自攻打匪巢时最多带几个人（像战团那样带精兵步战突入）
+hideout_player_renown = 6     # 玩家剿灭匪巢得到的名望
 
 [neutral]
 bounty_hunters = 3
@@ -154,6 +182,9 @@ defeat_gold_loss = 0.25       # 战败被俘时损失的金钱比例
 captive_days = 3              # 被俘后多少天逃脱
 merc_pay_per_power = 0.12     # 佣兵合同日薪 = 部队战力 × 该值
 merc_contract_days = 30
+merc_min_troops = 10
+summon_range = 900            # 封臣：本国在这么远之内召集军团时，会派人来召你          # 带的人少于这个数，没有君主会雇你当义从
+escape_followers = 5          # 被俘逃脱时跟着你跑出来的同乡（不然一兵一卒都没有，只会被土匪反复抓）
 vassal_renown = 120           # 宣誓效忠所需声望
 vassal_relation = 0           # 以及与君主的最低好感
 ransom_days = 3               # 你俘虏的领主多少天后由其君主赎回
@@ -185,9 +216,24 @@ peace_win_greed = 0.0067          # 战局有利时（每点正分）略不想�
 peace_accept_threshold = 0.5
 war_per_extra_front = 2.5         # avoid_multi_front：已有战争时不想再开新战线
 war_strength_weight = 4.0
-war_dogpile_penalty = 1.6        # lips_and_teeth：目标每多一个交战国，就更不想再落井下石
+fief_ruler_self = 5.0            # 分封：君主想把新城留给自己的基础意愿（普通将军是 8；君主有王室收入，更愿意封给功臣）
+fief_self_per_fief = 2.5         # 分封：已有封地的人（含君主自己）每多一块，再要城的意愿降低
+fief_landless_contributor = 2.5
+fief_request_weight = 3.0        # 分封：玩家攻城后当面请封，君主和诸将的投票加分  # 分封：没有封地的攻城功臣额外加分（玩家随军立功后能分到城）
+war_ratio_cap = 1.8              # 实力比超过这个倍数不再增加宣战意愿（不会因为对方弱就一拥而上）
+war_dogpile_penalty = 2.6        # lips_and_teeth：目标每多一个交战国，就更不想再落井下石
+war_distance_weight = 2.2        # near_before_far：两国相距每多一天（超出下值），宣战意愿降低（整张图横穿约 15 天）
+war_distance_free_days = 1.9
+far_target_weight = 3.2          # near_before_far：攻打离本国城池太远的孤城，每多一天扣分
+far_target_free_days = 1.9
 war_peace_boredom_days = 40       # 和平太久会想打仗
 hegemon_share = 0.33              # balance_of_power：一国城池占比超过此值视为霸主
 hegemon_war_bonus = 8.0           # 对霸主宣战的意愿加成（随超出比例增长）
 hegemon_peace_bonus = 2.0         # 与非霸主议和、集中力量对付霸主
 besiege_idle_days_bonus = 6       # 很久没进攻会更想攻城（每 N 天 +1，最多 +5）
+
+# ============================================================
+# 对话（不连 LLM 时的话题对话；台词在 content/dialogue*.toml）
+[dialogue]
+flatter_cooldown_days = 7        # 对同一位将军套近乎，几天内只有第一次有效
+flatter_max_rel = 20             # 好感到这个数以上，客套话就不再加好感了

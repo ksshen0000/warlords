@@ -77,8 +77,13 @@ BANDIT_TYPES = {b: (v["name"], v["troop"], {CODE[t] for t in v["terrain"]}) for 
 # ------------------------------------------------------------------ world
 _W = RULES.world
 SETTLEMENT_NAMES = {c: list(v) for c, v in _W["names"].items() if c != "hideouts"}
-HIDEOUT_NAMES = list(_W["names"]["hideouts"])
-KINGDOMS = [(k["id"], k["name"], k["culture"], k["color"], tuple(k["capital"])) for k in _W["kingdoms"]]
+HIDEOUT_NAMES = [h[0] for h in RULES.geography.get("hideouts", [])]   # geography.toml
+KINGDOMS = [(k["id"], k["name"], k["culture"], k["color"]) for k in _W["kingdoms"]]
+# each realm's walled places: [(name, kind, lon, lat)], the seat first (rules/world.toml sites);
+# SITE_VILLAGES: real place names for the villages around each of them
+SITES = {k["id"]: [tuple(s[:4]) for s in k["sites"]] for k in _W["kingdoms"]}
+SITE_VILLAGES = {s[0]: list(s[4]) if len(s) > 4 else [] for k in _W["kingdoms"] for s in k["sites"]}
+GEO = RULES.geography                                                           # rules/geography.toml
 FIEF_HOLDERS = {k["id"]: list(k["fiefs"]) for k in _W["kingdoms"]}
 RULERS = {k["id"]: k["ruler"] for k in _W["kingdoms"]}
 LORDS = [(l["id"], l["name"], l["kingdom"],
@@ -95,6 +100,8 @@ BLURBS = {k["id"]: k.get("blurb", "") for k in _W["kingdoms"]}
 PEDIGREE_WEIGHT = {k["id"]: float(k.get("pedigree_weight", 0.5)) for k in _W["kingdoms"]}
 TOWN_MIN_PEDIGREE = {k["id"]: k.get("town_min_pedigree", "") for k in _W["kingdoms"]}
 CAPTIVE_RECRUIT = {k["id"]: float(k.get("captive_recruit", 0.0)) for k in _W["kingdoms"]}
+SIEGE_BIAS = {k["id"]: float(k.get("siege_bias", 0.0)) for k in _W["kingdoms"]}   # rule-AI leanings per realm
+RAID_BIAS = {k["id"]: float(k.get("raid_bias", 0.0)) for k in _W["kingdoms"]}
 BACKGROUNDS = {b: dict(v) for b, v in _W.get("backgrounds", {}).items()}
 KIND_NAMES = {"town": "城", "castle": "关塞", "village": "村落", "hideout": "匪巢"}
 MERC_COMPANIES = [tuple(m) for m in _W.get("mercenaries", [])]

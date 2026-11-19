@@ -107,7 +107,7 @@ def default_world(seed: int = 0, with_player: bool = True) -> World:
     rng = random.Random(seed)
     w = World(seed=seed, terrain=terrain, rng=rng)
 
-    for kid, name, culture, color, _cap in D.KINGDOMS:
+    for kid, name, culture, color in D.KINGDOMS:
         w.kingdoms[kid] = Kingdom(kid, name, culture, color, ruler=D.RULERS[kid])
     for a, b in D.INITIAL_WARS:
         w.kingdoms[a].wars[b] = {"since": 0, "score": 0.0, "losses": [0, 0]}
@@ -129,15 +129,14 @@ def default_world(seed: int = 0, with_player: bool = True) -> World:
         w.heroes[a].relations[b] = v
 
     # fortified settlements
-    names = {c: list(v) for c, v in D.SETTLEMENT_NAMES.items()}
     counters: dict[str, int] = {}
     fort_ids = []
-    for kid, culture, kind, pos in terrain.sites["fortified"]:
+    for kid, culture, kind, pos, name in terrain.sites["fortified"]:
         i = counters.get(kid, 0)
         counters[kid] = i + 1
         sid = f"{kid}{i}"
         town = kind == "town"
-        s = Settlement(sid, names[culture].pop(0), kind, [round(pos[0], 1), round(pos[1], 1)], culture, kid,
+        s = Settlement(sid, name, kind, [round(pos[0], 1), round(pos[1], 1)], culture, kid,
                        FIEF_HOLDERS[kid][i] if i < len(FIEF_HOLDERS[kid]) else w.kingdoms[kid].ruler,
                        garrison=culture_army(culture, B.siege.town_garrison if town else B.siege.castle_garrison, rng,
                                               0.35 if town else 0.55),
@@ -157,8 +156,12 @@ def default_world(seed: int = 0, with_player: bool = True) -> World:
         biome = terrain.biome_at(*pos)
         goods = D.VILLAGE_GOODS.get(biome, ["grain"])
         vid = f"{bound.id}v{len(bound.villages)}"
+        local = D.SITE_VILLAGES.get(bound.name, [])
         pool = vnames[bound.culture]
-        name = pool.pop(0) if pool else f"{bound.name}村"
+        if len(bound.villages) < len(local):
+            name = local[len(bound.villages)]           # a real place name near this town
+        else:
+            name = pool.pop(0) if pool else f"{bound.name}村"
         v = Settlement(vid, name, "village", [round(pos[0], 1), round(pos[1], 1)], bound.culture, bound.faction,
                        bound.owner, bound=bound.id, militia=15.0, prosperity=float(rng.randint(20, 45)),
                        produce=rng.choice(goods), stock=float(rng.randint(0, 6)))
@@ -168,22 +171,11 @@ def default_world(seed: int = 0, with_player: bool = True) -> World:
         if bound.kind == "town":
             bound.market[v.produce] = bound.market.get(v.produce, 0) + 10
 
-    # bandit hideouts: a spread of types, some dormant for later respawns
-    cands = list(terrain.sites["hideouts"])
-    rng.shuffle(cands)
-    by_type: dict[str, list] = {}
-    for bt, pos in cands:
-        by_type.setdefault(bt, []).append(pos)
-    chosen = []
-    n_hide = int(D.LAYOUT.get("hideouts", 14))
-    while len(chosen) < n_hide and any(by_type.values()):
-        for bt in list(by_type):
-            if by_type[bt] and len(chosen) < n_hide:
-                chosen.append((bt, by_type[bt].pop()))
-    hn = list(D.HIDEOUT_NAMES)
-    for i, (bt, pos) in enumerate(chosen):
+    # bandit hideouts (geography.toml): the first ones listed, some dormant for later respawns
+    chosen = list(terrain.sites["hideouts"])[:int(D.LAYOUT.get("hideouts", 10))]
+    for i, (bt, pos, hname) in enumerate(chosen):
         hid = f"hide{i}"
-        s = Settlement(hid, (hn[i] if i < len(hn) else f"匪巢{i}"), "hideout",
+        s = Settlement(hid, hname, "hideout",
                        [round(pos[0], 1), round(pos[1], 1)], "bandit", BANDIT, None, bandit_type=bt,
                        active=i < B.bandits.max_active_hideouts, garrison=bandit_band(bt, rng.randint(14, 24), rng))
         w.settlements[hid] = s

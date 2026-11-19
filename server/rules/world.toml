@@ -4,19 +4,16 @@
 # 可以手写，也可以让 AI 生成新的世界（保持同样的结构即可）。
 # ============================================================
 
-# 地图布局（刻意简化：每国 4 座城池，村落不多，便于看清局势）
+# 地图布局（刻意简化：每国 4 座城池，村落不多，便于看清局势）。山川格局见 geography.toml。
 [layout]
-fortified = ["town", "town", "castle", "castle"]   # 每国据点：第一个是都城
 villages_per_town = 2
 villages_per_castle = 1
-hideouts = 10            # 匪巢总数（其中一部分开局处于沉寂状态）
-fords = 4                # 大江上的渡口数（大江之外不可渡）
-basin = [0.22, 0.68, 0.14, 0.17]   # 群山环抱的盆地：[中心x, 中心y, 半径x, 半径y]（0..1 比例），蜀在其中
-basin_passes = [-90, -35, 0]       # 盆地的隘口方位（度；0 = 正东，-90 = 正北）。大江从正东的峡口流出
+hideouts = 10            # 匪巢总数（其中一部分开局处于沉寂状态；位置候选见 geography.toml hideouts）
 
-# 国：capital 为都城在地图上的大致位置（0..1 比例，x 向东、y 向南）；
-#   title 为君主称号；fiefs 为初始封地分配，顺序同 [layout] fortified（都城在最前），
-#   对应 [names] 中该文化的前几个地名；名单中没有出现的将军初始无封地（领津贴，靠战功求封）。
+# 国：sites 为该国的城池 [名字, 种类(town 城 / castle 关塞), 经度, 纬度, [附近村落名…]]，第一个是都城；
+#   位置参考真实地理，生成地图时会挪到附近合适的地形上。
+#   title 为君主称号；fiefs 为初始封地分配，顺序同 sites；
+#   名单中没有出现的将军初始无封地（领津贴，靠战功求封）。
 [[kingdoms]]
 id = "zhou"
 pedigree_weight = 1.0        # 分封时看重门第的程度（0 = 不问出身，1 = 只看门第）
@@ -27,7 +24,7 @@ name = "周"
 title = "皇帝"
 culture = "zhou"
 color = "#d65a4a"
-capital = [0.7, 0.8]
+sites = [["建康", "town", 118.8, 31.9, ["新亭", "乌衣里"]], ["襄阳", "town", 112.2, 31.95, ["樊城", "隆中"]], ["京口", "castle", 120.0, 31.85, ["丹徒"]], ["寿春", "castle", 116.8, 32.45, ["芍陂"]]]
 ruler = "weixi"
 fiefs = ["weixi", "huanjun", "liucen", "xieyunzhi"]
 
@@ -41,7 +38,7 @@ name = "燕"
 title = "大单于"
 culture = "yan"
 color = "#5b8def"
-capital = [0.8, 0.27]
+sites = [["龙城", "town", 120.45, 41.55, ["柳城", "平冈"]], ["蓟城", "town", 116.4, 39.9, ["范阳", "渔阳"]], ["卢龙塞", "castle", 118.45, 40.37, ["令支"]], ["中山", "castle", 115.0, 38.5, ["常山"]]]
 ruler = "tuoyanlie"
 fiefs = ["tuoyanlie", "cuiyan", "tuoyanxiao", "chiyuntiefa"]
 
@@ -55,7 +52,7 @@ name = "赵"
 title = "天王"
 culture = "zhao"
 color = "#e0a030"
-capital = [0.5, 0.47]
+sites = [["邺城", "town", 114.35, 36.3, ["枋头", "襄国"]], ["洛阳", "town", 112.55, 34.62, ["孟津", "金墉"]], ["长安", "town", 108.95, 34.25, ["槐里", "霸上"]], ["虎牢关", "castle", 113.75, 34.72, ["荥阳"]]]
 ruler = "qushian"
 fiefs = ["qushian", "quhezhao", "qinxiao", "hugulang"]
 
@@ -69,7 +66,7 @@ name = "凉"
 title = "凉公"
 culture = "liang"
 color = "#2fb5a8"
-capital = [0.17, 0.3]
+sites = [["姑臧", "town", 102.63, 37.93, ["休屠", "昌松"]], ["敦煌", "town", 94.67, 40.14, ["阳关", "鸣沙"]], ["张掖", "castle", 100.45, 38.93, ["删丹"]], ["金城", "castle", 103.8, 35.98, ["枹罕"]]]
 ruler = "lingshouyi"
 fiefs = ["lingshouyi", "kangqieluo", "suoyuanting", "xinxiao"]
 
@@ -83,12 +80,14 @@ name = "蜀"
 title = "蜀王"
 culture = "shu"
 color = "#9a5cc6"
-capital = [0.22, 0.7]
+sites = [["成都", "town", 104.07, 30.67, ["锦里", "广都"]], ["江州", "town", 106.55, 29.45, ["垫江", "枳县"]], ["剑阁", "castle", 105.55, 32.2, ["葭萌"]], ["白帝城", "castle", 109.45, 31.08, ["巫县"]]]
 ruler = "luote"
 fiefs = ["luote", "luoshou", "renjian", "yangyuan"]
 
 [[kingdoms]]
 id = "rou"
+siege_bias = -4.0            # 规则 AI 的攻城偏好（加到攻城评分上）：游牧之国攻坚城非所长（doctrine: rou_way）
+raid_bias = 2.5              # 规则 AI 的劫掠偏好：南下抄掠才是常态
 pedigree_weight = 0.3        # 分封时看重门第的程度（0 = 不问出身，1 = 只看门第）
 town_min_pedigree = ""    # 封「城」所需的最低门第（空 = 不限）
 captive_recruit = 0.12       # 招降俘虏将领的成功率加成
@@ -97,7 +96,7 @@ name = "柔"
 title = "可汗"
 culture = "rou"
 color = "#8a8f98"
-capital = [0.47, 0.1]
+sites = [["王庭", "town", 110.2, 43.6, ["敕勒川", "马群泊"]], ["燕然", "town", 104.0, 44.6, ["郅居", "余吾"]], ["浚稽", "castle", 106.8, 42.2, ["狼山"]], ["涿邪", "castle", 113.0, 43.4, ["弓卢"]]]
 ruler = "aguzhen"
 fiefs = ["aguzhen", "wulan", "huguti", "moyan"]
 
@@ -268,7 +267,7 @@ kingdom = "liang"
 pedigree = "high"
 traits = { aggression = 0, caution = 1, honor = 1, greed = 0 }
 tactics = 2
-persona = "敦煌大族出身，镇守玉门关的老将，与漠北游骑打了一辈子仗。"
+persona = "敦煌大族出身，镇守张掖的老将，扼守弱水河谷，与漠北游骑打了一辈子仗。"
 
 [[lords]]
 id = "kangqieluo"
@@ -395,6 +394,7 @@ persona = "年轻的射雕手，可汗的养子。崇拜英雄，渴望南下见
 # start：capital 都城 / town 任一城 / village 村落；relation：对出身国将军的初始好感；
 # cultures：只有这些出身可选（省略 = 都可选）；cargo：随身货物 [货物, 数量]
 [backgrounds.refugee]
+battle_loadout = { melee = ["spear", "knife"], shield = "rattan", armor = 8 }   # 亲自上阵时的装备（3D 战斗）
 name = "流民帅"
 desc = "家乡毁于战火，你领着一群流亡的乡亲讨生活。人多、钱少、兵弱，但个个能吃苦。"
 gold = 400
@@ -405,6 +405,7 @@ pedigree = "low"
 start = "village"
 
 [backgrounds.lowborn]
+battle_loadout = { melee = ["sword"], shield = "round", ranged = "bow", armor = 18 }
 name = "寒门武人"
 desc = "你出身寒微，在边军里摸爬滚打多年，如今带着一队老兄弟出来闯荡。"
 gold = 1500
@@ -415,6 +416,7 @@ pedigree = "low"
 start = "town"
 
 [backgrounds.gentry]
+battle_loadout = { melee = ["sword", "spear"], shield = "round", ranged = "bow", horse = "horse", armor = 26 }
 name = "高门子弟"
 desc = "你是世家大族的子弟，自幼读书习武。家族给了你钱和一队精干的部曲，也给了你姓氏带来的人脉。"
 gold = 3000
@@ -426,6 +428,7 @@ start = "capital"
 cultures = ["zhou", "yan", "zhao", "liang", "shu"]
 
 [backgrounds.tribal]
+battle_loadout = { melee = ["sword"], ranged = "horsebow", horse = "horse", armor = 14 }
 name = "部族勇士"
 desc = "你是部落里最好的骑手之一，带着一群年轻的伙伴离开草场，去南方的城池碰碰运气。"
 gold = 1000
@@ -437,6 +440,7 @@ start = "town"
 cultures = ["yan", "zhao", "liang", "rou"]
 
 [backgrounds.merchant]
+battle_loadout = { melee = ["sword"], shield = "round", horse = "horse", armor = 14 }
 name = "商贾之家"
 desc = "你家世代经商，这次你带着本钱和一车货物、雇了几个护卫，打算在乱世里做一笔大买卖。"
 gold = 5000
@@ -470,14 +474,16 @@ relations = [
   # 跨国
   ["qinxiao", "liucen", 5], ["songcheng", "fanche", 10], ["xieyunzhi", "qinxiao", -10],
 ]
-# 开局时的战争：周—赵（北伐）、燕—赵（争夺中原）、周—蜀（争夺上游）、柔—燕（北疆世仇）
-wars = [["zhou", "zhao"], ["yan", "zhao"], ["zhou", "shu"], ["rou", "yan"]]
+# 开局时的战争：周—赵（北伐）、燕—赵（争夺中原）、周—蜀（争夺上游）、柔—凉（漠北游骑南下河西）
+# （柔与燕是北疆世仇，但开局刚议和；燕夹在柔、赵之间，两线开战会很快崩溃）
+wars = [["zhou", "zhao"], ["yan", "zhao"], ["zhou", "shu"], ["rou", "liang"]]
 caravan_owners = ["luheng", "kangqieluo", "moyan"]   # 开局即拥有商队的将军
 
 # 义从（佣兵团）：[名称, 主力兵种]
 mercenaries = [["赤羽义从", "merc_cav"], ["石楼营", "merc_inf"]]
 
-# 地名：每个文化的前几个依次给 [layout] fortified 中的据点（都城、城、关塞），第 9 个起给村落。
+# 地名：城池的名字写在各国的 sites 里；这里每个文化从第 9 个起依次给村落（前 8 个留作备用城名）。
+# 匪巢的名字和位置在 geography.toml。
 [names]
 zhou = ["建康", "襄阳", "京口", "寿春", "浔阳", "江陵", "广陵", "姑孰", "采石", "历阳", "新亭", "白石垒", "乌衣里", "桑落洲", "芦洲", "渔浦", "稻香里", "菱湖村", "青溪村", "竹里", "柳浦", "茶坞", "蚕桑里", "鹭洲"]
 yan = ["龙城", "蓟城", "卢龙塞", "中山", "令支", "平冈", "渔阳", "范阳", "柳城", "白狼水", "马邑屯", "白草村", "毡帐村", "榆林村", "黑松屯", "沙柳村", "狐泉村", "鹰嘴村", "苍狼村", "冷泉村", "桦皮村", "羊角村", "牧场屯", "鹿鸣村"]
@@ -485,4 +491,3 @@ zhao = ["邺城", "洛阳", "虎牢关", "襄国", "枋头", "金墉城", "荥�
 liang = ["姑臧", "敦煌", "玉门关", "张掖", "酒泉", "阳关", "金城", "西平", "葡萄屯", "胡杨村", "红柳村", "驼队里", "盐池村", "佛窟村", "苜蓿村", "石窟里", "白杨屯", "月泉村", "烽燧村", "甘泉村", "鸣沙村", "骆驼屯", "蜜瓜村", "铜铃村"]
 shu = ["成都", "江州", "剑阁", "阆中", "白帝城", "涪城", "葭萌关", "汉中", "竹海村", "茶山村", "锦里", "盐井村", "橘园村", "竹溪村", "云雾村", "麻田村", "桑林村", "芙蓉村", "石门村", "溪口村", "木鱼村", "桐子村", "青城村", "峨眉村"]
 rou = ["王庭", "燕然", "浚稽", "涿邪", "弓卢", "郅居", "余吾", "金山", "白狼泉", "黑沙", "驼泉", "羊圈", "苍狼谷", "敕勒川", "帐落", "马群泊", "盐泽", "风口", "黄羊滩", "鹰岭", "野马川", "雪水", "红柳滩", "狐兔坡"]
-hideouts = ["黑山", "芒砀山", "太行陉", "云梦泽", "白波谷", "青犊坡", "梁山泊", "乞活垒", "八公山", "北邙", "骊山", "鬼哭峡", "飞狐口", "蒲泽", "太岳", "断崖营"]

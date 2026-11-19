@@ -9,12 +9,12 @@ from dataclasses import dataclass, field
 
 from . import troops as T
 from .data import KIND_NAMES
-from .common import dist, realm_sees
+from .common import dist, fort_days, realm_sees
 from .data import BANDIT_TYPES, GOODS
 from .model import Hero, Party, World, party_speed
 from .rules import B
 
-MAX_DAYS = 7.0
+MAX_DAYS = 10.0
 
 
 @dataclass
@@ -109,21 +109,23 @@ def lord_options(w: World, h: Hero) -> list[Option]:
             defense = (T.power(s.garrison) + s.militia) * (1 + B.siege.wall_bonus_per_level * s.walls) + inside
             allies = sum(w.party_power(q) for q in w.parties.values() if q.alive and q.mode == "siege"
                          and q.memo.get("siege") == s.id and w.side_of(q) == side and q is not p)
-            bc.append((d, s, defense, allies, threat_near(w, side, s.pos)))
-        for d, s, defense, allies, threat in sorted(bc, key=lambda x: x[2] / max(1, my) + x[0] * 0.3)[:4]:
+            home = fort_days(w, s.id, side)
+            bc.append((d, s, defense, allies, threat_near(w, side, s.pos), home))
+        for d, s, defense, allies, threat, home in sorted(bc, key=lambda x: x[2] / max(1, my) + x[0] * 0.3 + x[5] * 0.4)[:4]:
             extra = f"，友军已在围城（战力{allies:.0f}）" if allies else ""
             extra += f"，附近敌军战力{threat:.0f}" if threat else ""
+            extra += f"，离本国最近的城池{home:.1f}天" + ("（孤悬在外，难以守住）" if home > B.ai.far_target_free_days * 2 else "")
             opts.append(Option("besiege", s.id,
                                f"围攻{s.name}（{w.kingdoms[s.faction].name}{KIND_NAMES[s.kind]}，"
                                f"城防战力约{defense:.0f}{extra}，{d}天）",
                                {"days": d, "defense": defense, "ally_power": allies, "threat": threat,
-                                "kind": s.kind, "prosperity": s.prosperity}))
+                                "kind": s.kind, "prosperity": s.prosperity, "from_home": home}))
         # ---- raid villages
         rc = []
         for s in w.settlements.values():
             if s.kind != "village" or not w.at_war(side, s.faction) or s.raided_until > w.hour:
                 continue
-            if dist(s.pos, p.pos) > 380:
+            if dist(s.pos, p.pos) > 600:
                 continue
             d = _days(w, p, s.id)
             if d <= 5:
@@ -167,7 +169,7 @@ def lord_options(w: World, h: Hero) -> list[Option]:
     if n >= 30 and (not p.army or leader_of_army):
         hc = []
         for s in w.settlements.values():
-            if s.kind == "hideout" and s.active and dist(s.pos, p.pos) < 320:
+            if s.kind == "hideout" and s.active and dist(s.pos, p.pos) < 500:
                 d = _days(w, p, s.id)
                 if d <= 5:
                     hc.append((d, s))

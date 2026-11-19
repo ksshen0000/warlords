@@ -1,0 +1,682 @@
+# 台词：dialogue_whereabouts（已审阅；格式见 warlords/content.py）
+
+[[line]]
+topic = "whereabouts"
+when = ["!knows"]
+text = "这人近来行踪飘忽，我这里没个准信。"
+
+[[line]]
+topic = "whereabouts"
+when = ["!knows"]
+text = "足下问的那位，某确实不知，只听说还活着。"
+
+[[line]]
+topic = "whereabouts"
+when = ["captive"]
+priority = 1
+text = "{target}么？早被拿下了，如今在牢里吃苦头。"
+
+[[line]]
+topic = "whereabouts"
+when = ["captive"]
+priority = 1
+text = "那人已经作了阶下囚，救是救不出的，别白费力气。"
+
+[[line]]
+topic = "whereabouts"
+when = ["captive"]
+priority = 1
+text = "你要寻的人关在狱中——这世道，进得去难出来。"
+
+[[line]]
+topic = "whereabouts"
+when = ["knows"]
+text = "阁下要找的人，眼下在{place}，去迟了怕是要挪窝。"
+
+[[line]]
+topic = "whereabouts"
+when = ["knows"]
+text = "实不相瞒，{target}眼下在{place}，路径我不便细讲。"
+
+[[line]]
+topic = "whereabouts"
+when = ["knows"]
+text = "此人在{place}落脚，你若去，莫提是从我这里得的信。"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "!knows"]
+text = "孤不知，也不想知道。乱世里寻人，不如寻条活路。"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "!knows"]
+text = "此事孤亦不知。你若有心，自去寻访。"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "!knows"]
+text = "孤这里没有你要的消息。天下之大，何苦只问孤一人？"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "captive"]
+priority = 1
+text = "{target}已被擒了。你还想寻他，只怕寻到牢里去。"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "captive"]
+priority = 1
+text = "来迟了。那人已被俘，如今生死由不得他自己。"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "captive"]
+priority = 1
+text = "孤倒想问你一句：{target}既已成囚，你寻他，是要救，还是要看？"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "knows"]
+text = "你要寻的人，眼下在{place}。孤已说了，去不去由你。"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "knows"]
+text = "人在{place}，孤不瞒你。只是那地方，不是谁都能进。"
+
+[[line]]
+topic = "whereabouts"
+when = ["ruler", "knows"]
+text = "既来问孤，便实说：{target}在{place}。此去路上，多加小心。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["!knows"]
+text = "{target}的踪迹，恕在下不知；商路上消息要银子铺路。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["!knows"]
+text = "凉州耳目虽多，也不是事事都知；{target}的下落，某实在说不出。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["captive"]
+priority = 1
+text = "唉，{target}身陷囹圄，菩萨也难救；这消息的价钱，阁下出得起么？"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["knows"]
+text = "足下要找的人，眼下正在{place}，这消息可不便宜。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["knows"]
+text = "佛前不打诳语，{target}确在{place}。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["knows"]
+text = "商队昨日捎回话来，{target}人在{place}。这消息，算某送足下的。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["ruler", "!knows"]
+text = "{target}？孤这里商队来往，消息虽多，却没有这一条。阁下另寻别处罢。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["ruler", "!knows"]
+text = "若孤知道{target}在何处，早就拿来换钱了。可惜，实在不知。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["ruler", "knows"]
+text = "足下问{target}么？人在{place}。这条消息，孤送你了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["ruler", "knows"]
+text = "孤不瞒你，{target}现在{place}。商路之上耳目繁杂，消息却不会错。"
+
+[[line]]
+topic = "whereabouts"
+culture = "liang"
+when = ["ruler", "knows"]
+text = "{target}在{place}。佛前不敢诳语，孤说的是实情。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["!knows"]
+text = "不知道。草原这么大，谁记得住一个人的去向。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["!knows"]
+text = "我不管这些。找人就问商队，他们嘴最碎。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["captive"]
+priority = 1
+text = "{target}被锁了。这世道，锁人的和挨锁的，转个身就换。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["captive"]
+priority = 1
+text = "人还活着，关起来了。要救，得用刀和誓约，光说没用。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["captive"]
+priority = 1
+text = "{target}在牢里。锁是铁打的，人是肉长的。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["knows"]
+text = "你要找{target}？人在{place}，我的马比你快，早看见了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["knows"]
+text = "{target}在{place}，我的人盯着，他尚未察觉。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["knows"]
+text = "{target}在{place}，那处风大，草料不足马撑不住。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "!knows"]
+text = "我不知道{target}在哪。草原大得很，人一散就找不着了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "!knows"]
+text = "{target}？没听过这名。要找人，去问风，别问我。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "!knows"]
+text = "我的人没提过{target}。你若只是来打听，那就回去罢。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "captive"]
+priority = 1
+text = "{target}已被人拿住了。{culture}的规矩，落在手里的人从不白放。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "captive"]
+priority = 1
+text = "你晚了一步，{target}已做了俘虏。强者拿走一切，迟了便是迟了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "captive"]
+priority = 1
+text = "{target}？锁在营里，铁链拴着。你问这个做什么？"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "knows"]
+text = "你要寻的{target}，在{place}。记着，草原上的话，说出口便是债。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "knows"]
+text = "{target}？在{place}。我的话不重说第二遍，耳朵放亮。"
+
+[[line]]
+topic = "whereabouts"
+culture = "rou"
+when = ["ruler", "knows"]
+text = "{target}在{place}，我亲眼见的。那里不讲道理，刀钝了可不成。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["!knows"]
+text = "不晓得。咱巴蜀人少出门，走远了谁认得谁。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["!knows"]
+text = "这个我帮不上，足下另问旁人罢——咱蜀地人耳目不广。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["!knows"]
+text = "没听说。乱世里人跟水一样，流到哪算哪。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["captive"]
+priority = 1
+text = "{target}？唉，陷在牢里了，刀架在脖子上，只盼有人搭救。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["captive"]
+priority = 1
+text = "足下问得晚了。人已经被捉，关在狱中，日子怕不好过。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["captive"]
+priority = 1
+text = "人叫他们捉去了，铁链锁着哩。牢里那日子，不好过。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["knows"]
+text = "尔问{target}？人在{place}，我亲眼见的，错不了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["knows"]
+text = "{place}那边。山路难走，足下多带些干粮再上路。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["ruler", "!knows"]
+text = "{target}？我不知他在何处。蜀地虽小，也不是事事都入我耳。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["ruler", "!knows"]
+text = "你问{target}？他不在{here}。至于去了何处——我不晓得。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["ruler", "!knows"]
+text = "哼，{target}的下落，我若知道，何必瞒你？不知便是不知。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["ruler", "captive"]
+priority = 1
+text = "你来迟了。{target}已做了阶下囚，眼下押在别处，不在我手上。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["ruler", "captive"]
+priority = 1
+text = "{target}么？已被俘了。刀兵无眼，被人捉去也不稀奇——莫要听信旁人，说是我蜀中下的手。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["ruler", "knows"]
+text = "你要寻{target}？他就在{place}。山路难走，莫要迷了方向。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["ruler", "knows"]
+text = "{target}么？人在{place}。我蜀中不打诳语，说了在那里，便在那里。"
+
+[[line]]
+topic = "whereabouts"
+culture = "shu"
+when = ["ruler", "knows"]
+text = "{target}现在{place}。我蜀人说话，一句便是一句——你若要寻他，早些动身。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["!knows"]
+text = "{target}的行踪，我确实不知，你另问高明吧。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["!knows"]
+text = "你问{target}？我若知道，早去寻他喝酒了，还等你来问？"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["!knows"]
+text = "不知道。{target}又不是我的部属，他是死是活，与我何干。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["captive"]
+priority = 1
+text = "{target}？被俘了，关在牢里。想把人弄出去，先问过我手中的刀。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["captive"]
+priority = 1
+text = "人在囹圄，你去也见不着。{target}的事，我劝你少沾。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["captive"]
+priority = 1
+text = "关起来了。{target}骨头硬不硬，就看这几日了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["knows"]
+text = "你要寻{target}？他如今在{place}，我亲眼见的，还能有假？"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["knows"]
+text = "{target}啊，在{place}扎着。你找他做什么，先说来听听。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["knows"]
+text = "往{place}去便是。{target}与我喝过血酒，你莫要难为他。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["ruler", "!knows"]
+text = "不知。你若真要寻，自去寻。寻不着，莫来怨孤。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["ruler", "!knows"]
+text = "{target}？孤的帐里没这号人，耳朵里也没有。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["ruler", "!knows"]
+text = "问孤不如问天。{target}的去处，孤答不出。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["ruler", "captive"]
+priority = 1
+text = "{target}败了，被俘。孤说话直，你听了别恼。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["ruler", "captive"]
+priority = 1
+text = "被擒了。孤不瞒你：这种人，换作孤，也舍不得杀。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["ruler", "knows"]
+text = "{target}在{place}。孤知道，是因为孤的斥候比你的脚快。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["ruler", "knows"]
+text = "{target}在{place}。孤不问你为何寻他，你也别问孤为何知道。"
+
+[[line]]
+topic = "whereabouts"
+culture = "yan"
+when = ["ruler", "knows"]
+text = "{target}在{place}。话先说在前头：孤给的是路，不是人情。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["!knows"]
+text = "不知道。这世道，昨日还在眼前的人，今日就找不着了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["!knows"]
+text = "你问某？某若样样都知道，早坐在{kingdom}的帐里了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["!knows"]
+text = "没听过。某眼里只认得刀与粮，旁人的下落，问某作甚。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["captive"]
+priority = 1
+text = "{target}？已经被擒了，关在牢里。你要去救，得先掂量自己的斤两。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["captive"]
+priority = 1
+text = "晚了。人已是阶下囚，牢门上的锁比你的腿还硬。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["knows"]
+text = "你要找的人，在{place}。别问是怎么知道的，问得多了，你也在那里。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["knows"]
+text = "某听说{target}就在{place}。不过你去之前想清楚，是去救人还是去送命。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["knows"]
+text = "{place}。军中耳目杂，这话我只说一遍，出了这道门便不认。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["ruler", "!knows"]
+text = "孤不知道，也不想知道。{target}值几个钱？你倒当个宝。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["ruler", "!knows"]
+text = "打听人的事，问孤作甚？孤的刀只认活着的对手，不认逃走的。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["ruler", "!knows"]
+text = "没有音信。若真要紧，你自己去寻。孤这里不养闲人。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["ruler", "captive"]
+priority = 1
+text = "{target}？被人拿下了。你打算拿什么去换？"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["ruler", "captive"]
+priority = 1
+text = "孤早说过，乱世里谁也跑不掉。{target}已被擒，想见人，先问问自己值不值。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["ruler", "knows"]
+text = "足下问{target}？孤早得了准信，人在{place}。你若腿脚够快，兴许还能赶上。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["ruler", "knows"]
+text = "在{place}。孤告诉你，是看你还有点用处，别让孤等太久。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhao"
+when = ["ruler", "knows"]
+text = "{target}么？孤的眼线说他在{place}。孤从不白送人情，此事记你账上。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["!knows"]
+text = "{target}么？某与足下一般，耳目不广，实不知其下落。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["!knows"]
+text = "某是个粗人，只晓得营里的事，{target}的下落，委实不知。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["!knows"]
+text = "{target}的去向，某实在不清楚，足下另问高明罢。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["captive"]
+priority = 1
+text = "足下晚了一步——{target}已为人所擒，如今身陷囹圄。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["captive"]
+priority = 1
+text = "{target}么？某听闻其被俘下狱，只怕凶多吉少。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["captive"]
+priority = 1
+text = "阁下所寻的{target}，已成阶下之囚，救不得了。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["knows"]
+text = "足下问{target}么？某听闻其人在{place}，消息尚确。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["knows"]
+text = "阁下要寻{target}，不妨往{place}走一遭，莫声张。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["knows"]
+text = "{target}么……某所知者，眼下在{place}，余则不便多言。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["ruler", "!knows"]
+text = "{target}？这等人物也值得朕费心去记？足下另请高明罢。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["ruler", "!knows"]
+text = "江左人物多如过江之鲫，{target}算是什么名号？朕不曾留意。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["ruler", "!knows"]
+text = "阁下所言之人，朕不曾留意。北府那些将校耳目杂，兴许听过这名号。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["ruler", "captive"]
+priority = 1
+text = "{target}已被俘了。足下晚了一步，可惜。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["ruler", "captive"]
+priority = 1
+text = "不必寻了，{target}已落他人之手。乱世得失，本属寻常。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["ruler", "knows"]
+text = "你要寻的{target}，现在{place}。江左虽大，到底还是容得下几个人。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["ruler", "knows"]
+text = "足下问{target}么？其人尚在{place}。只是那处门第森严，足下若无几分礼数，怕是不易见着。"
+
+[[line]]
+topic = "whereabouts"
+culture = "zhou"
+when = ["ruler", "knows"]
+text = "{target}现在{place}。朕不妨告诉你去处，至于见不见得着，且看你自家造化。"

@@ -1,0 +1,426 @@
+# 台词：dialogue_chat（已审阅；格式见 warlords/content.py）
+
+[[line]]
+topic = "chat"
+when = ["rel<=-20"]
+text = "足下若无事，某还要巡营。"
+
+[[line]]
+topic = "chat"
+when = ["rel<=-20"]
+text = "这些话，说了也无用。"
+
+[[line]]
+topic = "chat"
+when = ["rel<=-20"]
+text = "此地耳目多，不宜多谈。"
+
+[[line]]
+topic = "chat"
+when = ["rel>=20"]
+text = "足下说得有趣，倒教某开了眼界。"
+
+[[line]]
+topic = "chat"
+when = ["rel>=20"]
+text = "难得足下肯与某闲话，这半日便不算虚度。"
+
+[[line]]
+topic = "chat"
+when = ["ruler"]
+text = "足下所言，朕记下了。"
+
+[[line]]
+topic = "chat"
+when = ["ruler"]
+text = "孤听着，你接着说。"
+
+[[line]]
+topic = "chat"
+when = ["ruler"]
+text = "嗯。{here}的风，比别处硬些。"
+
+[[line]]
+topic = "chat"
+text = "嗯，足下说的也有道理。"
+
+[[line]]
+topic = "chat"
+text = "此事……且看往后如何罢。"
+
+[[line]]
+topic = "chat"
+text = "是么？乱世里，话都不作数的。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["rel<=-20"]
+text = "足下此问，某实不好答。河西事杂，说来话长。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["rel<=-20"]
+text = "某这里还要清点货物，改日再与阁下叙谈。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["rel<=-20"]
+text = "话到此处便好。商路上传话最易生事，阁下见谅。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["rel>=20"]
+text = "阁下说的有趣。{here}这地方缺钱粮，倒不缺故事。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["rel>=20"]
+text = "正是，佛法讲个缘字，今日能与阁下闲谈，也是缘。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["rel>=20"]
+text = "某在{kingdom}行走多年，像阁下这样实在的人不多见。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["ruler"]
+text = "此间风沙虽大，佛法却是静的，足下坐下慢慢说。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["ruler"]
+text = "商路一通，人心也就通了，孤向来这样信。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+when = ["ruler"]
+text = "孤做事一向如此：先谈价钱，公道了便好说。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+text = "足下所言，某也听见了。只是商路多艰，这话还是留到日后再议。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+text = "呵，{here}的水土养人，闲话说说也无妨。某不过听着，不敢妄议。"
+
+[[line]]
+topic = "chat"
+culture = "liang"
+text = "此事颇为曲折，一时难断。阁下先饮盏茶，容某再想想。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+when = ["rel<=-20"]
+text = "有话留着跟可汗说，我只管马和刀。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+when = ["rel<=-20"]
+text = "马还没饮，没功夫闲话。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+when = ["rel<=-20"]
+text = "不必多言，各走各的路罢。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+when = ["rel>=20"]
+text = "足下有意思，比那些绕弯子的强。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+when = ["rel>=20"]
+text = "好，就冲这句，你这朋友我认了。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+when = ["ruler"]
+text = "有话直说。在{here}，绕弯子的人都活不长。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+when = ["ruler"]
+text = "我听着。说完就去把马喂了，夜里要动。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+when = ["ruler"]
+text = "你的话我记下了。誓言出口，刀就得跟着走。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+text = "嗯。你说的，我记下了。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+text = "草原上风大，话不用多。"
+
+[[line]]
+topic = "chat"
+culture = "rou"
+text = "是这样么？那也由你。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+when = ["rel<=-20"]
+text = "足下要探某的口风？某是蜀中人，没那么多弯弯绕绕。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+when = ["rel<=-20"]
+text = "某没工夫陪阁下闲聊。巴蜀人寡言，惯了。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+when = ["rel>=20"]
+text = "阁下这话说到某心坎上了。来，坐下慢慢说。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+when = ["rel>=20"]
+text = "足下莫见怪，某先前还当阁下与旁人一样，瞧不起咱们呢。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+when = ["ruler"]
+text = "这山这水，养人。足下若住得惯，便多住些时日。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+when = ["ruler"]
+text = "旁人张口便叫我们贼，孤听得多了。足下不叫，便好。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+when = ["ruler"]
+text = "此地人物虽陋，骨头却是硬的，孤不输与谁。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+text = "嗯，足下所言也有道理。不过巴蜀的活法，与别处不同，一时也说不清。"
+
+[[line]]
+topic = "chat"
+culture = "shu"
+text = "某听着呢。这世道，闲话比军令多，听多了也累。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+when = ["rel<=-20"]
+text = "某还有事，改日再与足下细谈。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+when = ["rel<=-20"]
+text = "某还要去巡营，回头再叙。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+when = ["rel<=-20"]
+text = "此地不是说话处，尔且自便。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+when = ["rel>=20"]
+text = "足下有意思，来，坐下说，我听着。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+when = ["rel>=20"]
+text = "阁下说话直爽，比那些弯弯绕的周礼痛快，接着讲。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+when = ["ruler"]
+text = "孤学周人的礼，学了半截；倒是这直性子，一时改不掉。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+when = ["ruler"]
+text = "{here}不比周人的朝堂，没那么多讲究。有酒就喝，有敌便砍。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+when = ["ruler"]
+text = "孤年少时只识弓马，如今也读几卷书，读得慢，你莫笑。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+text = "嗯，足下所言，我记下了。军务在身，先走一步。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+text = "闲话少叙，{here}风大，阁下自便。"
+
+[[line]]
+topic = "chat"
+culture = "yan"
+text = "你说话绕弯，我只听个响，不置可否。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["rel<=-20"]
+text = "某与你没什么好说的。各走各路吧。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["rel<=-20"]
+text = "足下若有正事，便直说；若是攀交情，免了。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["rel<=-20"]
+text = "素不相识便来搭话的，多半没安好心。尔是哪一种？"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["rel>=20"]
+text = "呵，尔这话倒实在。坐下说，坐下说。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["rel>=20"]
+text = "不错，某也是这般想的。尔倒不像那些只会绕弯子的。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["ruler"]
+text = "你既来了，就多听少说；孤这殿上，话多的都活不长。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["ruler"]
+text = "河北寸土，皆是血换来的。你若有真本事，孤看得见。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["ruler"]
+text = "别提什么正统不正统。刀快，就是正统。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+when = ["ruler"]
+text = "孤只问一句：上了阵，你砍得下几颗人头？"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+text = "嗯。尔说的这些，某记下了。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+text = "随你怎么说。某眼下没闲心计较。"
+
+[[line]]
+topic = "chat"
+culture = "zhao"
+text = "闲话少叙。这世道，话说多了不顶用，刀快才顶用。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+when = ["rel<=-20"]
+text = "足下若无事，便请回吧。军务在身，不敢久陪。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+when = ["rel<=-20"]
+text = "有什么话，直说便是。绕来绕去，误了时辰。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+when = ["rel>=20"]
+text = "足下这话说得实在。来，坐下慢慢讲。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+when = ["rel>=20"]
+text = "难得有人肯与某说这些。{here}虽僻，倒也不缺人情。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+when = ["ruler"]
+text = "卿言甚善。江左风物，自与北地不同，久居便知。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+when = ["ruler"]
+text = "北地风霜，朕亦略闻。足下远来，水土可还惯么？"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+when = ["ruler"]
+text = "宗室多事，朝议纷纭，闲谈且止于此罢。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+text = "足下所言，倒也有趣。只是{here}风大，闲话易散。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+text = "嗯。阁下见识不浅，可惜眼下不是清谈的时候。"
+
+[[line]]
+topic = "chat"
+culture = "zhou"
+text = "此事……各有各的难处。足下自便，某还要去巡一巡营垒。"

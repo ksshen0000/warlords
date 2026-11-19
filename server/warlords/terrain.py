@@ -1,4 +1,5 @@
-"""Procedural continent: heightmap, biomes, rivers, settlement sites, roads,
+"""The campaign map: a simplified China drawn from rules/geography.toml (coast, plateau, mountain
+ranges with passes, deserts, rivers with fords) plus noise for detail; settlement sites, roads,
 navigation grid and per-place flow fields (cheap pathfinding for many parties).
 
 Coordinates are world units (0..W, 0..H), y grows southwards.
@@ -15,13 +16,13 @@ from array import array
 
 from . import data as D
 
-W, H = 1200, 800
+W, H = 1920, 1280                 # world units (≈ km); the map is a simplified China, see geography.toml
 RC = 4                      # render cell size (world units)
-RW, RH = W // RC, H // RC   # 300 x 200 render grid
+RW, RH = W // RC, H // RC   # 480 x 320 render grid
 NC = 8                      # navigation cell size
-NW, NH = W // NC, H // NC   # 150 x 100 nav grid
+NW, NH = W // NC, H // NC   # 240 x 160 nav grid
 INF = float("inf")
-CACHE_VERSION = 7   # bump whenever generation (climate, sites, kingdoms) changes
+CACHE_VERSION = 11  # bump whenever generation (geography, sites, kingdoms) changes
 
 _N8 = [(-1, 0, 1.0), (1, 0, 1.0), (0, -1, 1.0), (0, 1, 1.0),
        (-1, -1, 1.4142), (1, -1, 1.4142), (-1, 1, 1.4142), (1, 1, 1.4142)]
@@ -71,8 +72,7 @@ class Terrain:
         self.is_road = bytearray(NW * NH)
         self.sites: dict = {}              # generated placement (see _place_sites)
         self.places: dict[str, tuple[float, float]] = {}   # place id -> pos (for flow fields)
-        self.river_y: list = [None] * RW      # great river centre line per render column (None = no river)
-        self.fords: list[list[float]] = []    # [x, y] of each ford across the great river
+        self.fords: list[list[float]] = []    # [x, y] of each ford across a great river
         self.basin: tuple | None = None       # (cx, cy, rx, ry) in world units
         self._flow: dict[str, array] = {}
 
@@ -100,7 +100,7 @@ class Terrain:
 
     def line_passable(self, ax, ay, bx, by) -> bool:
         d = math.hypot(bx - ax, by - ay)
-        n = max(1, int(d / (NC * 0.5)))
+        n = max(1, int(d / (NC * 0.25)))         # dense enough not to slip past a blocked cell's corner
         for i in range(n + 1):
             t = i / n
             if not self.passable(ax + (bx - ax) * t, ay + (by - ay) * t):
@@ -224,7 +224,11 @@ class Terrain:
             best = nb
             cells.append(nb)
             if nbd == 0:
-                return self.places[place]
+                # the place is within reach — but only head straight for it if nothing (a river, a
+                # mountain) is in between; otherwise keep following the flow field (e.g. via a ford)
+                if self.line_passable(x, y, *self.places[place]):
+                    return self.places[place]
+                break
         # take the farthest look-ahead cell that is reachable in a straight line
         for c in reversed(cells):
             px, py = self.ncenter(c)
@@ -256,24 +260,14 @@ class Terrain:
         cx, cy, rx, ry = self.basin
         return ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 0.9 ** 2
 
-    def region(self, x: float, y: float) -> str:
-        """'basin' / 'south' / 'north' of the great river — used to keep realms on their own side."""
-        if self.in_basin(x, y):
-            return "basin"
-        col = min(RW - 1, max(0, int(x // RC)))
-        ry = self.river_y[col]
-        if ry is None:
-            # west of where the river leaves the basin: south of the basin's top counts as south
-            return "south" if self.basin and y > self.basin[1] - self.basin[3] else "north"
-        return "south" if y > ry else "north"
-
 
 # -------------------------------------------------------------- generator
 def _fingerprint() -> str:
-    """Short hash of the rule data that shapes the generated map (kingdom seats, bandit lairs),
-    so editing world.toml / units.toml never loads a stale cached map."""
+    """Short hash of the rule data that shapes the generated map (geography, realms' sites, bandit
+    lairs), so editing geography.toml / world.toml / units.toml never loads a stale cached map."""
     import hashlib
-    key = repr((D.KINGDOMS, sorted(D.LAYOUT.items()), sorted((k, sorted(v[2])) for k, v in D.BANDIT_TYPES.items())))
+    key = repr((D.KINGDOMS, sorted(D.SITES.items()), sorted(D.LAYOUT.items()), repr(D.GEO),
+                sorted((k, sorted(v[2])) for k, v in D.BANDIT_TYPES.items())))
     return hashlib.sha1(key.encode()).hexdigest()[:8]
 
 
@@ -302,84 +296,185 @@ def generate(seed: int) -> Terrain:
     return t
 
 
+# ---------------------------------------------------------- geography
+def geo(lon: float, lat: float) -> tuple[float, float]:
+    """[longitude, latitude] -> world (x east, y south), using geography.toml [extent]."""
+    (l0, l1), (b0, b1) = D.GEO["extent"]["lon"], D.GEO["extent"]["lat"]
+    return (lon - l0) / (l1 - l0) * W, (b1 - lat) / (b1 - b0) * H
+
+
+def to_geo(x: float, y: float) -> tuple[float, float]:
+    (l0, l1), (b0, b1) = D.GEO["extent"]["lon"], D.GEO["extent"]["lat"]
+    return l0 + x / W * (l1 - l0), b1 - y / H * (b1 - b0)
+
+
+def _deg() -> float:
+    """world units per degree (roughly the same both ways)"""
+    (l0, l1), _ = D.GEO["extent"]["lon"], D.GEO["extent"]["lat"]
+    return W / (l1 - l0)
+
+
+def _poly(points) -> list[tuple[float, float]]:
+    return [geo(p[0], p[1]) for p in points]
+
+
+def _inside(x: float, y: float, poly: list) -> bool:
+    inside = False
+    n = len(poly)
+    j = n - 1
+    for i in range(n):
+        xi, yi = poly[i]
+        xj, yj = poly[j]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _seg_dist(px, py, ax, ay, bx, by) -> float:
+    dx, dy = bx - ax, by - ay
+    L = dx * dx + dy * dy
+    t = 0.0 if L == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L))
+    return math.hypot(px - ax - t * dx, py - ay - t * dy)
+
+
+def _line_dist(px, py, pts) -> float:
+    return min(_seg_dist(px, py, *pts[i], *pts[i + 1]) for i in range(len(pts) - 1))
+
+
+def _bbox(pts, pad):
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    return min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad
+
+
+def _climate(lon: float, lat: float, n1: float, n2: float) -> int:
+    """Biome of open country by region (a simplified China, see geography.toml)."""
+    if lat >= 41.3 and lon < 119.0:                         # Mongolian steppe
+        return D.MEADOW if n1 > 0.64 else D.STEPPE
+    if lon >= 119.0 and lat >= 41.0:                        # Manchuria
+        if lat > 44.8 and n1 > 0.55:
+            return D.TAIGA
+        return D.FOREST if n1 > 0.56 else D.MEADOW if n1 > 0.42 else D.STEPPE
+    if lon < 103.5 and lat > 36.4:                          # Hexi corridor oases
+        return D.MEADOW if n1 > 0.66 else D.DESERT if n1 < 0.4 else D.STEPPE
+    if lat >= 38.3 and lon < 114.0:                         # northern Shanxi / Ordos rim
+        return D.HILLS if n2 > 0.62 else D.STEPPE
+    if 104.0 <= lon <= 111.5 and 34.75 <= lat < 38.3:       # loess plateau
+        return D.HILLS if n2 > 0.47 else D.STEPPE if n1 < 0.45 else D.PLAINS
+    if lat >= 32.8:                                         # Central Plain, Guanzhong, Hebei
+        return D.FOREST if n1 > 0.72 else D.MEADOW if n1 > 0.57 else D.PLAINS
+    if lon < 109.5 and lat < 29.6:                          # Yungui hills
+        return D.HILLS if n2 > 0.4 else D.FOREST
+    if lat < 29.6:                                          # hills south of the Yangtze
+        return D.HILLS if n2 > 0.55 else D.FOREST if n1 > 0.48 else D.MEADOW
+    # Jianghuai and Jiangnan: wet, green
+    if n1 > 0.74 and lon > 111.0:
+        return D.MARSH
+    return D.FOREST if n1 > 0.6 else D.PLAINS if n1 < 0.34 else D.MEADOW
+
+
 def _generate(seed: int) -> Terrain:
     rng = random.Random(seed * 7919 + 13)
     t = Terrain(seed)
     s = seed * 31 + 5
+    G = D.GEO
+    deg = _deg()
+    t.sea_level = 0.3
+    sea = t.sea_level
+    coast = _poly(G["coast"])
+    plateau = _poly(G["plateau"])
+    cn = float(G["extent"].get("coast_noise", 0.18)) * deg
+    lakes = [(*geo(l[0], l[1]), l[2] * deg, l[3] * deg) for l in G.get("lakes", [])]
+    ranges = []
+    for r in G.get("ranges", []):
+        pts = _poly(r["points"])
+        w = float(r["width"]) * deg
+        ranges.append((r.get("kind", "mountain"), pts, w, [geo(*p) for p in r.get("passes", [])], _bbox(pts, w * 1.3)))
+    deserts = []
+    for d in G.get("deserts", []):
+        pts = _poly(d["points"])
+        deserts.append(({"desert": D.DESERT, "dunes": D.DUNES, "marsh": D.MARSH}[d["kind"]], pts, _bbox(pts, cn)))
 
-    # ---- heights
-    hs = [0.0] * (RW * RH)
+    t.height = [0.0] * (RW * RH)
     for y in range(RH):
-        ny = y / RH
         for x in range(RW):
-            nx = x / RW
-            base = _fbm(x / 48.0, y / 48.0, s, 6)
-            ridge = 1.0 - abs(_fbm(x / 70.0, y / 70.0, s + 50, 4) * 2 - 1)
-            dx, dy = (nx - 0.5) / 0.5, (ny - 0.5) / 0.5
-            d = math.sqrt(dx * dx * 0.85 + dy * dy * 1.1)
-            h = base * 0.8 + ridge ** 6 * 0.38 + 0.32 - 0.75 * max(0.0, d - 0.42) ** 1.5
-            hs[y * RW + x] = h
-    srt = sorted(hs)
-    sea = srt[int(len(srt) * 0.36)]
-    top = srt[-1]
-    land = [h for h in hs if h >= sea]
-    land.sort()
-    hills_lvl = land[int(len(land) * 0.85)]
-    mount_lvl = land[int(len(land) * 0.95)]
-    # normalise: keep sea level where it is, stretch to 0..1
-    t.height = [(h - srt[0]) / (top - srt[0]) for h in hs]
-    t.sea_level = (sea - srt[0]) / (top - srt[0])
-    hills_n = (hills_lvl - srt[0]) / (top - srt[0])
-    mount_n = (mount_lvl - srt[0]) / (top - srt[0])
-
-    # ---- climate + biomes
-    for y in range(RH):
-        ny = y / RH
-        for x in range(RW):
-            nx = x / RW
             i = y * RW + x
-            h = t.height[i]
-            if h < t.sea_level:
-                t.biome[i] = D.DEEP_WATER if h < t.sea_level - 0.05 else D.WATER
+            px, py = (x + 0.5) * RC, (y + 0.5) * RC
+            lon, lat = to_geo(px, py)
+            n1 = _fbm(x / 26.0, y / 26.0, s + 3, 4)
+            n2 = _fbm(x / 13.0, y / 13.0, s + 7, 3)
+            jx = px + (_fbm(x / 9.0, y / 9.0, s + 11, 3) - 0.5) * 2 * cn
+            jy = py + (_fbm(x / 9.0, y / 9.0, s + 13, 3) - 0.5) * 2 * cn
+            land = _inside(jx, jy, coast)
+            if land:
+                for lx, ly, rx, ry in lakes:
+                    if ((jx - lx) / rx) ** 2 + ((jy - ly) / ry) ** 2 < 1.0:
+                        land = False
+                        break
+            if not land:
+                t.height[i] = sea - 0.04 - 0.2 * n2
+                t.biome[i] = D.WATER
                 continue
-            hl = (h - t.sea_level) / (1 - t.sea_level)
-            # climate (Northern & Southern Dynasties setting, see docs/worldbuilding.md):
-            # far north cold steppe, northwest desert corridor, south wet river country,
-            # southwest a hilly basin, centre open plains.
-            temp = ny + (_fbm(x / 30.0, y / 30.0, s + 9, 3) - 0.5) * 0.12 - hl * 0.15
-            m = _fbm(x / 36.0, y / 36.0, s + 3, 4)
-            dry = _clamp((0.38 - nx) * 2.6) * _clamp((0.58 - ny) * 3.0)          # northwest desert
-            north = _clamp((0.32 - ny) * 3.5)                                    # northern steppe
-            wet = _clamp((ny - 0.6) * 2.5)                                       # southern rivers
-            sw = _clamp((0.36 - nx) * 3.0) * _clamp((ny - 0.58) * 3.0)           # southwestern basin
-            m = m - dry * 0.6 - north * 0.28 + wet * 0.32 * (1 - sw)
-            if h > mount_n:
+            elev = 0.06 + 0.08 * n2
+            b = _climate(lon, lat, n1, n2)
+            if b == D.HILLS:
+                elev += 0.16
+            # mountain ranges (with gaps at the passes)
+            ridge, hill = 0.0, 0.0
+            for kind, pts, w, passes, (x0, y0, x1, y1) in ranges:
+                if not (x0 <= px <= x1 and y0 <= py <= y1):
+                    continue
+                d = _line_dist(jx, jy, pts)
+                ww = w * (0.8 + 0.4 * n2)
+                if d >= ww:
+                    continue
+                v = (1 - d / ww) ** 1.2
+                if kind == "mountain" and any(math.hypot(px - qx, py - qy) < 0.3 * deg for qx, qy in passes):
+                    hill = max(hill, v)               # a pass: rough but passable
+                elif kind == "mountain":
+                    ridge = max(ridge, v)
+                else:
+                    hill = max(hill, v)
+            if _inside(jx, jy, plateau):
+                # a high, mostly brown plateau with scattered snowy peaks
+                ridge = max(ridge, 0.5 + 0.5 * max(0.0, n2 - 0.58) / 0.42)
+            if ridge > 0.3:
                 b = D.MOUNTAIN
-            elif h > hills_n:
+                elev = 0.55 + 0.35 * ridge + 0.1 * n2
+            elif hill > 0.25 or ridge > 0.0:
                 b = D.HILLS
-            elif temp < 0.07:
-                b = D.SNOW
-            elif temp < 0.2 and m > 0.55:
-                b = D.TAIGA
-            elif hl < 0.018 and temp > 0.3:
-                b = D.BEACH
-            elif dry > 0.25 and m < 0.33:
-                b = D.DUNES if m < 0.2 else D.DESERT
-            elif m > 0.66 and hl < 0.12:
-                b = D.MARSH
-            elif m > 0.55:
-                b = D.FOREST
-            elif m < 0.38:
-                b = D.STEPPE
-            elif m > 0.47:
-                b = D.MEADOW
+                elev = max(elev, 0.25 + 0.25 * max(hill, ridge))
             else:
-                b = D.PLAINS
+                for kind_b, pts, (x0, y0, x1, y1) in deserts:
+                    if x0 <= jx <= x1 and y0 <= jy <= y1 and _inside(jx, jy, pts):
+                        b = kind_b if not (kind_b == D.DUNES and n2 < 0.3) else D.DESERT
+                        break
             t.biome[i] = b
+            t.height[i] = sea + 0.02 + elev * (1 - sea - 0.03)
+    # deep water away from the coast; beaches along it
+    for y in range(RH):
+        for x in range(RW):
+            i = y * RW + x
+            near_land = near_sea = False
+            for dx in (-2, -1, 0, 1, 2):
+                for dy in (-2, -1, 0, 1, 2):
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < RW and 0 <= ny < RH:
+                        j = ny * RW + nx
+                        if t.height[j] >= sea:
+                            near_land = True
+                        else:
+                            near_sea = True
+            if t.height[i] < sea:
+                if not near_land:
+                    t.biome[i] = D.DEEP_WATER
+            elif near_sea and t.biome[i] in (D.PLAINS, D.MEADOW, D.FOREST, D.STEPPE, D.MARSH) \
+                    and _fbm(x / 6.0, y / 6.0, s + 17, 2) > 0.45 and _is_coast(t, x, y):
+                t.biome[i] = D.BEACH
 
-    _shape_basin(t, s, hills_n, mount_n)
-    _great_river(t, rng, s)
-    _make_rivers(t, rng)
+    _shape_basin(t, s)
+    _carve_rivers(t)
     _build_nav(t)
     _place_sites(t, rng)
     _build_roads(t)
@@ -387,170 +482,112 @@ def _generate(seed: int) -> Terrain:
     return t
 
 
-# ------------------------------------------------- basin & great river
-def _shape_basin(t: Terrain, s: int, hills_n: float, mount_n: float) -> None:
-    """Ring a fertile basin with mountains, leaving a few passes (rules: world.toml [layout])."""
-    b = D.LAYOUT.get("basin")
+def _is_coast(t: Terrain, x: int, y: int) -> bool:
+    for dx, dy, _w in _N8[:4]:
+        nx, ny = x + dx, y + dy
+        if 0 <= nx < RW and 0 <= ny < RH and t.biome[ny * RW + nx] in (D.WATER, D.DEEP_WATER):
+            return True
+    return False
+
+
+# ------------------------------------------------- basin & rivers
+def _shape_basin(t: Terrain, s: int) -> None:
+    """Ring the Sichuan basin with mountains, leaving a few passes (geography.toml [basin])."""
+    b = D.GEO.get("basin")
     if not b:
         return
-    cx, cy, rx, ry = b[0] * W, b[1] * H, b[2] * W, b[3] * H
+    deg = _deg()
+    cx, cy = geo(*b["center"])
+    rx, ry = b["radius"][0] * deg, b["radius"][1] * deg
     t.basin = (cx, cy, rx, ry)
-    passes = [math.radians(a) for a in D.LAYOUT.get("basin_passes", [-90, 0])]
+    passes = [math.radians(a) for a in b.get("passes", [-90, 0])]
+    hill_h = t.sea_level + 0.3
     for y in range(RH):
         for x in range(RW):
             i = y * RW + x
             px, py = (x + 0.5) * RC, (y + 0.5) * RC
             dx, dy = (px - cx) / rx, (py - cy) / ry
             d = math.hypot(dx, dy) + (_fbm(x / 9.0, y / 9.0, s + 41, 2) - 0.5) * 0.18
-            if d > 1.12:
+            if d > 1.15:
                 continue
-            if t.height[i] < t.sea_level:
-                if d > 1.0:
-                    continue                          # leave the coast outside the ring alone
-                t.height[i] = t.sea_level + 0.05      # the basin is always dry land
-                t.biome[i] = D.MEADOW
             ang = math.atan2(dy, dx)
             gap = min(abs((ang - a + math.pi) % math.tau - math.pi) for a in passes)
-            if 0.86 < d < 1.12:
-                if gap < 0.16:                       # a pass: rough hills, but passable
+            if 0.86 < d < 1.15:
+                if gap < 0.17:                       # a pass: rough hills, but passable
                     t.biome[i] = D.HILLS
-                    t.height[i] = max(t.height[i], hills_n + 0.02)
+                    t.height[i] = max(t.height[i], hill_h)
                 else:
                     t.biome[i] = D.MOUNTAIN
-                    t.height[i] = max(t.height[i], mount_n + 0.03 + 0.08 * (1 - abs(d - 0.99) / 0.13))
-            elif d <= 0.86 and t.biome[i] in (D.PLAINS, D.STEPPE, D.DESERT, D.DUNES, D.SNOW, D.TAIGA, D.MOUNTAIN):
+                    t.height[i] = max(t.height[i], 0.75 + 0.15 * (1 - abs(d - 1.0) / 0.15))
+            elif d <= 0.86:
                 # the basin floor is green and hilly
                 n = _fbm(x / 14.0, y / 14.0, s + 43, 3)
                 t.biome[i] = D.FOREST if n > 0.58 else D.HILLS if n < 0.4 else D.MEADOW
-                if t.biome[i] != D.HILLS:
-                    t.height[i] = min(t.height[i], hills_n - 0.01)
+                t.height[i] = t.sea_level + (0.22 if t.biome[i] == D.HILLS else 0.1)
 
 
-def _great_river(t: Terrain, rng: random.Random, s: int) -> None:
-    """A wide, unfordable river from the basin's east gorge to the eastern sea, crossable only
-    at a few fords (rules: world.toml [layout] fords)."""
-    if not t.basin:
-        return
-    cx, cy, rx, ry = t.basin
-    x0 = int(cx // RC)
-    exit_x = (cx + rx * 1.12) / RC
-    target = 0.6 * H
-    half = 2.6                                    # half width in render cells (~20 world units)
-    span = RW - x0
-    for col in range(x0, RW):
-        u = (col - x0) / max(1, span)
-        amp = 18.0 * min(1.0, u * 3)
-        yc = cy + (target - cy) * (3 * u * u - 2 * u * u * u) \
-            + amp * math.sin(col * RC / 85.0 + s) + 0.5 * amp * math.sin(col * RC / 33.0 + 2 * s)
-        t.river_y[col] = yc
-        wide = col > exit_x
-        h = half if wide else 1.0
-        for row in range(int((yc / RC) - h - 1), int((yc / RC) + h + 2)):
-            if not (0 <= row < RH) or abs((row + 0.5) - yc / RC) > h:
+def _cells_near_line(pts, radius: float):
+    """render cells whose centre is within `radius` world units of the polyline"""
+    out = set()
+    for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+        x0 = max(0, int((min(ax, bx) - radius) // RC))
+        x1 = min(RW - 1, int((max(ax, bx) + radius) // RC))
+        y0 = max(0, int((min(ay, by) - radius) // RC))
+        y1 = min(RH - 1, int((max(ay, by) + radius) // RC))
+        for cy in range(y0, y1 + 1):
+            for cx in range(x0, x1 + 1):
+                if _seg_dist((cx + 0.5) * RC, (cy + 0.5) * RC, ax, ay, bx, by) <= radius:
+                    out.add(cy * RW + cx)
+    return out
+
+
+def _carve_rivers(t: Terrain) -> None:
+    """Rivers from geography.toml: ordinary rivers are wadeable (slow); the great stretches of the
+    Yellow River and the Yangtze are open water that can only be crossed at their fords."""
+    sea = t.sea_level
+    for r in D.GEO.get("rivers", []):
+        raw = _poly(r["points"])
+        wide_from = int(r.get("wide_from", len(raw))) if r.get("great") else len(raw)
+        narrow = _chaikin(raw[:wide_from + 1], 2) if wide_from > 0 else []
+        wide = _chaikin(raw[wide_from:], 2) if wide_from < len(raw) - 1 else []
+        if len(narrow) > 1:
+            for c in _cells_near_line(narrow, RC * 0.6):
+                if t.height[c] >= sea:
+                    t.river[c] = 1
+            t.rivers.append({"points": narrow, "width": 4.0 if r.get("great") else 2.6, "name": r["name"]})
+        if not wide:
+            continue
+        half = float(r.get("half_width", 2.0)) * RC
+        water = set()
+        for c in _cells_near_line(wide, half):
+            if t.biome[c] not in (D.WATER, D.DEEP_WATER):
+                water.add(c)
+                t.biome[c] = D.WATER
+                t.height[c] = sea - 0.012
+        for fx, fy in (geo(*f) for f in r.get("fords", [])):
+            # snap to the river, then lay a sandbar / ferry landing across it
+            c0 = min(water, key=lambda c: math.hypot((c % RW + 0.5) * RC - fx, (c // RW + 0.5) * RC - fy), default=None)
+            if c0 is None:
                 continue
-            i = row * RW + col
-            if t.height[i] < t.sea_level:
-                continue
-            if wide:
-                t.biome[i] = D.WATER
-                t.height[i] = t.sea_level - 0.012
-            else:
-                t.river[i] = 1                        # inside the basin: an ordinary (wadeable) river
-    inner = [[(c + 0.5) * RC, t.river_y[c]] for c in range(x0, int(exit_x) + 3, 3) if t.river_y[c] is not None]
-    if len(inner) > 2:
-        t.rivers.append({"points": _chaikin(inner, 2), "width": 4.0})
-    # fords, spread along the wide stretch where both banks are land
-    n = int(D.LAYOUT.get("fords", 4))
-    land_cols = [c for c in range(int(exit_x) + 8, RW - 4) if _bank_land(t, c)]
-    if not land_cols:
-        return
-    for k in range(n):
-        want = land_cols[int((k + 0.5) / n * len(land_cols))]
-        col = min(land_cols, key=lambda c: abs(c - want))
-        yc = t.river_y[col]
-        for dc in range(-2, 3):
-            c = col + dc
-            for row in range(int(yc / RC - half - 2), int(yc / RC + half + 3)):
-                if 0 <= c < RW and 0 <= row < RH:
-                    i = row * RW + c
-                    if t.biome[i] == D.WATER and t.height[i] >= t.sea_level - 0.013:
-                        t.biome[i] = D.BEACH                  # a sandbar / ferry landing
-                        t.height[i] = t.sea_level + 0.004
-                        t.river[i] = 1
-        t.fords.append([round((col + 0.5) * RC, 1), round(yc, 1)])
-
-
-def _bank_land(t: Terrain, col: int) -> bool:
-    yc = t.river_y[col]
-    if yc is None:
-        return False
-    north = int(yc / RC) - 5
-    south = int(yc / RC) + 5
-    return 0 <= north and south < RH and t.height[north * RW + col] >= t.sea_level \
-        and t.height[south * RW + col] >= t.sea_level
+            ox, oy = (c0 % RW + 0.5) * RC, (c0 // RW + 0.5) * RC
+            for c in water:
+                if math.hypot((c % RW + 0.5) * RC - ox, (c // RW + 0.5) * RC - oy) <= half + RC * 1.6:
+                    t.biome[c] = D.BEACH
+                    t.height[c] = sea + 0.004
+                    t.river[c] = 1
+            t.fords.append([round(ox, 1), round(oy, 1)])
 
 
 def _slow_fords(t: Terrain) -> None:
-    """Crossing the great river is slow even where a road leads to the ford."""
+    """Crossing a great river is slow even where a road leads to the ford."""
     for fx, fy in t.fords:
         for dy in range(-3, 4):
-            for dx in range(-2, 3):
+            for dx in range(-3, 4):
                 x, y = fx + dx * NC, fy + dy * NC
-                if 0 <= x < W and 0 <= y < H:
+                if 0 <= x < W and 0 <= y < H and math.hypot(dx, dy) * NC <= 14:
                     i = t.ncell(x, y)
                     if t.speed[i] > 0:
-                        cx, cy = t.ncenter(i)
-                        ry = t.river_y[min(RW - 1, int(cx // RC))]
-                        if ry is not None and abs(cy - ry) < 14:
-                            t.speed[i] = min(t.speed[i], D.FORD_SPEED)
-
-
-def _make_rivers(t: Terrain, rng: random.Random) -> None:
-    sea = t.sea_level
-    cands = [i for i in range(RW * RH)
-             if t.biome[i] in (D.HILLS, D.MOUNTAIN, D.TAIGA, D.FOREST)
-             and t.height[i] > sea + 0.25 * (1 - sea)]
-    rng.shuffle(cands)
-    sources: list[int] = []
-    for c in cands:
-        cx, cy = c % RW, c // RW
-        if all((cx - s % RW) ** 2 + (cy - s // RW) ** 2 > 28 ** 2 for s in sources):
-            sources.append(c)
-        if len(sources) >= 16:
-            break
-    for src in sources:
-        path = [src]
-        seen = {src}
-        cur = src
-        ok = False
-        for _ in range(900):
-            cx, cy = cur % RW, cur // RW
-            best, bh = None, INF
-            for dx, dy, _w in _N8[:4]:          # 4-neighbour keeps rivers continuous
-                nx, ny = cx + dx, cy + dy
-                if 0 <= nx < RW and 0 <= ny < RH:
-                    j = ny * RW + nx
-                    if j not in seen and t.height[j] < bh:
-                        best, bh = j, t.height[j]
-            if best is None:
-                break
-            if t.river[best]:                    # join an existing river
-                path.append(best)
-                ok = True
-                break
-            path.append(best)
-            seen.add(best)
-            cur = best
-            if t.height[best] < sea:
-                ok = True
-                break
-        if not ok or len(path) < 30:
-            continue
-        for c in path:
-            if t.height[c] >= sea:
-                t.river[c] = 1
-        pts = [[(c % RW + 0.5) * RC, (c // RW + 0.5) * RC] for c in path]
-        t.rivers.append({"points": _chaikin(_simplify(pts, 7), 3), "width": 2.0 + min(3.0, len(path) / 80)})
+                        t.speed[i] = min(t.speed[i], D.FORD_SPEED)
 
 
 def _build_nav(t: Terrain) -> None:
@@ -592,100 +629,77 @@ def _land_component(t: Terrain, start: int) -> set[int]:
 
 
 def _place_sites(t: Terrain, rng: random.Random) -> None:
-    # main landmass = component containing the most land near the centre
-    start = min((i for i in range(NW * NH) if t.speed[i] > 0),
-                key=lambda i: math.dist(t.ncenter(i), (W / 2, H / 2)))
+    """Cities and castles at their real places (world.toml sites), nudged onto good ground;
+    villages scattered around them; bandit hideouts at the places named in geography.toml."""
+    first = D.SITES[D.KINGDOMS[0][0]][0]
+    start = t.ncell(*t.nearest_passable(*geo(first[2], first[3]), 12))
     main = _land_component(t, start)
 
     def ok_site(x, y, bad=(D.MARSH, D.DUNES, D.BEACH)):
-        if t.ncell(x, y) not in main or t.speed_at(x, y) <= 0:
+        if not (0 <= x < W and 0 <= y < H) or t.ncell(x, y) not in main or t.speed_at(x, y) <= 0:
             return False
         if t.biome_at(x, y) in bad or t.river[min(RH - 1, int(y // RC)) * RW + min(RW - 1, int(x // RC))]:
             return False
         # keep clear of mountains/water right next to the walls
-        for ox, oy in ((10, 0), (-10, 0), (0, 10), (0, -10)):
+        for ox, oy in ((8, 0), (-8, 0), (0, 8), (0, -8)):
             if not t.passable(x + ox, y + oy):
                 return False
         return True
 
-    # Poisson-disc candidates for towns/castles
-    cands: list[tuple[float, float]] = []
-    for _ in range(6000):
-        x, y = rng.uniform(40, W - 40), rng.uniform(40, H - 40)
-        if ok_site(x, y) and all(math.dist((x, y), c) > 74 for c in cands):
-            cands.append((x, y))
+    def nudge(x, y, test, reach=48.0):
+        if test(x, y):
+            return x, y
+        best = None
+        for r in range(2, int(reach) + 1, 2):
+            for k in range(max(8, r)):
+                a = k / max(8, r) * math.tau
+                qx, qy = x + math.cos(a) * r, y + math.sin(a) * r
+                if test(qx, qy):
+                    best = (qx, qy)
+                    break
+            if best:
+                return best
+        return None
 
-    kingdoms = []
-    for kid, _name, culture, _color, (fx, fy) in D.KINGDOMS:
-        cap = min(cands, key=lambda c: math.dist(c, (fx * W, fy * H)))
-        kingdoms.append((kid, culture, cap))
-    caps = {k[2] for k in kingdoms}
-    owner: dict[tuple, str] = {}
-    def claim(c, cap):
-        # realms keep to their own side of the great river and of the basin's mountains
-        return math.dist(c, cap) + (220 if t.region(*c) != t.region(*cap) else 0)
-
-    for c in cands:
-        if c in caps:
-            continue
-        k = min(kingdoms, key=lambda k: claim(c, k[2]))
-        owner[c] = k[0]
-    # the basin belongs to whoever has their seat there
-    basin_k = next((k for k in kingdoms if t.region(*k[2]) == "basin"), None)
-    if basin_k:
-        for c in cands:
-            if c not in caps and t.region(*c) == "basin":
-                owner[c] = basin_k[0]
-
-    fortified = []   # (kingdom, culture, kind, pos)
-    for kid, culture, cap in kingdoms:
-        fortified.append((kid, culture, "town", cap))
-        kinds = D.LAYOUT.get("fortified", ["town", "town", "castle", "castle"])[1:]
-        mine = [c for c, k in owner.items() if k == kid and math.dist(c, cap) < 330]
-        home = [c for c in mine if t.region(*c) == t.region(*cap)]
-        if len(home) >= len(kinds):
-            mine = home                               # stay on our side of the river / mountains
-        chosen = [cap]
-        for kind in kinds:
-            if not mine:
-                break
-            # farthest-point sampling keeps fiefs spread across the realm
-            best = max(mine, key=lambda c: min(math.dist(c, o) for o in chosen) - 0.25 * math.dist(c, cap))
-            mine.remove(best)
-            chosen.append(best)
-            fortified.append((kid, culture, kind, best))
+    fortified = []   # (kingdom, culture, kind, pos, name)
+    for kid, _name, culture, _color in D.KINGDOMS:
+        for name, kind, lon, lat in D.SITES[kid]:
+            p = nudge(*geo(lon, lat), ok_site) or t.nearest_passable(*geo(lon, lat), 10)
+            fortified.append((kid, culture, kind, p, name))
 
     villages = []    # (bound index, pos)
     taken = [f[3] for f in fortified]
-    for fi, (_kid, _cul, kind, pos) in enumerate(fortified):
-        want = int(D.LAYOUT.get("villages_per_town", 3)) if kind == "town" else int(D.LAYOUT.get("villages_per_castle", 2))
-        for _ in range(400):
+    for fi, (_kid, _cul, kind, pos, _n) in enumerate(fortified):
+        want = int(D.LAYOUT.get("villages_per_town", 2)) if kind == "town" else int(D.LAYOUT.get("villages_per_castle", 1))
+        for _ in range(500):
             if want == 0:
                 break
-            a, r = rng.uniform(0, math.tau), rng.uniform(22, 44)
+            a, r = rng.uniform(0, math.tau), rng.uniform(20, 40)
             x, y = pos[0] + math.cos(a) * r, pos[1] + math.sin(a) * r
-            if ok_site(x, y, bad=(D.DUNES,)) and all(math.dist((x, y), o) > 17 for o in taken):
+            if ok_site(x, y, bad=(D.DUNES,)) and all(math.dist((x, y), o) > 16 for o in taken):
                 villages.append((fi, (x, y)))
                 taken.append((x, y))
                 want -= 1
 
-    hideout_cands = []
-    for _ in range(4000):
-        x, y = rng.uniform(30, W - 30), rng.uniform(30, H - 30)
-        if t.ncell(x, y) not in main or t.speed_at(x, y) <= 0:
-            continue
-        b = t.biome_at(x, y)
-        btype = next((k for k, v in D.BANDIT_TYPES.items() if b in v[2]), None)
-        if btype is None:
-            continue
-        if min(math.dist((x, y), f[3]) for f in fortified) < 70:
-            continue
-        if min(math.dist((x, y), v[1]) for v in villages) < 32:
-            continue
-        if all(math.dist((x, y), h[1]) > 95 for h in hideout_cands):
-            hideout_cands.append((btype, (x, y)))
+    def lair_ok(x, y):
+        if not (0 <= x < W and 0 <= y < H) or t.ncell(x, y) not in main or t.speed_at(x, y) <= 0:
+            return False
+        if min(math.dist((x, y), f[3]) for f in fortified) < 55:
+            return False
+        if villages and min(math.dist((x, y), v[1]) for v in villages) < 26:
+            return False
+        return all(math.dist((x, y), h[1]) > 60 for h in hideouts)
 
-    t.sites = {"fortified": fortified, "villages": villages, "hideouts": hideout_cands}
+    hideouts = []    # (bandit type, pos, name)
+    for name, lon, lat in D.GEO.get("hideouts", []):
+        p = nudge(*geo(lon, lat), lair_ok, reach=40.0)
+        if p is None:
+            continue
+        b = t.biome_at(*p)
+        btype = next((k for k, v in D.BANDIT_TYPES.items() if b in v[2]), None) or next(iter(D.BANDIT_TYPES))
+        hideouts.append((btype, p, name))
+
+    t.sites = {"fortified": fortified, "villages": villages, "hideouts": hideouts}
 
 
 def _astar(t: Terrain, a: int, b: int) -> list[int]:
@@ -742,7 +756,7 @@ def _build_roads(t: Terrain) -> None:
     for i in range(n):
         near = sorted((math.dist(fort[i], fort[j]), j) for j in range(n) if j != i)
         for d, j in near[:2]:
-            if d < 260:
+            if d < 420:
                 edges.add((min(i, j), max(i, j)))
     for a, b in sorted(edges, key=lambda e: math.dist(fort[e[0]], fort[e[1]])):
         _lay_road(t, fort[a], fort[b], "road")

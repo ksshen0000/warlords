@@ -204,6 +204,9 @@ func party_known(pid: String) -> bool:
 	var p: Dictionary = state.parties[pid]
 	if my_kingdom != null and p.faction == my_kingdom:
 		return true
+	# where a ruler holds court is public knowledge (you have to be able to find a king to swear to him)
+	if p.get("hero") != null and state.kingdoms.has(p.faction) and state.kingdoms[p.faction].ruler == p.hero:
+		return true
 	if _parked.has(pid):
 		return _parked[pid] != "" and knows_settlement(_parked[pid])
 	return sees(_cur.get(pid, Vector2.ZERO))
@@ -296,7 +299,7 @@ func fit() -> void:
 
 func focus(world_pos: Vector2, z: float = -1.0) -> void:
 	if z > 0:
-		zoom = clamp(z, fit_zoom * 0.9, fit_zoom * 9.0)
+		zoom = clamp(z, fit_zoom * 0.9, close_zoom(9.0))
 	offset = size * 0.5 - world_pos * zoom
 	_clamp_view()
 
@@ -317,7 +320,13 @@ func _clamp_view() -> void:
 
 
 func _scale() -> float:
-	return clamp(sqrt(zoom / max(fit_zoom, 0.001)), 0.8, 1.9)
+	return clamp(sqrt(zoom / max(close_zoom(1.0), 0.001)), 0.7, 1.9)
+
+
+## Zoom levels are tuned for a 1200-unit-wide world; a bigger world (more km on the same screen)
+## needs proportionally more zoom to show the same detail.
+func close_zoom(k: float) -> float:
+	return fit_zoom * k * maxf(1.0, world_size.x / 1200.0)
 
 
 # ----------------------------------------------------------- input
@@ -327,7 +336,7 @@ func _gui_input(event: InputEvent) -> void:
 		if mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
 			var before := to_world(mb.position)
 			var f := 1.15 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.15
-			zoom = clamp(zoom * f, fit_zoom * 0.9, fit_zoom * 9.0)
+			zoom = clamp(zoom * f, fit_zoom * 0.9, close_zoom(9.0))
 			offset = mb.position - before * zoom
 			_clamp_view()
 			accept_event()
@@ -338,7 +347,7 @@ func _gui_input(event: InputEvent) -> void:
 			grab_focus()
 			var h := _hit(mb.position)
 			if mb.double_click and h[0] != "":
-				focus(to_world(mb.position), max(zoom, fit_zoom * 3.0))
+				focus(to_world(mb.position), max(zoom, close_zoom(3.0)))
 			map_clicked.emit(to_world(mb.position), h[0], h[1], mb.shift_pressed)
 			accept_event()
 	elif event is InputEventMouseMotion:
@@ -483,7 +492,7 @@ func _draw_fords() -> void:
 		draw_colored_polygon(hull, Color("8a5a32"))
 		draw_line(p + Vector2(0, -1) * k, p + Vector2(0, -11) * k, OUTLINE, 1.6 * k)
 		draw_colored_polygon(PackedVector2Array([p + Vector2(0.5, -10.5) * k, p + Vector2(6, -3) * k, p + Vector2(0.5, -3) * k]), CREAM)
-		if zoom > fit_zoom * 1.5:
+		if zoom > close_zoom(1.5):
 			_text(p + Vector2(0, 15) * k, "渡口", int(11 * s), Color("cfe3f0"))
 
 
@@ -567,9 +576,9 @@ func _draw_settlement(sid: String, s: float) -> void:
 	if sel or hov:
 		draw_arc(p, r + 6, 0, TAU, 32, Color(GOLD, 1.0 if sel else 0.6), 2.0, true)
 	var show_name := kind == "town" or kind == "castle" or sel or hov
-	if kind == "village" and zoom > fit_zoom * 1.7:
+	if kind == "village" and zoom > close_zoom(1.7):
 		show_name = true
-	if kind == "hideout" and zoom > fit_zoom * 1.4:
+	if kind == "hideout" and zoom > close_zoom(1.4):
 		show_name = true
 	if show_name:
 		var fs := int((13 if kind == "town" else 12 if kind == "castle" else 11) * s)
@@ -918,6 +927,17 @@ func _draw_speeches() -> void:
 		draw_string(font, rect.position + Vector2(8, 17), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(0.1, 0.1, 0.1, a))
 
 
+## "  · 120 里，约 0.8 天" from the player's party (straight line; mountains and rivers make it longer)
+func _distance_note(target: Vector2) -> String:
+	if not _cur.has(player_id) or not state.parties.has(player_id):
+		return ""
+	var d := party_world_pos(player_id).distance_to(target)
+	if d < 6.0:
+		return ""
+	var per_day := float(state.parties[player_id].get("speed", 150))
+	return "  · %d 里，约 %.1f 天" % [int(d), d * 1.15 / maxf(per_day, 1.0)]
+
+
 ## Tooltip lines for the parties staying in / camped at a settlement (Warband-style).
 func _visitor_lines(sid: String) -> Array[String]:
 	var out: Array[String] = []
@@ -974,7 +994,7 @@ func _draw_tooltip() -> void:
 			lines.append(str(p.order.label))
 	elif hover_kind == "settlement" and state.settlements.has(hover_id):
 		var st: Dictionary = state.settlements[hover_id]
-		lines.append(st.name)
+		lines.append(st.name + _distance_note(Vector2(st.pos[0], st.pos[1])))
 		var known := knows_settlement(hover_id)
 		if not known:
 			var fac2 := ""

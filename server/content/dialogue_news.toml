@@ -1,0 +1,912 @@
+# 台词：dialogue_news（已审阅；格式见 warlords/content.py）
+
+[[line]]
+topic = "news"
+when = ["!at_war"]
+text = "眼下太平，可这世道，太平从来不会太久。"
+
+[[line]]
+topic = "news"
+when = ["!at_war"]
+text = "无战事倒是好事，只是刀枪不可一日离手。"
+
+[[line]]
+topic = "news"
+when = ["!at_war"]
+text = "四境安静得有些反常，足下以为能撑几时？"
+
+[[line]]
+topic = "news"
+when = ["at_war", "!winning"]
+text = "{enemy}势头正盛，须先稳住阵脚。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "!winning"]
+text = "这几仗折了锐气，可仗还没输完。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "!winning"]
+text = "前方不利，足下若来，可有什么良策？"
+
+[[line]]
+topic = "news"
+when = ["at_war", "!winning"]
+text = "败是败了，人心却不能散。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "army_leader"]
+text = "本将奉令率大军讨{enemy}，旌旗已指其境。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "army_leader"]
+text = "大军已发，{enemy}那边怕是睡不着了。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "army_leader"]
+text = "我统此军，只求一战而定，不使将士久顿于外。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "besieging"]
+text = "围了{siege}这些时日，城里怕是快撑不住了。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "besieging"]
+text = "攻城为下，攻心为上。{siege}里头已经有人动摇了。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "besieging"]
+text = "困住{siege}不难，难的是困住之后怎么收场。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "in_army"]
+text = "军令在身，不便多留，足下好自为之。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "in_army"]
+text = "我部正往{enemy}去，路上不便详谈。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "in_army"]
+text = "此去讨{enemy}，胜负难料，足下保重。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "winning"]
+text = "{enemy}已露败象，此战之胜负，不久便见分晓。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "winning"]
+text = "战报虽好，然骄兵必败，此理不可不察。"
+
+[[line]]
+topic = "news"
+when = ["at_war", "winning"]
+text = "{enemy}节节败退，军心已散，其败可待。"
+
+[[line]]
+topic = "news"
+when = ["ruler", "!at_war"]
+text = "治国如弈棋，孤这一步闲棋，未必无用。"
+
+[[line]]
+topic = "news"
+when = ["ruler", "!at_war"]
+text = "本王不急着动兵，先看看旁人怎么动。"
+
+[[line]]
+topic = "news"
+when = ["ruler", "!at_war"]
+text = "无战事时最该修的是人心，不是城墙。"
+
+[[line]]
+topic = "news"
+when = ["ruler", "at_war"]
+text = "与{enemy}这一战，朕赌的是国运，不是一城一地。"
+
+[[line]]
+topic = "news"
+when = ["ruler", "at_war"]
+text = "本王用兵，先算败，再算胜。{enemy}那边也一样。"
+
+[[line]]
+topic = "news"
+when = ["ruler", "at_war"]
+text = "{enemy}是疥癣之疾，朕担心的是身后这些人。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["!at_war"]
+text = "这几日商队往来无阻，难得清静。只是漠北的风一紧，这清静便卖不出价钱了。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["!at_war"]
+text = "足下问局势？佛寺里讲经的说，太平如露亦如电。某看倒是实话。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["!at_war"]
+text = "河西地界眼下无兵灾，商路还通。可西边的人，从来不讲长久买卖。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "!winning"]
+text = "军报一封比一封薄。某不是怕，是算不过来——这仗再打，商路就断了。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "!winning"]
+text = "不瞒足下，{enemy}那头咬得紧。仗还守得住，银钱却守不住。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "army_leader"]
+text = "某奉{kingdom}之命，率大军讨{enemy}。这一趟的粮草账，某算了三夜。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "army_leader"]
+text = "大军开拔在即，直指{enemy}。某丑话说前头：挡道的，先讲价，讲不拢再讲刀。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "besieging"]
+text = "{siege}城高，可人心不高。某一边攻，一边与人谈——谈成了，比攻下来省钱。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "in_army"]
+text = "军令催得紧，某这就随军去{enemy}那边。回来再与足下细算。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "in_army"]
+text = "此番出征{enemy}，某在军中管些杂务。足下那几匹好马，等某回来再谈价钱。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "in_army"]
+text = "随军往{enemy}去，路上乱。足下要做买卖，等某这趟回来。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "winning"]
+text = "某家儿郎如今在{enemy}那边占了上风，这话只对你说——买卖人，不嚷。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["at_war", "winning"]
+text = "与{enemy}交锋，眼下是咱们占着便宜。得见好就收，某正算着收多少。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["ruler", "!at_war"]
+text = "孤据河西，不求人，只求路通。佛寺修得再多，不如关税再减一分。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["ruler", "!at_war"]
+text = "孤思量，下一步往东还是往西。东边礼多，西边利厚，这笔账还得慢慢算。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["ruler", "!at_war"]
+text = "国中无战事，正是养马储粮的时候。孤宁可多花银子，也不多花儿郎的性命。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["ruler", "at_war"]
+text = "孤与{enemy}周旋，不为争气，为争商路。打得赢要谈，打不赢更要谈。"
+
+[[line]]
+topic = "news"
+culture = "liang"
+when = ["ruler", "at_war"]
+text = "孤这西陲小国，夹在{enemy}与强邻之间。兵可以少，账不能糊涂。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["!at_war"]
+text = "眼下无战事，正好养马。可草原上的太平，从来不会长久。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["!at_war"]
+text = "各部都在歇着，可汗不说话，刀就不出鞘。马喂饱了，心里才不慌。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["!at_war"]
+text = "没有战事？那是风暴还没来。你听，风里已有铁腥气。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "!winning"]
+text = "这一仗打得气闷，{enemy}人缩在城里不出来，我们的马快饿瘦了。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "!winning"]
+text = "形势不好，可草原上的人不认输。马群拢回来，再与他拼一场。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "!winning"]
+text = "折了几个好兄弟，{enemy}那帮人还咬着不放。我已传下话去，谁也不许乱。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "army_leader"]
+text = "我带着各部骑兵去打{enemy}，要的是快，不是人多。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "army_leader"]
+text = "先锋已过河了，{enemy}人还没醒。天亮之前，我们要到他们营前。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "army_leader"]
+text = "可汗把令箭交给我，我自当带儿郎们踏平{enemy}，刀不卷刃不回。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "besieging"]
+text = "{siege}城高墙厚，可我们的马等不了。围下去，看谁先饿死。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "besieging"]
+text = "底下人骂我围{siege}围得太慢。可强攻死的兄弟，回不来。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "in_army"]
+text = "可汗的令来了，全军向{enemy}开拔。刀磨利了没有？"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "in_army"]
+text = "这一路要奔袭{enemy}，人不歇，马先喂。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "winning"]
+text = "{enemy}人的马跑不动了，再冲一阵，他们的阵脚就散。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "winning"]
+text = "我们占着上风，可汗的旗还插在阵前，刀口都还没卷。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["at_war", "winning"]
+text = "对面撑不了几天了。谁先松劲，谁就丢脑袋。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["ruler", "!at_war"]
+text = "没有战事，各部就爱生事。我得让他们去跟凉人做马匹生意，闲不得。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["ruler", "!at_war"]
+text = "我想开一条往南的路，不为打仗，只为让商队知道我们不好惹。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["ruler", "!at_war"]
+text = "我在等，等各部头人都点头的那一天。此事急不得。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["ruler", "at_war"]
+text = "我听说{enemy}也在调兵。这一仗，谁先动手谁吃亏。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["ruler", "at_war"]
+text = "我与{enemy}的事，不是打不打，是什么时候打。北边那条路，我自会看住。"
+
+[[line]]
+topic = "news"
+culture = "rou"
+when = ["ruler", "at_war"]
+text = "我要打{enemy}，部落大会上有人不愿。你说，刀快还是嘴快？"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["!at_war"]
+text = "眼下无战事，可这太平像山里的雾，太阳一出来就散了。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["!at_war"]
+text = "足下问局势？四围都是眼睛，咱们这盆地，守得住一时，守不住一世。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["!at_war"]
+text = "没仗打也好，让儿郎们把栈道修结实，比啥都强。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "!winning"]
+text = "{enemy}逼得紧，咱们退守隘口，可粮道快断了。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "!winning"]
+text = "这仗不好打，可巴蜀的儿郎没一个孬种，死也死在阵上。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "!winning"]
+text = "丢了几个寨子，不碍事，只要人在，还能夺回来。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "army_leader"]
+text = "本将奉王命讨{enemy}，大军开拔在即，此去定要叫他知道巴蜀的厉害。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "army_leader"]
+text = "这一路山高水险，{enemy}以为咱们不敢来，我偏要打他个措手不及。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "army_leader"]
+text = "为将者，当为君王分忧，{enemy}不除，巴蜀难安。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "besieging"]
+text = "{siege}城高墙厚，可咱们围定了，一只鸟也飞不出去。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "besieging"]
+text = "攻了这些天，{siege}的守军快撑不住了，再围数日，必降。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "besieging"]
+text = "足下稍安，待我破了{siege}，再与足下痛饮。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "in_army"]
+text = "军令在身，我得带弟兄们往{enemy}那边开拔了。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "in_army"]
+text = "这趟去{enemy}，家中老小已托付族里，怕是不好回了。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "in_army"]
+text = "出征在即，别的不多说了，山地行军，咱们比{enemy}熟。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "winning"]
+text = "跟{enemy}交手这几阵，咱们没吃亏，山里的路他们走不惯。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "winning"]
+text = "占了上风也不能松劲，{enemy}人多得紧，打蛇要打死。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["at_war", "winning"]
+text = "足下看看，这连弩一排排射出去，{enemy}的骑兵也得下马。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["ruler", "!at_war"]
+text = "眼下无战事，本王想的是把栈道修宽些，商队能进来，百姓日子就好过。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["ruler", "!at_war"]
+text = "这太平来得不易，孤得趁着这时候，多囤些粮，多造些弩。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["ruler", "!at_war"]
+text = "孤思量着，下一步该往东还是往北？这巴蜀虽险，总困着也不是办法。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["ruler", "at_war"]
+text = "{enemy}欺我巴蜀无人，孤这回要让他们知道，山里的老虎也会咬人。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["ruler", "at_war"]
+text = "与{enemy}这一战，孤不图别的，只图个安稳，让百姓能种上地。"
+
+[[line]]
+topic = "news"
+culture = "shu"
+when = ["ruler", "at_war"]
+text = "{enemy}虽强，本王却不愿总被人叫贼。这局势，你看是战是守？"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["!at_war"]
+text = "眼下无战事，可这太平时日，某总觉得像雪压枯枝，随时会断。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["!at_war"]
+text = "各部都在歇马，某却不敢把刀收了——刀不磨要生锈。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["!at_war"]
+text = "咱们学周人的礼，学了一半；仗停了，人心反倒更难拢。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "!winning"]
+text = "战事不顺，是某等打得不够狠，怨不得别人。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "!winning"]
+text = "输了几阵，儿郎们低着头不说话——这口气早晚要讨回来。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "!winning"]
+text = "{enemy}比想的难缠。这仗打到这份上，只能拿命去填。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "army_leader"]
+text = "兵已备齐，即刻开拔。这一战，某要{enemy}记住咱的名字。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "army_leader"]
+text = "为将者，许诺就得做到——某说过要让{enemy}退，就一定退。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "besieging"]
+text = "{siege}被某围了多日，城破只在旦夕，足下且看。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "besieging"]
+text = "困守孤城，早晚要降。某不愿多杀人，可他们不开门。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "besieging"]
+text = "攻城不易，可某的儿郎肯拿命去填，足下说，值不值？"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "in_army"]
+text = "军令在身，某不多留；等破了{enemy}，再与足下饮酒。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "in_army"]
+text = "这一趟随军出征，谁的刀快，功劳就是谁的。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "winning"]
+text = "{enemy}那边节节败退，将士们都说，这一仗要打出个名号来。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "winning"]
+text = "咱们的甲骑一冲，{enemy}的阵就散了，儿郎们还没过瘾。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["at_war", "winning"]
+text = "占了上风也不能松劲，某立过誓，要亲手把旗插到他们营里。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["ruler", "!at_war"]
+text = "天下无战事，孤却睡不着。学周制、收人心，这两样比打仗难。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["ruler", "!at_war"]
+text = "眼下不打仗，正好整顿诸部，把军令与律法都立起来。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["ruler", "!at_war"]
+text = "孤想问问足下：要中原，先取哪一处，才不叫人看轻了咱？"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["ruler", "at_war"]
+text = "孤与{enemy}这一战，为的不是一座城，是让诸部服咱的号令。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["ruler", "at_war"]
+text = "朕要学周人的规矩，可先得用刀把路劈开——{enemy}挡在道上。"
+
+[[line]]
+topic = "news"
+culture = "yan"
+when = ["ruler", "at_war"]
+text = "与{enemy}决战，孤已当众立过誓：此战不退。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["!at_war"]
+text = "眼下无战事，可这太平，能撑几日？你且看好自家的刀。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["!at_war"]
+text = "歇着？某不信。河北这地界，今日无风，明日便起浪。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["!at_war"]
+text = "马放南山？笑话。刀不快，太平便是别人的。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "!winning"]
+text = "吃了点亏罢了，{enemy}的账，某记着。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "!winning"]
+text = "战事不利？你听谁说的？再多嘴，割了你的舌头。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "army_leader"]
+text = "某统大军讨{enemy}，顽抗者，某向来不留。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "army_leader"]
+text = "{enemy}这颗头，某要定了。你也想分一杯羹？"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "army_leader"]
+text = "大军一动，{enemy}那点人马便是齑粉。尔欲助谁，自己掂量。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "besieging"]
+text = "围了{siege}，里头的人，一个也别想跑。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "besieging"]
+text = "{siege}撑不了几日。你若要入城，先问问某的刀。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "in_army"]
+text = "某随军去打{enemy}，没工夫跟你闲扯。让路。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "in_army"]
+text = "军令在身，去{enemy}那边走一遭。你自求多福。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "in_army"]
+text = "这一趟去{enemy}，是死是活，看各人的命。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "winning"]
+text = "{enemy}那点人马，不够填沟壑的。你且看着。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "winning"]
+text = "吾军已压过去了，{enemy}撑不了几时。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["at_war", "winning"]
+text = "占了上风？还早。不过{enemy}的胆，确是给吓破了。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["ruler", "!at_war"]
+text = "朕这国里，面和心不和的，多得很。得先洗一洗。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["ruler", "!at_war"]
+text = "无战事？朕的刀，闲久了会锈。该找个地方磨磨。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["ruler", "!at_war"]
+text = "尔等在朕的地界上，就得守朕的规矩。别的，日后再说。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["ruler", "at_war"]
+text = "朕要{enemy}的血，不是要它降。尔等听明白。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["ruler", "at_war"]
+text = "{enemy}不灭，朕这三面受敌的局，便解不开。"
+
+[[line]]
+topic = "news"
+culture = "zhao"
+when = ["ruler", "at_war"]
+text = "与{enemy}这一仗，朕押的是这江山社稷。尔等敢不敢跟？"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["!at_war"]
+text = "近来江左无事，只是这太平，某瞧着像纸糊的灯笼。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["!at_war"]
+text = "足下问局势？门阀们清谈不休，北边的烽火可没熄过。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["!at_war"]
+text = "此地暂得安宁，可某这心里，总悬着北边的马蹄声。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "!winning"]
+text = "不瞒足下，战事吃紧，{enemy}势头正盛，某等正苦守。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "!winning"]
+text = "战报一日三至，皆非佳音。{enemy}剽悍，非旦夕可制。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "!winning"]
+text = "这一仗难打，{enemy}人多势众，某这里折了不少弟兄。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "army_leader"]
+text = "某奉{kingdom}之命，统率三军，专讨{enemy}。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "army_leader"]
+text = "{enemy}屡扰疆界，某此去，须教他知道江左自有刀锋在。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "army_leader"]
+text = "大军已发，{enemy}若识时务，此时降了还来得及。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "besieging"]
+text = "某正围{enemy}于{siege}，城破只在旦夕。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "besieging"]
+text = "此地围了这些时日，{siege}里头怕是连树皮都啃光了。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "besieging"]
+text = "{siege}城坚，某不愿强攻伤士卒，只围着，等他们自己乱。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "in_army"]
+text = "足下见谅，某马上要拔营了，{enemy}那边催得紧。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "in_army"]
+text = "行伍之人，说走便走，此番去会会{enemy}，回来再叙。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "winning"]
+text = "托足下洪福，前线传来捷报，{enemy}已退了一程。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "winning"]
+text = "此战正顺，某料{enemy}再撑不了几时，足下且宽心。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["at_war", "winning"]
+text = "王师既占上风，然越是此时，越须防肘腋之变。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["ruler", "!at_war"]
+text = "朕近来思量，国中门阀盘根错节，若不裁抑，终为心腹之患。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["ruler", "!at_war"]
+text = "卿看这{here}，歌舞升平，朕心里却一日不得安。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["ruler", "!at_war"]
+text = "朕欲效先王，北伐还都，可这一步迈出去，便无回头路了。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["ruler", "at_war"]
+text = "朕与{enemy}这一战，非为争地，实为争这正统二字。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["ruler", "at_war"]
+text = "{enemy}欺我江左无人，朕若退让，何以见列祖。"
+
+[[line]]
+topic = "news"
+culture = "zhou"
+when = ["ruler", "at_war"]
+text = "人皆谓朕好战。只是这天下，总得有人守着礼法。"

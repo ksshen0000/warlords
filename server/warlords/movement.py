@@ -68,12 +68,12 @@ def _nearest_place(w: World, pos) -> str:
     return best
 
 
-def _goal(w: World, p: Party):
+def _goal(w: World, p: Party, look: int = 4):
     t = p.target
     tr = w.terrain
     x, y = p.pos
     if t["kind"] == "place":
-        return tr.waypoint(t["id"], x, y)
+        return tr.waypoint(t["id"], x, y, look)
     tp = target_pos(w, p)
     if tp is None:
         return None
@@ -84,7 +84,7 @@ def _goal(w: World, p: Party):
     if p.memo.get("route_key") != key:
         p.memo["route_key"] = key
         p.memo["route_place"] = _nearest_place(w, tp)
-    return tr.waypoint(p.memo["route_place"], x, y)
+    return tr.waypoint(p.memo["route_place"], x, y, look)
 
 
 def move(w: World, p: Party, hours: float = 1.0) -> None:
@@ -103,14 +103,36 @@ def move(w: World, p: Party, hours: float = 1.0) -> None:
         dx, dy = goal[0] - p.pos[0], goal[1] - p.pos[1]
         d = math.hypot(dx, dy)
         if d < 1e-3:
+            tp = target_pos(w, p)
+            if tp is not None and math.hypot(tp[0] - p.pos[0], tp[1] - p.pos[1]) < NC * 2:
+                p.pos[0], p.pos[1] = tp[0], tp[1]      # the last few steps clip a blocked corner: just get there
+            elif p.target.get("kind") == "point" and not arrived(w, p):
+                stop(p)          # the point can't be reached from here (across a river…): pick another
             break
         sp = base * max(0.25, tr.speed_at(*p.pos))
         step = min(d, NC * 0.9, sp * left)
         nx, ny = p.pos[0] + dx / d * step, p.pos[1] + dy / d * step
         if not tr.passable(nx, ny):
-            nx, ny = tr.nearest_passable(nx, ny, 2)
+            # cutting a corner clipped a blocked cell (river bank, ford, mountain edge): follow the
+            # flow field one cell at a time instead of snapping back (which made parties jitter in place)
+            g1 = _goal(w, p, 1)
+            if g1 is not None:
+                dx1, dy1 = g1[0] - p.pos[0], g1[1] - p.pos[1]
+                d1 = math.hypot(dx1, dy1)
+                if d1 > 1e-3:
+                    s1 = min(d1, step)
+                    nx, ny = p.pos[0] + dx1 / d1 * s1, p.pos[1] + dy1 / d1 * s1
             if not tr.passable(nx, ny):
-                break
+                # slide along the obstacle: move on one axis only (whichever gets closer to the goal)
+                ux, uy = dx / d * step, dy / d * step
+                opts = [(p.pos[0] + ux, p.pos[1]), (p.pos[0], p.pos[1] + uy)]
+                opts = [o for o in opts if tr.passable(*o)]
+                if opts:
+                    nx, ny = min(opts, key=lambda o: math.hypot(goal[0] - o[0], goal[1] - o[1]))
+                else:
+                    nx, ny = tr.nearest_passable(nx, ny, 2)
+                    if not tr.passable(nx, ny):
+                        break
         p.pos[0], p.pos[1] = nx, ny
         left -= step / sp
 

@@ -194,9 +194,10 @@ func open(ev: Dictionary, state: Dictionary) -> void:
 	var att_won: bool = rep.winner == "attacker"
 	var wc: Color = fa[1] if att_won else fd[1]
 	var res := "[font_size=17][b][color=#%s]%s获胜[/color][/b][/font_size]" % [wc.to_html(false), "攻方" if att_won else "守方"]
-	res += "    兵力 %d : %d    伤亡 [color=#ff8f8f]%d : %d[/color]（其中阵亡 %d : %d）    共 %d 回合" % [
+	res += "    兵力 %d : %d    伤亡 [color=#ff8f8f]%d : %d[/color]（其中阵亡 %d : %d）    %s" % [
 		int(rep.attacker_start), int(rep.defender_start), int(rep.attacker_losses), int(rep.defender_losses),
-		int(rep.attacker_killed), int(rep.defender_killed), rep.rounds.size()]
+		int(rep.attacker_killed), int(rep.defender_killed),
+		"[color=#f2c75c]亲自上阵（3D 战场）[/color]" if rep.get("live", false) else "共 %d 回合" % rep.rounds.size()]
 	var extra: Array[String] = []
 	if ev.has("terrain"):
 		extra.append("地形：%s" % ev.terrain)
@@ -219,6 +220,7 @@ func open(ev: Dictionary, state: Dictionary) -> void:
 	side_a.text = _side_text("攻方", fa, rep.attacker, att_won)
 	side_d.text = _side_text("守方", fd, rep.defender, not att_won)
 	chart.rounds = rep.rounds
+	chart.visible = not rep.get("live", false)       # a fought battle has no round-by-round curve
 	chart.start = [int(rep.attacker_start), int(rep.defender_start)]
 	var cd: Color = fd[1]
 	if cd.is_equal_approx(fa[1]):

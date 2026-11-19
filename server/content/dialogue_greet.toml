@@ -1,0 +1,1066 @@
+# 台词：dialogue_greet（已审阅；格式见 warlords/content.py）
+
+[[line]]
+topic = "greet"
+when = ["!met"]
+text = "足下从何处来？这身甲，不像本地货色。"
+
+[[line]]
+topic = "greet"
+when = ["!met"]
+text = "面生得很。报个来路，某好掂量掂量。"
+
+[[line]]
+topic = "greet"
+when = ["!met"]
+text = "这般行色，是想往哪边去？先说清楚。"
+
+[[line]]
+topic = "greet"
+when = ["player_enemy"]
+priority = 1
+text = "两军阵前，不必多礼。放马过来便是。"
+
+[[line]]
+topic = "greet"
+when = ["player_enemy"]
+priority = 1
+text = "既已交战，便只有刀枪说话。"
+
+[[line]]
+topic = "greet"
+when = ["player_enemy"]
+priority = 1
+text = "既到阵前，某今日便叫尔等有来无回。"
+
+[[line]]
+topic = "greet"
+when = ["rel<=-20"]
+priority = 1
+text = "话不投机，阁下请自便。"
+
+[[line]]
+topic = "greet"
+when = ["rel<=-20"]
+priority = 1
+text = "吾与你没什么好说的，各走各路罢。"
+
+[[line]]
+topic = "greet"
+when = ["rel<=-20"]
+priority = 1
+text = "你做的那些事，某都记着，不必来攀交情。"
+
+[[line]]
+topic = "greet"
+when = ["rel>=10"]
+text = "好！盼你多时了，快入座。"
+
+[[line]]
+topic = "greet"
+when = ["rel>=10"]
+text = "阁下能来，某这心里就踏实了一半。"
+
+[[line]]
+topic = "greet"
+when = ["rel>=30", "met"]
+text = "你我一处滚过泥，还用说这些客套话？"
+
+[[line]]
+topic = "greet"
+when = ["rel>=30", "met"]
+text = "有难处只管开口，某的为人，你还信不过么？"
+
+[[line]]
+topic = "greet"
+when = ["ruler", "!same_realm"]
+text = "远客到来，不必多礼。坐下说话。"
+
+[[line]]
+topic = "greet"
+when = ["ruler", "!same_realm"]
+text = "你既敢到此处，必有几分胆色。"
+
+[[line]]
+topic = "greet"
+when = ["ruler", "!same_realm"]
+text = "孤跟前不说虚话。你从何处来，报个名姓。"
+
+[[line]]
+topic = "greet"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "卿来得正好，孤这里正缺人手。"
+
+[[line]]
+topic = "greet"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "卿之忠心，孤记在心里。有话直说。"
+
+[[line]]
+topic = "greet"
+when = ["ruler", "status=merc", "same_realm"]
+text = "孤雇你来，不是要你听好话的。"
+
+[[line]]
+topic = "greet"
+when = ["ruler", "status=merc", "same_realm"]
+text = "尔等既受孤之饷，便得听孤的号令。"
+
+[[line]]
+topic = "greet"
+when = ["same_realm", "status=vassal"]
+text = "同殿为臣，你我该多走动走动。"
+
+[[line]]
+topic = "greet"
+when = ["same_realm", "status=vassal"]
+text = "同食一俸，凡事好商量。"
+
+[[line]]
+topic = "greet"
+when = ["same_realm", "status=vassal"]
+text = "上头的差事，你我分着担，谁也躲不开。"
+
+[[line]]
+topic = "greet"
+text = "一路辛苦，先歇歇脚。坐，不必拘束。"
+
+[[line]]
+topic = "greet"
+text = "久闻阁下之名，今日得见，幸会。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["!met"]
+text = "看足下风尘仆仆，不像行商。敢问从哪条道来，带了多少人马？"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["!met"]
+text = "此处可不是随便走动的地方。阁下先报个来历，某好知道怎么待你。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["!met"]
+text = "四方兵起，生人到此，某总要多问一句：足下这趟，做的是哪家的买卖？"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["player_enemy"]
+priority = 1
+text = "阵前相见，买卖是做不成了，可惜。足下要战，某奉陪；要谈，营门未闭。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["player_enemy"]
+priority = 1
+text = "两军相对，某本不该多言。只劝足下一句：河西的弩，不认人情。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["player_enemy"]
+priority = 1
+text = "各为其主，今日不必叙旧。只是这条商路，往后怕要绕道了。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["rel<=-20"]
+priority = 1
+text = "足下既与某家生了嫌隙，商路之事便不必再提了。请回罢。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["rel<=-20"]
+priority = 1
+text = "话不投机。阁下还是另寻他处歇脚，某这里庙小，容不下。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["rel<=-20"]
+priority = 1
+text = "客气话某已说过一遍。足下再不走，下回就不只是说话了。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["rel>=10"]
+text = "足下这回来了，某可是盼了许久。来，先饮一碗，再谈正事。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["rel>=10"]
+text = "阁下与某投缘，价钱好商量。往后有生意，先想着河西便是。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["rel>=30", "met"]
+text = "你我之间，不必说那些虚礼。进来坐，某留了坛好酒。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["rel>=30", "met"]
+text = "旁人某信不过，足下不同。今日只叙旧，莫谈兵。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["ruler", "!same_realm"]
+text = "远客到此，孤当以礼相待。坐，先说说你来的意思。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["ruler", "!same_realm"]
+text = "孤这里开门做买卖，也开门迎客。足下是买是卖，不妨直言。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["ruler", "!same_realm"]
+text = "足下不必拘束。孤虽居此位，行事还是照老规矩：先谈，后定。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "卿远来辛苦。孤这里比不得江左繁华，唯有商路与佛寺，尚可安身。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "起来吧。卿既事孤，孤自不会亏待。先说说，此行有何计较？"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["ruler", "status=merc", "same_realm"]
+text = "义从的粮饷，孤从不短少。足下只管用心，孤不教人吃亏。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["same_realm", "status=vassal"]
+text = "原来足下也领了这差事，往后同在一帐下，还望互相照应。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["same_realm", "status=vassal"]
+text = "为{kingdom}办事，你我同僚，话自当直说；只是价钱上头，还须先讲明白。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+when = ["same_realm", "status=vassal"]
+text = "某早听说足下之名。今日同殿为臣，正好亲近亲近。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+text = "足下远来，一路风尘。此地水薄，唯佛法与驼铃尚可一听。"
+
+[[line]]
+topic = "greet"
+culture = "liang"
+text = "阁下到此，便是客。商队刚过，帐中还有些胡饼与酪浆，请。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["!met"]
+text = "我不认识你。报上名来，还有你带了多少人。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["!met"]
+text = "看你的靴子不像草原人。来这里做什么？"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["!met"]
+text = "手别老按着刀，我还没问你是敌是友。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["player_enemy"]
+priority = 1
+text = "两军阵前不必多礼。要么下马受缚，要么拔刀。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["player_enemy"]
+priority = 1
+text = "你那边吹号角，我这边就放箭。谁先动，谁先死。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["player_enemy"]
+priority = 1
+text = "战场上见真章。今日过后，你我总有一个回不去。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["rel<=-20"]
+priority = 1
+text = "你站得太近了。往后退，退到马桩那边去。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["rel<=-20"]
+priority = 1
+text = "我不喜欢你的眼神，像在估我的马值几匹。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["rel<=-20"]
+priority = 1
+text = "有话便说，说完便走。我这里不招待你这样的人。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["rel>=10"]
+text = "好！你带的酒比你说的还多。坐下，一起喝。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["rel>=10"]
+text = "你的马不错，骑法也合我胃口。今夜营里来。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["rel>=30", "met"]
+text = "是你！我听见马蹄声，就猜是你。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["rel>=30", "met"]
+text = "你的事就是我的事。说，谁惹了你？"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["ruler", "!same_realm"]
+text = "远来是客，但草原的规矩先得讲清楚。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["ruler", "!same_realm"]
+text = "我坐此处，便是{kingdom}。你须明白。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["ruler", "!same_realm"]
+text = "你要谈什么，直说。我不喜欢绕弯子。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "你来见我，不带刀，这很好。坐下说话。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "草原上我说话算话。你替我办事，我记着。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["ruler", "status=merc", "same_realm"]
+text = "我雇你，看重的是你能打。别让我看走眼。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["ruler", "status=merc", "same_realm"]
+text = "银钱我备好了，不亏待替我卖命的人。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["ruler", "status=merc", "same_realm"]
+text = "你的弟兄们吃我的羊肉、喝我的马奶，就得听我的号令。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["same_realm", "status=vassal"]
+text = "同在一面旗下，别客气，先来喝碗马奶酒。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["same_realm", "status=vassal"]
+text = "你的营帐在东边吧？晚上我派人送些肉过去。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+when = ["same_realm", "status=vassal"]
+text = "既同奉{kingdom}号令，便不必分彼此。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+text = "远客来了。草原上不问出身，只看你的马和刀。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+text = "坐吧。水有的是，肉得等锅里熟。"
+
+[[line]]
+topic = "greet"
+culture = "rou"
+text = "此处风大，沙砾割脸。初来的人，帽子总要压低些。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["!met"]
+text = "足下是从哪条栈道过来的？"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["!met"]
+text = "看你这身衣裳，不像本乡人，也不像官军。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["!met"]
+text = "连名号都不肯报，我蜀中不留来路不明的客。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["player_enemy"]
+priority = 1
+text = "阵前不必多言，你我各为其主，放马过来。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["player_enemy"]
+priority = 1
+text = "我蜀中儿郎就在此处，足下尽管试试。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["rel<=-20"]
+priority = 1
+text = "话不投机，足下请自便，莫在此久留。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["rel<=-20"]
+priority = 1
+text = "我蜀人再不济，也不屑与阁下多费唇舌。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["rel<=-20"]
+priority = 1
+text = "你眼里那点轻慢，我看得清楚，收起来罢。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["rel>=10"]
+text = "足下是条汉子！来来来，坐下说话。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["rel>=10"]
+text = "跟你说几句话，比跟那些高门扯半天都痛快。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["rel>=30", "met"]
+text = "你可算来了。上回一别，我惦记了许久。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["rel>=30", "met"]
+text = "这地方的事，我从不瞒你，你也莫瞒我。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["ruler", "!same_realm"]
+text = "远客到此，且先歇脚。孤要听听你的来意。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["ruler", "!same_realm"]
+text = "本王见人先看胆气，其次才看名头。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["ruler", "!same_realm"]
+text = "本王问你一桩事：你到我{kingdom}来，图什么？"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "爱卿远来辛苦。孤这里山高路远，将就些罢。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "孤不问你的出身，只问你肯不肯替蜀中出力。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "你是本王的人，往后少些拘礼，多说实在话。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["ruler", "status=merc", "same_realm"]
+text = "本王眼里，肯拼命的都是好汉，不问出身。你和弟兄们安心办事便是。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["ruler", "status=merc", "same_realm"]
+text = "你既领了本王的钱粮，便是本王的人，不必见外。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["same_realm", "status=vassal"]
+text = "你我同殿为臣，往后还得彼此照应。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["same_realm", "status=vassal"]
+text = "足下在{kingdom}营中当差，某在后方也没敢闲着。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+when = ["same_realm", "status=vassal"]
+text = "朝廷把事派到你头上，我却替你担着心。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+text = "远来是客，先喝碗茶，莫嫌山里粗淡。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+text = "足下既到{here}，我蜀人待客从不含糊。"
+
+[[line]]
+topic = "greet"
+culture = "shu"
+text = "客从何处来？山路崎岖，且坐下吃口热汤，歇歇脚。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["!met"]
+text = "站住。你是哪一部的人？报个名来。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["!met"]
+text = "看你身后那几骑，不像寻常商队。来此何为？"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["!met"]
+text = "吾不识得你。先说说你在{kingdom}所为何事，再谈旁的。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["player_enemy"]
+priority = 1
+text = "既已列阵，便无须多言。放马过来吧。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["player_enemy"]
+priority = 1
+text = "两军相交，各为其主。你我各凭本事，生死无怨。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["player_enemy"]
+priority = 1
+text = "吾在此等你了断。刀剑不认交情——请了。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["rel<=-20"]
+priority = 1
+text = "足下还是少言为好，吾与你没什么可谈的。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["rel<=-20"]
+priority = 1
+text = "吾不喜你的做派。今日不动手，已是看在{here}的面子上。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["rel>=10"]
+text = "好！足下是条汉子。吾最敬能打的。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["rel>=10"]
+text = "来来，坐。与你说话比跟那些讲礼的痛快。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["rel>=10"]
+text = "足下这样的汉子，若是早遇上，定要与你歃血为盟。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["rel>=30", "met"]
+text = "老朋友了。这段日子没见，可还平安？"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["rel>=30", "met"]
+text = "你来了就好。吾帐下的酒，为你留着。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "!same_realm"]
+text = "远客到此，孤当以酒相待。你且说说你的来意。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "!same_realm"]
+text = "朕见过不少来求见的人。你能带来什么？"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "!same_realm"]
+text = "吾这里不讲究门第，只问一句：你肯守誓么？"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "你肯来，很好。孤这里不问出身，只问敢不敢战。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "抬起头来。朕要看清楚，你是不是可用之人。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "在孤面前，不必行那些虚礼。坐下说话。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "status=merc", "same_realm"]
+text = "孤雇你来，是买你的刀，不是买你的嘴。明白么？"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "status=merc", "same_realm"]
+text = "朕要的是能战之兵。你既立了约，便莫负此言。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["ruler", "status=merc", "same_realm"]
+text = "钱粮已与你，孤只问战果。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["same_realm", "status=vassal"]
+text = "足下也来了。同为{kingdom}效力，往后多照应。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["same_realm", "status=vassal"]
+text = "上峰差下来的事，吾与足下分着办。如何？"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+when = ["same_realm", "status=vassal"]
+text = "都是自己人。吾不绕弯子，有话直说。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+text = "足下远来，辛苦了。此地风大，先入帐喝碗热酒吧。"
+
+[[line]]
+topic = "greet"
+culture = "yan"
+text = "听你口音不像{here}人。路远，先歇脚，别急着说话。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["!met"]
+text = "站住。尔等面生得很，报个来路，某再听你说话。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["!met"]
+text = "看你这身行头，不像本地人。是来投军，还是来探路的？"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["!met"]
+text = "某见过的队伍多了，活下来的没几支。足下凭什么让某记住你？"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["player_enemy"]
+priority = 1
+text = "阵前相见，就少废话了。尔等不退，某便替你收尸。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["player_enemy"]
+priority = 1
+text = "两军对垒，足下还有胆子站到阵前？某倒敬你一分。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["rel<=-20"]
+priority = 1
+text = "某与足下没什么好说的。路在那边，自己走。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["rel<=-20"]
+priority = 1
+text = "别在{here}逗留太久。某的兵认刀不认人，出了事莫怪。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["rel<=-20"]
+priority = 1
+text = "你这种人，某见得多了。嘴上谈义，背后下刀。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["rel>=10"]
+text = "好！足下这身手，某看着顺眼。来，坐下喝一碗。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["rel>=10"]
+text = "某只认有本事的。足下这般痛快，某爱搭理。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["rel>=10"]
+text = "难得遇上足下这般明白人。{here}这地界，糊涂人太多。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["rel>=30", "met"]
+text = "换了别人，某不信。足下的话，某信。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["ruler", "!same_realm"]
+text = "汝远来，孤不问出身，只问一句：可为{kingdom}效死？"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["ruler", "!same_realm"]
+text = "孤坐此位，凭的是刀，不是嘴。你有何本事，且说来。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["ruler", "!same_realm"]
+text = "天下乱得很。孤有一句话予你：站错了边，莫怪孤没有提醒。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "起身吧。孤这殿上，不养闲人。你拿什么来见孤？"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["ruler", "status=merc", "same_realm"]
+text = "孤的银子不白花。养你们这些人，是要见血的。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["ruler", "status=merc", "same_realm"]
+text = "孤不问你来路，只问你敢不敢见血。想清楚再答。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["ruler", "status=merc", "same_realm"]
+text = "孤只看结果。事办成了，赏；办砸了，你也不必回来。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["same_realm", "status=vassal"]
+text = "同殿为臣，某劝足下一句：在{here}做事，手别伸太长。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["same_realm", "status=vassal"]
+text = "足下这一路打得漂亮。只是功劳太大，朝里有人睡不着觉。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+when = ["same_realm", "status=vassal"]
+text = "都是给{kingdom}卖命的，某与你无冤无仇。可别挡了某的路。"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+text = "此地兵荒马乱，能站住脚的都不简单。阁下是做什么的？"
+
+[[line]]
+topic = "greet"
+culture = "zhao"
+text = "既到了{here}，便算是客。某只问一句：带了多少人来？"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["!met"]
+text = "足下带着这些人马，从何处来？总不会是无缘无故走到{here}吧。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["!met"]
+text = "看足下行装，不似寻常流民。敢问阁下，是哪一路的？"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["!met"]
+text = "江左之地，鱼龙混杂。足下是过路，还是长留？"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["player_enemy"]
+priority = 1
+text = "两军阵前，不必虚礼。足下若要战，便放马过来。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["player_enemy"]
+priority = 1
+text = "阁下与我，各为其主。今日相见，只论刀剑，不论交情。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["rel<=-20"]
+priority = 1
+text = "足下若无事，便请回吧。此地不是谁都能久留的。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["rel<=-20"]
+priority = 1
+text = "阁下与我，道不同。话不投机，多说无益。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["rel<=-20"]
+priority = 1
+text = "你这样的人，我见得多了。今日留你，已是客气。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["rel>=10"]
+text = "足下来得正好，我正欲遣人相请。且请入座，容我奉茶。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["rel>=10"]
+text = "阁下之才，我素来佩服。今日得见，实慰平生。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["rel>=10"]
+text = "你我虽初交，却觉投缘。足下若不弃，愿结为友。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["rel>=30", "met"]
+text = "老朋友了，还说什么谢字。来，先饮一杯再说。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["ruler", "!same_realm"]
+text = "阁下来得正好。朕正想听听，外面如今是什么光景。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["ruler", "!same_realm"]
+text = "足下远来，不必拘礼。孤这里虽有规矩，却不为难远客。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["ruler", "!same_realm"]
+text = "足下既敢来见孤，胆色自是不差。江左人物讲究门第，足下不必放在心上。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "卿远道而来，车马劳顿。且近前些，朕有话问你。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["ruler", "same_realm", "status=vassal"]
+text = "孤听闻你素有勇名，今日一见，果然不凡。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["ruler", "status=merc", "same_realm"]
+text = "你既受雇于朕，便当尽力。朕这里，只论功过。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["ruler", "status=merc", "same_realm"]
+text = "义从首领，朕问你：若遇强敌，你可敢战？"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["ruler", "status=merc", "same_realm"]
+text = "孤用人不疑。既以兵事相托，便不从中掣肘。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["same_realm", "status=vassal"]
+text = "同朝为臣，自当同心。足下有什么打算，不妨直说。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["same_realm", "status=vassal"]
+text = "你我共事一主，休戚相关。朝中之事，还须彼此扶持。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+when = ["same_realm", "status=vassal"]
+text = "阁下在前方辛苦，我在后方自当尽力。放心便是。"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+text = "足下远来，风尘仆仆，且先歇脚。不知在{here}可还住得惯？"
+
+[[line]]
+topic = "greet"
+culture = "zhou"
+text = "久闻阁下之名，今日得见，倒也算有缘。请坐，看茶。"

@@ -28,6 +28,7 @@ var vsync := true
 var lock_mouse := true
 var edge_scroll := true
 var edge_speed := 1.0
+var battle_size := 120          # 3D battles: most soldiers on the field at once (Warband's battle size)
 
 var _focused := true
 var _armed := false        # lock only after the first click inside the window
@@ -69,6 +70,7 @@ func _load() -> void:
 	lock_mouse = bool(cf.get_value("input", "lock_mouse", lock_mouse))
 	edge_scroll = bool(cf.get_value("input", "edge_scroll", edge_scroll))
 	edge_speed = float(cf.get_value("input", "edge_speed", edge_speed))
+	battle_size = int(cf.get_value("battle", "size", battle_size))
 
 
 func save() -> void:
@@ -80,6 +82,7 @@ func save() -> void:
 	cf.set_value("input", "lock_mouse", lock_mouse)
 	cf.set_value("input", "edge_scroll", edge_scroll)
 	cf.set_value("input", "edge_speed", edge_speed)
+	cf.set_value("battle", "size", battle_size)
 	cf.save(PATH)
 
 
@@ -124,8 +127,11 @@ func mouse_locked() -> bool:
 	return lock_mouse or not is_windowed()
 
 
+var external_mouse := false   # a 3D battle is running and owns the mouse
+
+
 func apply_mouse() -> void:
-	if _headless:
+	if _headless or external_mouse:
 		return
 	var want := Input.MOUSE_MODE_CONFINED if mouse_locked() else Input.MOUSE_MODE_VISIBLE
 	if Input.mouse_mode != want:
@@ -280,6 +286,24 @@ func _build() -> void:
 		edge_speed = x
 		save())
 	_row(grid, "边缘滚屏速度", spd)
+
+	var bs := HSlider.new()
+	bs.min_value = 40
+	bs.max_value = 300
+	bs.step = 10
+	bs.value = battle_size
+	bs.custom_minimum_size = Vector2(160, 0)
+	bs.tooltip_text = "亲自上阵时战场上同时最多多少人（其余作为援军分波上场）；电脑慢就调小"
+	var bs_label := Label.new()
+	bs_label.text = "战场规模 %d" % battle_size
+	bs_label.add_theme_color_override("font_color", MUTED)
+	bs.value_changed.connect(func(x):
+		battle_size = int(x)
+		bs_label.text = "战场规模 %d" % battle_size
+		save())
+	grid.add_child(bs_label)
+	bs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(bs)
 
 	v.add_child(_check("垂直同步", vsync, func(on):
 		vsync = on

@@ -35,6 +35,9 @@ def safe_haven(w: World, p: Party, kinds=("town", "castle")) -> Settlement | Non
 
 
 def destroy_party(w: World, p: Party) -> None:
+    if p.kind == "bandit" and w.player.get("quests"):
+        from .quests import on_party_destroyed
+        on_party_destroyed(w, p.id, bool(w.player.get("_battle_by_player")))
     p.alive = False
     p.target = None
     if p.hero:
@@ -118,3 +121,19 @@ def realm_sees(w: World, kid: str, q: Party, extra: list | None = None) -> bool:
         if dist(p.pos, q.pos) <= sight(w, p):
             return True
     return False
+
+
+# ------------------------------------------------------------- distances
+def fort_days(w: World, sid: str, kid: str) -> float:
+    """Days an ordinary party needs from settlement `sid` to the nearest town/castle of realm `kid`
+    (follows roads, passes and fords — the real map distance, not a straight line)."""
+    from .rules import B
+    best = math.inf
+    for s in w.kingdom_settlements(kid, ("town", "castle")):
+        best = min(best, w.terrain.travel_cost(sid, *s.pos))
+    return best / (B.movement.base_speed * 24) if best < math.inf else 99.0
+
+
+def realm_days(w: World, a: str, b: str) -> float:
+    """How far apart two realms are: days between their closest pair of towns/castles."""
+    return min((fort_days(w, s.id, a) for s in w.kingdom_settlements(b, ("town", "castle"))), default=99.0)

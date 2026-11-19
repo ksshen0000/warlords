@@ -52,6 +52,8 @@ def _prey(w: World, p: Party, radius: float, ratio: float, kinds=None):
     for d, q in _nearby(w, p, radius):
         if not w.hostile(p, q) or (kinds and q.kind not in kinds):
             continue
+        if q.kind == "player" and T.healthy(q.troops) == 0 and q.gold < 50:
+            continue                        # nothing to take from a lone, penniless wanderer
         if q.inside:
             continue
         qp = w.party_power(q)
@@ -277,7 +279,7 @@ def hunter(w: World, p: Party) -> None:
     if not p.target or M.arrived(w, p) or p.mode == "idle":
         mine = w.party_power(p)
         lair = nearest_settlement(w, p.pos, lambda s: s.kind == "hideout" and s.active
-                                  and T.power(s.garrison) * 1.3 < mine and dist(s.pos, p.pos) < 300)
+                                  and T.power(s.garrison) * 1.3 < mine and dist(s.pos, p.pos) < 480)
         if lair:
             M.set_place(p, lair.id)
             return

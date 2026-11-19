@@ -68,7 +68,7 @@ def caravan_at_town(w: World, p: Party, town: Settlement) -> None:
         if d.kind != "town" or d.id == town.id or d.siege or w.at_war(side, d.faction):
             continue
         cost = w.terrain.travel_cost(d.id, *town.pos)
-        if cost > 700:
+        if cost > 1100:
             continue
         for g in GOODS:
             margin = w.price(d, g) * 0.92 - w.price(town, g)

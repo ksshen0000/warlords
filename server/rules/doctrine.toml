@@ -22,6 +22,14 @@ priority = 10
 text = "若某国占据天下三分之一以上的城池，它就是所有其他国家的最大威胁：应倾向对它宣战、与其他国家议和以集中力量，并在朝议中支持针对它的提案。没有永远的敌人，只有永远的利益。"
 
 [[rule]]
+id = "near_before_far"
+scope = "all"
+topic = "战略"
+use = ["decide", "propose", "vote"]
+priority = 9
+text = "远交近攻。先打与本国接壤、离自家城池近的地方：远离本土的孤城既难救援也难守住，翻山渡河去打远方的国家，往往得不偿失。与相隔千里的国家，宁可通好。"
+
+[[rule]]
 id = "avoid_multi_front"
 scope = "all"
 topic = "外交"

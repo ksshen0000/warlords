@@ -12,15 +12,21 @@ var _http: HTTPRequest
 var _map_http: HTTPRequest
 var _kind := ""
 var _queue: Array = []   # [kind, path, method, body]
+var prof := {}           # --prof: timing of the last request (ms): net, parse
+var _sent_at := 0
 
 
 func _ready() -> void:
 	_http = HTTPRequest.new()
 	_http.timeout = 300.0
+	# read a whole state reply in one frame (the default 64 KB chunk spreads it over several frames)
+	_http.download_chunk_size = 4 * 1024 * 1024
+	_http.use_threads = true        # poll the connection on a thread instead of one stage per frame
 	add_child(_http)
 	_http.request_completed.connect(_on_done)
 	_map_http = HTTPRequest.new()
 	_map_http.timeout = 60.0
+	_map_http.download_chunk_size = 4 * 1024 * 1024
 	add_child(_map_http)
 	_map_http.request_completed.connect(_on_map_done)
 
@@ -65,6 +71,10 @@ func act(action: String, data: Dictionary = {}) -> void:
 	_enqueue("act", "/player/act", HTTPClient.METHOD_POST, body)
 
 
+func battle(result: Dictionary) -> void:
+	_enqueue("battle", "/player/battle", HTTPClient.METHOD_POST, result)
+
+
 func talk(hero: String, text: String) -> void:
 	_enqueue("talk", "/player/talk", HTTPClient.METHOD_POST, {"hero": hero, "text": text})
 
@@ -86,6 +96,7 @@ func _pump() -> void:
 	_kind = job[0]
 	var headers := PackedStringArray(["Content-Type: application/json"])
 	var payload := JSON.stringify(job[3]) if job[2] == HTTPClient.METHOD_POST else ""
+	_sent_at = Time.get_ticks_usec()
 	var err := _http.request(base_url + job[1], headers, job[2], payload)
 	if err != OK:
 		busy = false
@@ -110,7 +121,9 @@ func _parse(result: int, code: int, body: PackedByteArray, kind: String) -> Vari
 func _on_done(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 	busy = false
 	var kind := _kind
+	var t0 := Time.get_ticks_usec()
 	var data = _parse(result, code, body, kind)
+	prof = {"net": (t0 - _sent_at) / 1000.0, "parse": (Time.get_ticks_usec() - t0) / 1000.0, "bytes": body.size()}
 	if data != null:
 		response.emit.call_deferred(kind, data)
 	_pump.call_deferred()

@@ -1,0 +1,944 @@
+# 台词：dialogue_about_me（已审阅；格式见 warlords/content.py）
+
+[[line]]
+topic = "about_me"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "寒门出身，能混到这般地步，也算不易了。"
+
+[[line]]
+topic = "about_me"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "阁下虽出身微末，倒也有些名声。"
+
+[[line]]
+topic = "about_me"
+when = ["renown<=30"]
+text = "足下名号，恕某孤陋，未曾听得。"
+
+[[line]]
+topic = "about_me"
+when = ["renown<=30"]
+text = "无名之辈，某岂能尽识？"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=121", "rel<=-10"]
+text = "名声大，未必本事大，足下以为呢？"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=121", "rel<=-10"]
+text = "阁下好大的名头，只盼不是虚的。"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=121", "rel<=-10"]
+text = "尔之名，某听过，不过如此。"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=121"]
+text = "足下名动一方，某久仰了。"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=121"]
+text = "阁下之名，如今谁人不晓？"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=121"]
+text = "足下威名，某在{kingdom}便已听闻。"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=31", "renown<=120"]
+text = "听说足下剿过几股匪，倒也算个做事的人。"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=31", "renown<=120"]
+text = "跑差事的传闻，某听过一二，莫要自满。"
+
+[[line]]
+topic = "about_me"
+when = ["renown>=31", "renown<=120"]
+text = "尔那点名声，某略有耳闻，还算不上什么。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler", "renown<=30"]
+text = "无名之辈，孤岂能尽知天下人？足下莫要见怪。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler", "renown<=30"]
+text = "本王听过的人多了，你若真要立名，还是自己拿血去换吧。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler", "renown<=30"]
+text = "未知足下之名，不过今日见过一面，就算认识了。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler", "renown>=121"]
+text = "你在{here}的名声，孤是听过的，今日才算见着真章。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler", "renown>=121"]
+text = "朕对你的名头早有耳闻，本以为又是旁人吹嘘。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler", "renown>=121"]
+text = "你的名头传到朕这里，可不是小人物该有的声音。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler"]
+text = "足下之名，孤略有所闻，只是不知真假。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler"]
+text = "在{here}这地方，你的名号也传过几回，听着罢了。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler"]
+text = "些许虚名，终究算不上什么，阁下心里当有数。"
+
+[[line]]
+topic = "about_me"
+when = ["ruler"]
+text = "本王听人提过你两三回，是人是鬼，今日才算见着。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "寒门能挣出这点名气，也算难得了。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "足下出身既低，能有今日这番名头，某倒想听听其中门道。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "门第的事，某本不该多言，可凉州人看重这个。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown<=30"]
+text = "足下之名，在下孤陋，实未听人提起过。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown<=30"]
+text = "河西商路来往人多，凡无名者，某多半记不住。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown<=30"]
+text = "某常年走河西商路，眼里只记得商队和货价。阁下这一支，恕某眼拙。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown>=121", "rel<=-10"]
+text = "足下名声是大，可惜在凉州，名声抵不了半匹绢。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown>=121", "rel<=-10"]
+text = "阁下这声望，在河西可换不来几匹好马。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown>=121"]
+text = "足下名动一方，某在{here}也久闻了。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown>=121"]
+text = "能与阁下这样的人物结交，于商于兵都是好事。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown>=121"]
+text = "阁下如今名头不小，某倒要重新估一估这价钱。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown>=31", "renown<=120"]
+text = "听说足下剿过几股匪，商队过路也安稳些了。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown>=31", "renown<=120"]
+text = "跑差事能跑出名堂，倒也不易，某略有所闻。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["renown>=31", "renown<=120"]
+text = "阁下的事，隔着几重山也传到河西了，商队的人嘴快。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["ruler", "renown<=30"]
+text = "孤的耳目多在西域道上，足下这一路，倒还未曾报来。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["ruler", "renown<=30"]
+text = "孤这里不问名头，只问货色；足下且坐，先说来意。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["ruler", "renown<=30"]
+text = "凉地信佛，也信实利；名字孤没听过，货色得当面看。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["ruler", "renown>=121"]
+text = "足下近来声名不小，孤的商队回来，句句都带你的名号。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["ruler", "renown>=121"]
+text = "能传到孤耳中的，都不是小事；足下这名声，分量不轻。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["ruler", "renown>=121"]
+text = "孤早想与足下通个价，只愁没有门路，今日倒自己来了。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["ruler"]
+text = "足下的名号，孤在{here}听商队提过一两回，不算陌生。"
+
+[[line]]
+topic = "about_me"
+culture = "liang"
+when = ["ruler"]
+text = "孤这城里香客多、远客多，闲话自然也多；足下的名字，孤是听过的。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "你的名我听过。可惜出身低了些，马都不认。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "出身低的人，能走到这里，刀上必沾了不少血。可血换不来姓氏。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "我知道你。只是草原上，没根的人，风一吹就倒。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown<=30"]
+text = "草原上风大，名字轻，没听过。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown<=30"]
+text = "你？没听过。名字轻，得靠刀和马替你说。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown<=30"]
+text = "没听过。不过你站在这儿，就算有点胆。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown>=121", "rel<=-10"]
+text = "名头大，可惜不合我的意。不必来攀交情。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown>=121", "rel<=-10"]
+text = "听过你。名声这东西，一阵风就吹散了。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown>=121", "rel<=-10"]
+text = "你的事我晓得。不过草原上只认刀，不认嘴。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown>=121"]
+text = "你的名，连我帐前的小卒都在说。不容易。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown>=121"]
+text = "名动一方了。草原上敬这种人——刀上见真章。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown>=121"]
+text = "久闻你名。风把你的名吹过了几道梁子，我在帐里就听见了。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown>=31", "renown<=120"]
+text = "你的名儿传过来了，不大，够换碗马奶酒。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["renown>=31", "renown<=120"]
+text = "听说过你去打那些小股贼。活着回来，算你命硬。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler", "renown<=30"]
+text = "没听过。草原大得很，无名的人多了，不差你一个。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler", "renown<=30"]
+text = "没听过。名字不是喊出来的，是打出来的。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler", "renown<=30"]
+text = "你？没听过。想让我记住，先拿刀来换。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler", "renown>=121"]
+text = "你的名字，我这帐里有人提过。能让人提，就算有本事。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler", "renown>=121"]
+text = "听过。你近来名声不小，我一直在留意。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler", "renown>=121"]
+text = "早听说了。风声这么大，我得看看是匹真马，还是空响。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler"]
+text = "听过。草原上风大，什么名字都吹得过来，真假就难说了。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler"]
+text = "你的事，我听过几句。名字响不响，得看马跑得多快。"
+
+[[line]]
+topic = "about_me"
+culture = "rou"
+when = ["ruler"]
+text = "听说过。可我听说的，都是用刀换来的，嘴上说的我不算。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "某家门里的事，不与足下多讲。不是一路出身，说不明白。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "足下如今也算有了名姓，只可惜出身这道坎，不是几场战功便能填平的。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "某并非瞧不起寒门。只是有些座次，先看门第，后论功，足下须明白。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown<=30"]
+text = "足下名号，某在山里未曾听过。不过既来{here}，便是有胆色的人。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown<=30"]
+text = "吾等在这地方只认两样：手上有兵，锅里有饭。足下的旗号，某还没见过。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown>=121", "rel<=-10"]
+text = "名声响罢了。某见过的名声，十有八九是吹出来的。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown>=121", "rel<=-10"]
+text = "足下这等的名头，蜀中父老听了也要笑一声。真有本事，就别光靠嘴。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown>=121"]
+text = "足下名头，某在营中也听人提过几回。这样的人物肯到此处，是件要紧事。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown>=121"]
+text = "久闻了。某这人不爱客套，能打的就是能打的，不管从哪边来。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown>=121"]
+text = "名声越响，麻烦越多。足下肯来，某领这份情。只是外头人多唤我等作贼，这话某听不得。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown>=31", "renown<=120"]
+text = "剿匪的事传过些风。某不爱听传闻，倒是想看看足下手底下有几分真功夫。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown>=31", "renown<=120"]
+text = "跑差事跑出名声，也算本事。只是这世道，差事跑得再勤，不如守得稳。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["renown>=31", "renown<=120"]
+text = "听说足下动过几回刀。某只问一句：跟着你的人，能不能吃饱饭？"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler", "renown<=30"]
+text = "孤这双耳朵，只听两样：百姓的哭和刀兵的响。足下是哪一样？"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler", "renown<=30"]
+text = "没听过也无妨。孤当年起事时，谁又听过孤的名字？"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler", "renown<=30"]
+text = "天下无名之人多矣，能走到孤跟前，也算本事。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler", "renown>=121"]
+text = "足下近来风头不小，孤在{here}都听人提起过。是敌是友，且看今日。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler", "renown>=121"]
+text = "名动一方的人物肯来见孤，孤自然要听个仔细。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler", "renown>=121"]
+text = "名头大、肚里空的，孤见得多了。足下是哪一种，孤自有计较。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler"]
+text = "阁下的名号，孤在{here}也听人提过几回。说大不大，说小不小，总是个有名姓的。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler"]
+text = "巴蜀山高路远，外头的事传得慢。足下之名，孤听说过几分。"
+
+[[line]]
+topic = "about_me"
+culture = "shu"
+when = ["ruler"]
+text = "名声二字，孤只信一半。剩下那一半，得看足下自己的斤两。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "你出身寒微，能挣到今日这一步，也算有本事。只是门第那东西，挣不来。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "某家门第传了几代，规矩多；足下那些做派，某看不懂。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "人是不错的，只是有些位子，生来不是给寒门留的。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown<=30"]
+text = "足下之名，某实未闻。辽东的风大，吹不来{here}的消息。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown<=30"]
+text = "没听过。不过燕地不问出身，只问你的刀快不快。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown<=30"]
+text = "空名某从来记不住。燕人重誓，虚话不如一句实誓。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=121", "rel<=-10"]
+text = "名声大，未必骨头硬。某见过许多响亮的名字。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=121", "rel<=-10"]
+text = "你是有些名气，可某从不拿名气下注，只拿人下注。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=121", "rel<=-10"]
+text = "听说你颇有人望，可惜某这双眼睛，只认能打的。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=121"]
+text = "久闻足下之名，今日得见，果然是条汉子。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=121"]
+text = "足下的事，某在营里听人说过几回，心里早记住了。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=121"]
+text = "能在这乱世挣下这样的名头，不容易。某敬你一碗。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=31", "renown<=120"]
+text = "坊间有几句闲话，说足下剿过匪。听着像真事。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=31", "renown<=120"]
+text = "某听人提过足下，多半是跑差事跑出来的名声。也好，肯跑就好。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["renown>=31", "renown<=120"]
+text = "别处传的，某不信。今日亲眼见了人，倒有三分信了。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler", "renown<=30"]
+text = "没听过。草原上风大，无名的人也能站住脚，只看你敢不敢拔刀。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler", "renown<=30"]
+text = "孤识人只凭当面一叙。你从前叫什么都不打紧，往后看你自己。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler", "renown<=30"]
+text = "不曾听过。名头是自己打出来的，不是旁人报出来的——孤当年也是从马群里杀出来的。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler", "renown>=121"]
+text = "你的名头传到孤帐前来了，这样的人物，孤岂会不知？"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler", "renown>=121"]
+text = "听说过——你那几仗，传得响。孤早想见见你。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler", "renown>=121"]
+text = "早闻足下之名。{kingdom}最敬敢打的人，今日正好当面认一认。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler"]
+text = "足下的名头，孤在{here}听过两耳朵。行军打仗的人，孤都记着。"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler"]
+text = "名不名的，孤不问。孤只问一句：你敢在孤面前立个誓么？"
+
+[[line]]
+topic = "about_me"
+culture = "yan"
+when = ["ruler"]
+text = "听过。可{kingdom}的规矩，先看刀口，再看名头——足下莫急着欢喜。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "高门寒门某不在乎，可你这出身，让人高看你一眼也难。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "足下能有今日，已算难得。只是别走得太近了。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "某听人提过你。泥里爬出来的，身上总带着味。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown<=30"]
+text = "你是何人？某不曾听过你的名号。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown<=30"]
+text = "无名之辈也配在此说话？某眼里只认得刀口上的本事。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown<=30"]
+text = "这年头自称首领的人比流民还多，某记不住。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=121", "rel<=-10"]
+text = "你的名声再大，也别在某的地界上横。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=121", "rel<=-10"]
+text = "人人都夸你，某倒想看看你这斤两够不够。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=121", "rel<=-10"]
+text = "名声是虚的，刀是实的。足下掂量清楚。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=121"]
+text = "久闻你的名了，能在这乱世挣下名声，不易。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=121"]
+text = "你的名头，连邺城都有人提。可有几分真本事？"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=121"]
+text = "某看重能打的人，你若真是，就别让某失望。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=31", "renown<=120"]
+text = "剿过几股匪？那点事也值得挂在嘴上。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=31", "renown<=120"]
+text = "听闻你替人跑过差事，倒还算个肯出力的。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["renown>=31", "renown<=120"]
+text = "你的名头某听过一点，别让它比本事还响。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler", "renown<=30"]
+text = "没听过。{here}每天都有人来投，孤难道一个个都记？"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler", "renown<=30"]
+text = "无名之辈？无妨。孤这里只问功劳，不问出身。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler", "renown<=30"]
+text = "你的名，孤从未耳闻。不过，孤今日记住你了——莫要让孤后悔。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler", "renown>=121"]
+text = "你的名头，孤早有耳闻。只是，名动一方的人，孤见多了——活到最后的却少。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler", "renown>=121"]
+text = "这{kingdom}不养闲人。你有几分本事，孤自会称量。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler", "renown>=121"]
+text = "{here}的事，孤知道。有本事是好事——本事大到让孤睡不安稳，就不是好事了。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler"]
+text = "听过。无名之辈活不长，有名之人也未必长命。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler"]
+text = "你的名号，孤在{here}略有所闻。不过传言多是吹捧，孤只认刀口上的功。"
+
+[[line]]
+topic = "about_me"
+culture = "zhao"
+when = ["ruler"]
+text = "名是虚的。孤见过太多浪得虚名之辈，但愿你不是。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "足下之名，某听过。只是寒门出身，能走到今日，也算不易了。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "出身如何，本非某所重。只是这世道，门第终究是道坎，足下当自知。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["player_pedigree=low", "pedigree=high"]
+text = "闻足下起于微末，今日也算有了名声，确有些本事。不过江左之风，非一朝可学。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown<=30"]
+text = "足下之名，某孤陋，实未曾闻。想是初出茅庐，未及传于江左。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown<=30"]
+text = "未闻。此地往来者众，足下若不嫌，可自报家门，某记下便是。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown<=30"]
+text = "恕某直言，阁下名号，某今日方初次听闻。乱世之中声名未著，未必是坏事。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=121", "rel<=-10"]
+text = "足下大名，如雷贯耳。只可惜这名，未必都是好名。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=121", "rel<=-10"]
+text = "名声大，未必是好事。足下所到之处，是非也不少罢。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=121", "rel<=-10"]
+text = "某闻足下行事，多有不循规矩处，还望自重。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=121"]
+text = "久仰。足下之名，近来在{here}一带传得颇响，某早有耳闻。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=121"]
+text = "足下近来声名鹊起，某虽在军中，亦有所闻，今日得见，果非常人。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=121"]
+text = "以足下今日的名声，某若说不知，便是欺心了。请坐。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=31", "renown<=120"]
+text = "略有耳闻。听闻足下剿过几股匪，跑过几趟差，算是有些胆色。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=31", "renown<=120"]
+text = "坊间有传，说足下办事利落。不过传闻归传闻，某未亲眼见。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["renown>=31", "renown<=120"]
+text = "听过一二。剿匪跑腿之事，做得好也是本事，只望足下莫止于此。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["ruler", "renown<=30"]
+text = "朕居深宫，所闻者皆门阀旧事，足下之名，实未曾入耳。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["ruler", "renown<=30"]
+text = "天下英豪众多，朕岂能尽识？足下之名未闻，亦不足为怪。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["ruler", "renown<=30"]
+text = "无名亦无妨，江左用人，向来先看门第，后论才具。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["ruler", "renown>=121"]
+text = "足下之名，近来颇有人道；朕亦曾问左右：此何人哉？"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["ruler", "renown>=121"]
+text = "阁下名动一方，朕岂能不知？只是未料今日相见于此。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["ruler", "renown>=121"]
+text = "闻卿久矣——江左清议向来吝于许人，独肯道卿之名，朕自然要留意几分。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["ruler"]
+text = "足下之名，朕略有所闻——江左舟中，也曾有人提过。"
+
+[[line]]
+topic = "about_me"
+culture = "zhou"
+when = ["ruler"]
+text = "卿名不至显赫，亦非无名；朕耳目所及，尚记一二。"

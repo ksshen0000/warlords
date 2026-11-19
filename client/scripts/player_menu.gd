@@ -153,6 +153,9 @@ func _build_buttons() -> void:
 			data["hero"] = o.hero
 		if o.get("choice") != null:
 			data["choice"] = o.choice
+		for k in ["topic", "target"]:
+			if o.get(k) != null:
+				data[k] = o[k]
 		var oid: String = o.id
 		b.pressed.connect(func(): action.emit(oid, data))
 		buttons.add_child(b)
@@ -213,10 +216,13 @@ func _build_chat() -> void:
 			out += "[color=#8fc6ff]你：[/color]%s\n" % _esc(line[1])
 		else:
 			out += "[color=#f2c75c]%s：[/color]%s\n" % [_esc(who), _esc(line[1])]
+	var free: bool = menu.get("free_text", false)
+	chat_input.get_parent().visible = free              # typing freely needs the LLM; topics always work
 	if out == "":
-		out = "[color=#8c9a94]（你可以随意和对方交谈：打听消息、套近乎、试探立场……对方会按自己的性格回应，并影响对你的好感。）[/color]"
+		out = "[color=#8c9a94]（%s）[/color]" % ("可以挑下面的话题，也可以随意说话：对方会按自己的性格回应，并影响对你的好感。" if free
+			else "挑下面的话题和对方交谈：打听局势、问差事、试探立场……")
 	chat_log.text = out
-	if not waiting_label.visible:
+	if free and not waiting_label.visible:
 		chat_input.grab_focus.call_deferred()
 
 

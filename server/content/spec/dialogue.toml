@@ -1,0 +1,327 @@
+# 台词需求表：tools/author.py 按这里的每一格（cell）让 LLM 写台词草稿。
+#
+# 一格 = 一个话题（topic）在某种情形（when）下，将军对玩家说的一句话。
+#   when      条件，与 content/dialogue*.toml 里的写法相同（见 warlords/content.py）
+#   brief     给编剧（LLM）的情形说明
+#   vars      这一格可以用的占位符（除了公共占位符之外）
+#   require   台词里必须出现的占位符
+#   priority  情形重叠时谁优先（默认 0；越大越优先，其次比条件个数）
+#   per_culture = false   只写通用台词（不分国家口吻）
+#
+# 公共占位符：{name} 说话人  {kingdom} 他的国号  {ruler} 他的君主  {ruler_title} 君主称号（天王/大单于/可汗……）
+#             {culture} 他的风俗（如「江左」）  {here} 他此刻所在的地方（不是玩家去过的地方）
+# 话题可用的额外占位符：{enemy} 交战国  {siege} 他正在围攻的城  {fief} 他的一处封地  {target} {place}
+
+lines_per_cell = 3          # 每一格、每种口吻写几句
+
+# 各国口吻（写进给 LLM 的提示）
+[voice]
+zhou = "周（江左）：高门讲究风度、爱引经据典、说话绕弯子，看不起寒门与北人；北府寒门将领则直率务实"
+yan = "燕（辽东）：豪爽直接，看重勇武与誓言；对周制礼仪半懂不懂，又很想学"
+zhao = "赵（河北）：粗粝、多疑，崇尚实力，言语中常带威胁"
+liang = "凉（河西）：客气圆滑，常提商路与佛法，凡事先谈价钱"
+shu = "蜀（巴蜀）：带乡土气，自尊心强，最恨被人称为「贼」"
+rou = "柔（漠北）：草原游牧者，说话简短，看重马、刀和誓约，不讲究礼数"
+
+# ------------------------------------------------------------------ greet 见面第一句
+[[cell]]
+topic = "greet"
+when = []
+brief = "见面第一句，彼此没什么交情，平常的客气。"
+
+[[cell]]
+topic = "greet"
+when = ["!met"]
+brief = "第一次见到玩家，不知道对方是谁，带点打量和戒备。"
+
+[[cell]]
+topic = "greet"
+when = ["rel<=-20"]
+priority = 1
+brief = "他讨厌玩家，冷淡甚至带敌意，但还没到动手的地步。"
+
+[[cell]]
+topic = "greet"
+when = ["player_enemy"]
+priority = 1
+brief = "玩家与他的国家正在交战，两军阵前相见。"
+
+[[cell]]
+topic = "greet"
+when = ["rel>=10"]
+brief = "对玩家有好感，热络。"
+
+[[cell]]
+topic = "greet"
+when = ["rel>=30", "met"]
+brief = "老交情，很信任玩家，像对朋友。"
+
+[[cell]]
+topic = "greet"
+when = ["same_realm", "status=vassal"]
+brief = "玩家与他同为一国之臣，同僚相见。"
+
+[[cell]]
+topic = "greet"
+when = ["ruler", "same_realm", "status=vassal"]
+brief = "他是君主，玩家是他的臣子，前来拜见。说话人是君主，可以自称「孤」「朕」（柔用「我」）。"
+
+[[cell]]
+topic = "greet"
+when = ["ruler", "status=merc", "same_realm"]
+brief = "他是君主，玩家是他雇来的义从（雇佣兵）首领。说话人是君主。"
+
+[[cell]]
+topic = "greet"
+when = ["ruler", "!same_realm"]
+brief = "他是一国之君，接见一个外人。说话人是君主，有威仪。"
+
+# ------------------------------------------------------------------ news 近来局势如何？
+[[cell]]
+topic = "news"
+when = ["!at_war"]
+brief = "玩家问近来局势。他的国家眼下没有战事，暂得太平（可以带点对太平不长久的担忧）。"
+
+[[cell]]
+topic = "news"
+when = ["at_war", "winning"]
+vars = ["enemy"]
+brief = "他的国家正与{enemy}交战，而且占上风。"
+
+[[cell]]
+topic = "news"
+when = ["at_war", "!winning"]
+vars = ["enemy"]
+brief = "他的国家正与{enemy}交战，战事不利。"
+
+[[cell]]
+topic = "news"
+when = ["at_war", "in_army"]
+vars = ["enemy"]
+brief = "他正随军团出征{enemy}，军务在身。"
+
+[[cell]]
+topic = "news"
+when = ["at_war", "army_leader"]
+vars = ["enemy"]
+brief = "他是统帅，正率领大军征讨{enemy}。"
+
+[[cell]]
+topic = "news"
+when = ["at_war", "besieging"]
+vars = ["enemy", "siege"]
+brief = "他正在围攻{siege}。"
+
+[[cell]]
+topic = "news"
+when = ["ruler", "at_war"]
+vars = ["enemy"]
+brief = "他是君主，谈与{enemy}的战事，口气是一国之君的考量。说话人是君主。"
+
+[[cell]]
+topic = "news"
+when = ["ruler", "!at_war"]
+brief = "他是君主，国中暂无战事，谈治国或下一步的图谋。说话人是君主。"
+
+# ------------------------------------------------------------------ about_me 将军可曾听说过在下？
+[[cell]]
+topic = "about_me"
+when = ["renown<=30"]
+brief = "玩家问他听没听说过自己。玩家还是无名之辈，他没听说过（可以客气，也可以轻慢）。"
+
+[[cell]]
+topic = "about_me"
+when = ["renown>=31", "renown<=120"]
+brief = "玩家小有名气，他听说过一些剿匪、跑差事的传闻。"
+
+[[cell]]
+topic = "about_me"
+when = ["renown>=121"]
+brief = "玩家已名动一方，他久闻其名，颇为看重。"
+
+[[cell]]
+topic = "about_me"
+when = ["renown>=121", "rel<=-10"]
+brief = "玩家名声很大，但他对玩家没有好感，话里带刺。"
+
+[[cell]]
+topic = "about_me"
+when = ["player_pedigree=low", "pedigree=high"]
+brief = "他出身高门，玩家出身寒微。他听说过玩家，但言语间看不起玩家的出身。"
+
+# ------------------------------------------------------------------ about_ruler 将军如何看待{ruler_title}？
+[[cell]]
+topic = "about_ruler"
+when = []
+brief = "玩家问他如何看待他的君主{ruler}。场面话，忠心而不多说。"
+
+[[cell]]
+topic = "about_ruler"
+when = ["ruler_rel>=20"]
+brief = "他深受{ruler}器重，真心拥戴。"
+
+[[cell]]
+topic = "about_ruler"
+when = ["ruler_rel<=-10"]
+brief = "他与{ruler}不和，但对玩家还不信任，话说得含糊、闪烁，听得出不满。"
+
+[[cell]]
+topic = "about_ruler"
+when = ["ruler_rel<=-10", "rel>=20"]
+brief = "他与{ruler}不和，又信得过玩家，私下吐露怨言（暗示可能另谋出路）。"
+
+[[cell]]
+topic = "about_ruler"
+when = ["player_enemy"]
+priority = 1
+brief = "玩家是敌国之人，竟问他如何看待自己的君主，他觉得被冒犯或者觉得可笑。"
+
+# ------------------------------------------------------------------ ask_work 可有用得着在下的地方？
+[[cell]]
+topic = "ask_work"
+when = ["has_fief", "enough_rel"]
+vars = ["fief"]
+brief = "他有城池（{fief}），正好有事要托付，说完这句就会把差事讲给玩家听。只说引子，不要说具体是什么差事。"
+
+[[cell]]
+topic = "ask_work"
+when = ["!has_fief"]
+brief = "他手里没有城池，没什么能托付的，让玩家去各城找城主问问。"
+
+[[cell]]
+topic = "ask_work"
+when = ["has_fief", "!enough_rel"]
+vars = ["fief"]
+brief = "他有城池，但信不过玩家，不愿把事情交给玩家。"
+
+# ------------------------------------------------------------------ flatter 久闻将军威名
+[[cell]]
+topic = "flatter"
+when = []
+brief = "玩家说了客套的恭维话。他礼貌地回应，不为所动。"
+
+[[cell]]
+topic = "flatter"
+when = ["pleased"]
+brief = "玩家恭维他，他很受用，心情不错。"
+
+[[cell]]
+topic = "flatter"
+when = ["!pleased", "honor>=1"]
+brief = "玩家恭维他，他是重名节的人，看穿了这是奉承，淡淡地点破。"
+
+[[cell]]
+topic = "flatter"
+when = ["recent"]
+priority = 1
+brief = "玩家这几天已经奉承过他了，又来一遍，他有点不耐烦。"
+
+# ------------------------------------------------------------------ whereabouts 可知{target}在何处？
+[[cell]]
+topic = "whereabouts"
+when = ["knows"]
+vars = ["target", "place"]
+require = ["place"]
+brief = "玩家打听{target}的下落，他知道：{target}眼下在{place}。句子里必须出现{place}。"
+
+[[cell]]
+topic = "whereabouts"
+when = ["!knows"]
+vars = ["target"]
+brief = "玩家打听{target}的下落，他不清楚。"
+
+[[cell]]
+topic = "whereabouts"
+when = ["captive"]
+priority = 1
+vars = ["target"]
+brief = "玩家打听{target}的下落：{target}已经被俘，身陷囹圄。"
+
+# ------------------------------------------------------------------ chat 自由对话但 LLM 不可用时的兜底
+[[cell]]
+topic = "chat"
+when = []
+brief = "玩家说了些闲话，他敷衍地回应，不置可否。"
+
+[[cell]]
+topic = "chat"
+when = ["rel<=-20"]
+brief = "玩家想搭话，他不愿多谈。"
+
+[[cell]]
+topic = "chat"
+when = ["rel>=20"]
+brief = "玩家随口闲聊，他和颜悦色地接话。"
+
+# ------------------------------------------------------------------ 君主专用（说话人是君主时只用这些）
+[[cell]]
+topic = "about_me"
+when = ["ruler"]
+brief = "玩家问君主听没听说过自己，玩家小有名气或名气平平。说话人是君主。"
+
+[[cell]]
+topic = "about_me"
+when = ["ruler", "renown<=30"]
+brief = "玩家问君主听没听说过自己，玩家是无名之辈，君主没听说过。说话人是君主。"
+
+[[cell]]
+topic = "about_me"
+when = ["ruler", "renown>=121"]
+brief = "玩家问君主听没听说过自己，玩家已名动一方，君主有所耳闻、颇为留意。说话人是君主。"
+
+[[cell]]
+topic = "ask_work"
+when = ["ruler", "has_fief", "enough_rel"]
+vars = ["fief"]
+brief = "玩家问君主有没有用得着自己的地方。君主正好有事交代（下一步会讲具体差事），只说引子。说话人是君主。"
+
+[[cell]]
+topic = "ask_work"
+when = ["ruler", "!enough_rel"]
+brief = "玩家问君主有没有用得着自己的地方，君主信不过玩家，不愿交托。说话人是君主。"
+
+[[cell]]
+topic = "ask_work"
+when = ["ruler", "!has_fief"]
+brief = "玩家问君主有没有用得着自己的地方，君主眼下没什么能交给外人办的，打发玩家去各城问问。说话人是君主。"
+
+[[cell]]
+topic = "flatter"
+when = ["ruler"]
+brief = "玩家恭维君主，君主矜持地受了，不为所动。说话人是君主。"
+
+[[cell]]
+topic = "flatter"
+when = ["ruler", "pleased"]
+brief = "玩家恭维君主，君主很受用。说话人是君主。"
+
+[[cell]]
+topic = "flatter"
+when = ["ruler", "recent"]
+priority = 1
+brief = "玩家这几天已经恭维过君主，又来一遍，君主嫌烦。说话人是君主。"
+
+[[cell]]
+topic = "whereabouts"
+when = ["ruler", "knows"]
+vars = ["target", "place"]
+require = ["place"]
+brief = "玩家向君主打听{target}的下落，君主知道：在{place}。说话人是君主。"
+
+[[cell]]
+topic = "whereabouts"
+when = ["ruler", "!knows"]
+vars = ["target"]
+brief = "玩家向君主打听{target}的下落，君主不知道，或不屑理会。说话人是君主。"
+
+[[cell]]
+topic = "whereabouts"
+when = ["ruler", "captive"]
+priority = 1
+vars = ["target"]
+brief = "玩家向君主打听{target}的下落：{target}已被俘。说话人是君主。"
+
+[[cell]]
+topic = "chat"
+when = ["ruler"]
+brief = "玩家和君主闲谈，君主简短回应。说话人是君主。"

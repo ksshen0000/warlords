@@ -51,6 +51,7 @@ class Rules:
         self.balance_raw = read("balance")
         self.units = read("units")
         self.world = read("world")
+        self.geography = read("geography")
         self.doctrine = read("doctrine").get("rule", [])
         self.ai = read("ai")
         B.__init__(self.balance_raw, "balance.")

@@ -1,0 +1,618 @@
+# 台词：dialogue_ask_work（已审阅；格式见 warlords/content.py）
+
+[[line]]
+topic = "ask_work"
+when = ["!has_fief"]
+text = "我两手空空，无城可托。足下不如往各城走走，问那里的城主。"
+
+[[line]]
+topic = "ask_work"
+when = ["!has_fief"]
+text = "某无尺寸之地，帮不上你。各城的城主手里才有活计。"
+
+[[line]]
+topic = "ask_work"
+when = ["has_fief", "!enough_rel"]
+text = "足下名声不小，只是这差事，我还得再掂量掂量。"
+
+[[line]]
+topic = "ask_work"
+when = ["has_fief", "!enough_rel"]
+text = "不是我不信你，只是此事重大，托付错了，谁都担不起。"
+
+[[line]]
+topic = "ask_work"
+when = ["has_fief", "enough_rel"]
+text = "足下既来了，我这{fief}里正有一件事，非你不可。"
+
+[[line]]
+topic = "ask_work"
+when = ["has_fief", "enough_rel"]
+text = "你我在此相逢也算有缘，有桩差事，我思量许久无人可托。"
+
+[[line]]
+topic = "ask_work"
+when = ["ruler", "!enough_rel"]
+text = "你的好意，吾心领了。只是此事，不便相托。"
+
+[[line]]
+topic = "ask_work"
+when = ["ruler", "!enough_rel"]
+text = "足下新来，吾还不知底细。待些时日再说。"
+
+[[line]]
+topic = "ask_work"
+when = ["ruler", "!has_fief"]
+text = "眼下倒无甚急务。你不如去各城走走，看看有无差遣。"
+
+[[line]]
+topic = "ask_work"
+when = ["ruler", "!has_fief"]
+text = "此处安闲，无事可托。你且往其他城池寻个机会。"
+
+[[line]]
+topic = "ask_work"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "来得正好。有一件事，吾正愁无人可托。"
+
+[[line]]
+topic = "ask_work"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "你问得巧。眼下这里正缺一个能办事的人。"
+
+[[line]]
+topic = "ask_work"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "既然你开口，吾便直说：此事非你不可。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["!has_fief"]
+text = "某这里没有城池可托付，阁下还是去各城问问城主，兴许有机缘。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["!has_fief"]
+text = "某不过一个过路人，说话不作数。阁下要寻差事，还是去各城的城主处问问方好。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["!has_fief"]
+text = "生意没本钱做不成，某手里没有城。阁下沿路去问，城主们总有活计给你。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["has_fief", "!enough_rel"]
+text = "阁下名头不小，可惜某这城池小，一桩事交出去，输不起。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["has_fief", "!enough_rel"]
+text = "不是某信不过人，是这年头的买卖，一赔便翻不了身。阁下的好意，某心领了。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["has_fief", "enough_rel"]
+text = "足下远来，先在{fief}歇歇脚。某这里正有一桩事，须得信得过的人去办。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["has_fief", "enough_rel"]
+text = "佛前刚添了灯油，{fief}的商队也该动身了。有件事，想请阁下援手。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["has_fief", "enough_rel"]
+text = "阁下既到了{fief}，便是与某有缘。价钱好说，先听某讲一桩托付。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["ruler", "!enough_rel"]
+text = "足下美意，孤心领了。只是眼下诸事，还不敢劳烦外人。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["ruler", "!enough_rel"]
+text = "阁下初来，底细未明，孤若贸然相托，岂非害了足下？"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["ruler", "!enough_rel"]
+text = "孤这里的事，向来只交与相熟多年的老人。足下且宽坐，先饮一盏茶——凉地做事，讲的是长久的买卖。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["ruler", "!has_fief"]
+text = "孤这里暂不缺人手。阁下可沿商路往各城走走，市集上消息最灵，兴许有人正缺帮手。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["ruler", "!has_fief"]
+text = "足下若有心，且去{here}的市集与军营转转，自会有人来寻。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "足下既有此心，孤这里正有一桩事，关乎商路与军情，且听孤细说。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "阁下肯来问，便是缘分。孤有一事相托，事成之后，价钱好商量。"
+
+[[line]]
+topic = "ask_work"
+culture = "liang"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "来得正好。孤眼前正有一事，办妥了，佛前也添一分功德。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["!has_fief"]
+text = "我手里没有城，托不了你什么。去各城问问城主，他们手里有差事，也有刀。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["!has_fief"]
+text = "草原上认的是刀和马，不认空口。要差事，往那些有城的地方去寻。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["has_fief", "!enough_rel"]
+text = "这城里的差事，只交自己人。你往别处问问罢。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["has_fief", "!enough_rel"]
+text = "你连自己的马都未必看不住，我的城怎么敢托给你？请回吧。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["has_fief", "enough_rel"]
+text = "足下既到{fief}，便是草原的客。有一桩事要托付，应下了，我便记这份情。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["has_fief", "enough_rel"]
+text = "我这{fief}虽小，也还容得下几条好汉。阁下若肯听，有桩事正要托付。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["has_fief", "enough_rel"]
+text = "{fief}的城门为你开着。先把话听完——我托付的事，做好了自有你的好处。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["ruler", "!enough_rel"]
+text = "用得着？我连你的刀是真是假都没看清。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["ruler", "!enough_rel"]
+text = "外乡人，先让我看看你的马蹄往哪边踩。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["ruler", "!enough_rel"]
+text = "我的事，只交给立过誓的人。你立过吗？"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["ruler", "!has_fief"]
+text = "眼下没有。各城去问问，谁缺人手，你便跟谁去。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["ruler", "!has_fief"]
+text = "孤这里没差事。风往哪边吹，你就往哪边去。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["ruler", "!has_fief"]
+text = "去{here}的市集转转。人多，话也多，兴许有你要的差事。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "用得着。你来得正好，有一件事，要交给外乡人去办。"
+
+[[line]]
+topic = "ask_work"
+culture = "rou"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "我这里正缺一把快刀。你既开口问了，便听我说。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["!has_fief"]
+text = "某手上无城可守，给不了你什么。各城的城主，你自去问问。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["!has_fief"]
+text = "无城便无粮，无粮便无话。你去寻那些有城的人问罢。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["has_fief", "!enough_rel"]
+text = "不是我小气。来历不明的人，某不敢托以腹心。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["has_fief", "!enough_rel"]
+text = "想替某做事？先叫人看看你是什么成色再说。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["has_fief", "enough_rel"]
+text = "足下既到{fief}，便是自家人。某这里有桩事，须得托付。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["has_fief", "enough_rel"]
+text = "这{fief}的城头，某守了多年。今日有件事，只肯与足下说。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["has_fief", "enough_rel"]
+text = "{culture}之人不讲虚礼。你既来了，某有件事，说与你听。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "!enough_rel"]
+text = "孤连你底细都不清楚，怎好把事交到你手上？先歇着吧。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "!enough_rel"]
+text = "你问得急，孤倒不敢应了。生人最靠不住。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "!enough_rel"]
+text = "有心就好。不过眼下这些事，孤还是用自己人放心些。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "!has_fief"]
+text = "孤这里一时没有差事可派，你往各城走走，兴许有人家用得上你。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "!has_fief"]
+text = "眼下真没差事，硬派给你也是白跑。各城转转，看看谁家缺人手。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "!has_fief"]
+text = "你既来了，孤也不瞒你：手头空。去别处问问，总比干等着强。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "你来得正好，孤这里有一桩事，非胆大心细的人办不了。你肯不肯听？"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "问得好。手上正缺一个能跑腿的，你既然开口，孤就直说了。"
+
+[[line]]
+topic = "ask_work"
+culture = "shu"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "用得着，用得着。只是丑话说在前头，这差事办砸了，休怪孤不认人。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["!has_fief"]
+text = "我手里没有城池，帮不上你什么，去各城问问城主罢。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["!has_fief"]
+text = "要做事，就去找有城的人，我连个堡子都没有，留不住你。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["has_fief", "!enough_rel"]
+text = "你看着不像能担事的，这差事我不能交到你手里。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["has_fief", "!enough_rel"]
+text = "不是我小气，我这担子太重，交给外人，我怕误了。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["has_fief", "enough_rel"]
+text = "足下既来了，我城中正有一桩差事，非勇者不能办。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["has_fief", "enough_rel"]
+text = "这座城是我一手守下的，眼下有件要紧事，托给旁人我不放心。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["has_fief", "enough_rel"]
+text = "来得正好。燕地办事，只认一个信字。我这有桩事，说与足下听。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["ruler", "!enough_rel"]
+text = "足下的来路，孤还没摸清。打仗的事，急不得。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["ruler", "!enough_rel"]
+text = "誓言还没立，就要差事？草原上的规矩不是这样。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["ruler", "!has_fief"]
+text = "孤这里暂且清闲。四处看看，说不定撞上差事。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["ruler", "!has_fief"]
+text = "手中无活可派。去各城问问罢，总比在孤帐前站着强。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "来得正好。孤手上恰有一桩事，非勇者不能办，足下敢接么？"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "你既开口，孤便不客气了。此事须得一个不怕死的人去。"
+
+[[line]]
+topic = "ask_work"
+culture = "yan"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "问得好。此事孤压了半月，只等一个合用的人——且听孤说。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["!has_fief"]
+text = "某手里一座城也没有，托不了你什么。各城城主都在，你去问，看谁肯用你。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["!has_fief"]
+text = "没地盘就没差事，各城的城主那儿，才轮得到你。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["has_fief", "!enough_rel"]
+text = "这城的事，某还不敢交到你手上。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["has_fief", "!enough_rel"]
+text = "信不过就是信不过，你瞪眼也无用。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["has_fief", "enough_rel"]
+text = "你来得巧。{fief}城中这些人，某一个也信不过——这桩事，就落在你身上。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["has_fief", "enough_rel"]
+text = "某守此城，手里压着一件事，想找个能扛的人。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["has_fief", "enough_rel"]
+text = "坐下说话——{fief}的事，我要托给一个不怕死的。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "!enough_rel"]
+text = "用你？孤连你吃几碗饭都不知，凭什么把事交给你。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "!enough_rel"]
+text = "你先说说，你这条命押给谁了？孤不爱听空话。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "!enough_rel"]
+text = "想替孤办事的人排到城外去了，不缺你一个。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "!has_fief"]
+text = "眼下没你插手的份。去各城转转，谁有差事，谁给你。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "!has_fief"]
+text = "孤这里不缺人。你若闲不住，到{here}城里城外去碰碰运气。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "!has_fief"]
+text = "急什么。孤手上没有闲差给你。去各城自己寻，寻不着也别来烦孤。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "你倒是识相。孤这里正有一桩事，办得好了，自有你的好处。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "用得着。你来得巧，孤手上正缺一把快刀。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhao"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "问得好。此事成与不成，全看你够不够胆。听仔细了。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["!has_fief"]
+text = "某这里一无可托，足下若求差事，往诸城问各位城主去罢。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["!has_fief"]
+text = "空手不留客，恕某无以为托。各城的城主那里，或有足下用得着的地方。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["has_fief", "!enough_rel"]
+text = "足下的来历，某还不曾弄清楚。此事干系不小，恕难相托。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["has_fief", "!enough_rel"]
+text = "非是某多疑，只是这世道，人心难测。足下请回罢。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["has_fief", "!enough_rel"]
+text = "此事若交给来历不明的人，出了岔子谁担？足下另寻门路罢。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["has_fief", "enough_rel"]
+text = "足下既到{fief}，便是有缘。某这里正有一桩事，须得外人去办。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["has_fief", "enough_rel"]
+text = "古人云，利器当付与能者。足下远来，某有一事相托，愿闻否？"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["has_fief", "enough_rel"]
+text = "来得正好。此事压在心头多日，寻常人办不得，足下或可一试。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["ruler", "!enough_rel"]
+text = "卿之忠勤，朕自有耳闻。只是眼下诸事，皆已付托有人了。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["ruler", "!enough_rel"]
+text = "非是朕不信足下，只是门第所系，交托不可不慎。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["ruler", "!has_fief"]
+text = "朕这里一时无甚要紧差遣，足下不妨往诸城走走，或许有得。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["ruler", "!has_fief"]
+text = "眼下朝中之事各有主者，卿且去四处看看，权当历练。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "足下既有此心，朕这里恰有一桩事，非干练之人不能办。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "卿来得正好，{here}近日风声不静，朕正缺一副耳目。"
+
+[[line]]
+topic = "ask_work"
+culture = "zhou"
+when = ["ruler", "has_fief", "enough_rel"]
+text = "尔问有无可用之处，可用之人，朕从不嫌多。且听朕说。"

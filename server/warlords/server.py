@@ -62,12 +62,16 @@ class Game:
     def snapshot(self) -> dict:
         ai = self.ai.describe()
         ai["error"] = self.llm_error
-        return {"state": self.world.to_dict(), "player": player.view(self.world), "ai": ai,
+        pv = player.view(self.world)
+        if pv.get("menu") and pv["menu"].get("type") == "talk":
+            pv["menu"]["free_text"] = self.ai.uses_llm("dialogue")   # typing to a lord needs the LLM
+        return {"state": self.world.to_dict(), "player": pv, "ai": ai,
                 "events_total": len(self.world.events), "seed": self.seed}
 
 
 def make_handler(game: Game):
     class Handler(BaseHTTPRequestHandler):
+        disable_nagle_algorithm = True     # headers + body go out at once (no 40 ms delayed-ACK stall)
         def _send_raw(self, code: int, body: bytes) -> None:
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -116,6 +120,8 @@ def make_handler(game: Game):
                     result = player.act(w, str(data.get("action", "")), data)
                 elif url.path == "/player/talk":
                     result = player.talk(w, game.ai, str(data.get("hero", "")), str(data.get("text", "")))
+                elif url.path == "/player/battle":
+                    result = player.battle_result(w, data)
                 elif url.path == "/reset":
                     try:
                         game.reset(int(data.get("seed", game.seed)), int(data.get("tier", game.ai.tier)))

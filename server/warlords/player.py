@@ -153,6 +153,7 @@ def move(w: World, target: dict) -> dict:
         s = w.settlements[p.inside]
         p.inside = None
         p.pos = list(w.terrain.nearest_passable(s.pos[0], s.pos[1], 2))
+    w.player.pop("following", None)
     kind = target.get("kind")
     if kind == "point":
         from .terrain import H, W
@@ -193,6 +194,8 @@ def after_move(w: World) -> None:
         return
     if w.player.get("pending") or captive(w) or p.inside:
         return
+    if w.player.get("following") and _follow_army(w, p):
+        return
     t = p.target
     if not t:
         return
@@ -227,6 +230,49 @@ def _spot(w: World, p: Party) -> None:
         if s.id not in known and dist(p.pos, s.pos) <= r:
             known.append(s.id)
             w.log("player", f"斥候来报：发现一处匪巢——{s.name}", player=True, settlement=s.id, pos=list(s.pos))
+
+
+def summon(w: World, leader, aid: str) -> None:
+    """A marshal of your realm calls the vassals to arms (Warband: "the marshal summons you")."""
+    p = party(w)
+    if p is None or captive(w) or w.player.get("pending") or w.player.get("following"):
+        return
+    lp = w.hero_party(leader.id)
+    if not lp or dist(lp.pos, p.pos) > B.player.summon_range or T.healthy(p.troops) < 10:
+        return
+    if aid in w.player.setdefault("summoned", []):
+        return                                       # each army calls you once
+    w.player["summoned"].append(aid)
+    del w.player["summoned"][:-20]
+    _stop(p)
+    w.player["pending"] = {"type": "summon", "leader": leader.id, "army": aid}
+
+
+def _follow_army(w: World, p: Party) -> bool:
+    """Riding with the army: keep to the leader; when he lays siege, join the siege camp."""
+    from . import warfare as WF
+    h = w.heroes.get(w.player["following"])
+    lp = w.hero_party(h.id) if h else None
+    if not lp or not lp.army or lp.army not in w.armies:
+        w.player.pop("following", None)
+        _stop(p)
+        if h:
+            w.log("player", f"{h.name}的军团解散了，你不再随军", player=True)
+        return True
+    if lp.mode == "siege" and lp.memo.get("siege") in w.settlements:
+        s = w.settlements[lp.memo["siege"]]
+        if dist(p.pos, s.pos) < 8:
+            if p.mode != "siege":
+                WF.start_siege(w, p, s)
+                w.log("player", f"你随{h.name}围攻{s.name}（按住空格等待攻城）", player=True, settlement=s.id)
+            return True
+        M.set_place(p, s.id)
+        return True
+    if not p.target or p.target.get("id") != lp.id:
+        M.set_party(p, lp.id, "follow")
+    if lp.inside:
+        M.set_place(p, lp.inside)
+    return True
 
 
 def encounter_from_ai(w: World, attacker: Party) -> bool:
@@ -281,6 +327,48 @@ def menu(w: World) -> dict | None:
         return _encounter_menu(w, p, q, pend["initiator"])
     if kind == "talk":
         return _talk_menu(w, p, w.heroes[pend["hero"]])
+    if kind == "quest":
+        from . import quests as Q
+        s = w.settlements[pend["town"]]
+        offers = Q.offers(w, s)
+        if not offers:
+            return {"type": "notice", "title": "眼下没有差事", "text": "", "options": [_opt("back", "返回")]}
+        owner = w.heroes[s.owner]
+        lines = [f"{owner.name}（{kingdom_name(w, owner.kingdom)}）对你的好感 {owner.rel(PID):+d}", ""]
+        opts = []
+        for o in offers:
+            lines.append(o["text"])
+            opts.append(_opt("accept", f"接下：{o['title']}（赏{o['reward']}金，名望+{o['renown']}，限{o['days']}天）",
+                             hint="", choice=o["id"]))
+        opts.append(_opt("back", "都不接，告辞"))
+        return {"type": "quest", "title": f"{s.name}·差事", "text": "\n".join(lines), "options": opts}
+    if kind == "request_fief":
+        s = w.settlements[pend["settlement"]]
+        r = w.heroes[w.kingdoms[s.faction].ruler] if s.faction in w.kingdoms else None
+        rel = r.rel(PID) if r else 0
+        return {"type": "request_fief", "title": f"攻下{s.name}",
+                "text": f"{s.name}已破，朝议即将商议它的归属。你是攻城功臣之一。\n"
+                        f"可以当面向{r.name if r else '君主'}请封此城（他对你的好感 {rel:+d}；你现有封地{len(w.fiefs_of(PID))}处）。",
+                "options": [_opt("request", f"当面请封{s.name}"), _opt("ok", "不必了，听凭朝议")]}
+    if kind == "summon":
+        h = w.heroes[pend["leader"]]
+        lp = w.hero_party(h.id)
+        where = ""
+        if lp:
+            from .common import nearest_settlement
+            s = nearest_settlement(w, lp.pos, lambda s: s.kind in ("town", "castle"))
+            where = f"，大军眼下在{s.name}一带（约{dist(lp.pos, p.pos):.0f}里）" if s else ""
+        return {"type": "summon", "title": f"{h.name}召集诸将", "options": [
+                    _opt("follow_army", f"应召，随{h.name}出征（一路跟随，围城时自动加入）"),
+                    _opt("decline", f"这次不去（{h.name}会不高兴）")],
+                "text": f"{h.name}召集{kingdom_name(w, h.kingdom)}诸将出征{where}。作为{kingdom_name(w, h.kingdom)}之臣，你被点了名。\n"
+                        "随军攻下城池，你就是攻城功臣，朝议分封时有你一份。"}
+    if kind == "battle":
+        st = pend["setup"]
+        return {"type": "battle", "title": f"{st['place']}之战", "setup": st,
+                "text": f"{st['sides'][0]['name']}（{sum(st['sides'][0]['troops'].values())}人） 对阵 "
+                        f"{st['sides'][1]['name']}（{sum(st['sides'][1]['troops'].values())}人）",
+                "options": [_opt("autoresolve", "改为让部下作战（自动结算）")]}
     if kind == "captive":
         h = w.heroes.get(pend["hero"])
         if h is None or h.captive_of != "__player":
@@ -428,7 +516,9 @@ def _settlement_menu(w: World, p: Party, s) -> dict:
     m = {"type": "settlement", "id": s.id, "title": s.name, "kind": s.kind}
     if s.kind == "hideout":
         lines.append(f"一处{kinds[s.kind]}，盘踞着约{T.healthy(s.garrison)}名匪寇。地形险要（守方 ×1.15）。")
-        opts.append(_opt("attack_hideout", f"进攻匪巢（你的战力约{w.party_power(p):.0f}，匪众约{T.power(s.garrison) * 1.15:.0f}）",
+        opts.append(_opt("attack_hideout3d", f"亲自带{min(T.healthy(p.troops), B.bandits.hideout_team)}名精兵步战突入（进入战场）",
+                         T.healthy(p.troops) > 0))
+        opts.append(_opt("attack_hideout", f"让部下进攻匪巢（自动结算；你的战力约{w.party_power(p):.0f}，匪众约{T.power(s.garrison) * 1.15:.0f}）",
                          T.healthy(p.troops) > 0))
         opts.append(_opt("leave", "离开"))
         m.update(text="\n".join(lines), options=opts)
@@ -485,6 +575,13 @@ def _settlement_menu(w: World, p: Party, s) -> dict:
             if q.alive and q.inside == s.id and q.hero and not w.hostile(p, q)]
     for h in here[:4]:
         opts.append(_opt("talk", f"拜见{h.name}（{kingdom_name(w, h.kingdom)}，好感{h.rel(PID):+d}）", hero=h.id))
+    from . import quests as Q
+    for q in Q.deliverable(w, s):
+        opts.append(_opt("deliver", f"交付{q['qty']}份{GOODS[q['good']][0]}（差事：{q['title']}）", choice=q["id"]))
+    if s.kind in ("town", "castle") and owner:
+        n = len(Q.offers(w, s))
+        if n:
+            opts.append(_opt("quests", f"向{owner.name}打听差事（{n}件）"))
     if s.kind in ("town", "castle"):
         for h in captives(w)[:4]:
             opts.append(_opt("captive", f"提审被你关押的{h.name}（{kingdom_name(w, h.kingdom)}）", hero=h.id))
@@ -514,7 +611,8 @@ def _encounter_menu(w: World, p: Party, q: Party, initiator: str) -> dict:
     opts = []
     if initiator == "them":
         lines.insert(0, "【对方截住了你！】")
-        opts.append(_opt("fight", "迎战"))
+        opts.append(_opt("fight3d", "亲自上阵迎战（进入战场）", T.healthy(p.troops) > 0))
+        opts.append(_opt("fight", "让部下迎战（自动结算）"))
         their_speed = party_speed(w, q)
         chance = _flee_chance(w, p, q)
         opts.append(_opt("flee", f"设法脱身（约{chance:.0%}把握，速度 你{party_speed(w, p) * 24:.0f} vs 对方{their_speed * 24:.0f}）"))
@@ -525,11 +623,13 @@ def _encounter_menu(w: World, p: Party, q: Party, initiator: str) -> dict:
         if q.hero and not hostile:
             opts.append(_opt("talk", f"与{who}交谈", hero=q.hero))
         if hostile:
-            opts.append(_opt("attack", "进攻", T.healthy(p.troops) > 0))
+            opts.append(_opt("attack3d", "亲自率军冲锋（进入战场）", T.healthy(p.troops) > 0))
+            opts.append(_opt("attack", "让部下进攻（自动结算）", T.healthy(p.troops) > 0))
         else:
             allowed = side(w) == PLAYER and q.kind not in ("hunter",) and not (q.kind == "merc" and not q.contract)
             warn = _war_warning(w, q.faction) if allowed else "你所效力的国家与对方并无战事"
-            opts.append(_opt("attack", "进攻", allowed and T.healthy(p.troops) > 0, warn))
+            opts.append(_opt("attack3d", "亲自率军冲锋（进入战场）", allowed and T.healthy(p.troops) > 0, warn))
+            opts.append(_opt("attack", "让部下进攻（自动结算）", allowed and T.healthy(p.troops) > 0, warn))
         if q.hero and hostile:
             opts.append(_opt("talk", f"与{who}交谈", hero=q.hero))
         opts.append(_opt("leave", "离开"))
@@ -541,15 +641,18 @@ def _talk_menu(w: World, p: Party, h) -> dict:
     k = w.kingdoms[h.kingdom]
     lines = [f"{h.name} · {k.name}{TITLES.get(k.id, '君主') if k.ruler == h.id else '将军'}", h.persona,
              f"对你的好感：{h.rel(PID):+d} · 你的声望：{w.player['renown']:.0f}"]
-    opts = []
+    from . import dialogue as D
+    opts = [_opt("say", f"「{t['label']}」", topic=t["topic"], target=t.get("target", "")) for t in D.topics(w, h)]
     if k.ruler == h.id:
         me_k, me_c = w.player.get("kingdom"), w.player.get("contract")
         at_war = h.kingdom in w.player["wars"] and me_k is None and me_c is None
         if me_k is None and me_c is None:
             pay = round(w.party_power(p) * B.player.merc_pay_per_power)
+            enough = T.healthy(p.troops) >= B.player.merc_min_troops
             opts.append(_opt("merc", f"作为义从为{k.name}效力（日薪{pay}金，{B.player.merc_contract_days}天）",
-                             bool(k.wars) and not at_war,
-                             "该国眼下没有战事" if not k.wars else ("你正与该国交战" if at_war else "")))
+                             bool(k.wars) and not at_war and enough,
+                             "该国眼下没有战事" if not k.wars else ("你正与该国交战" if at_war else
+                                                              "" if enough else f"至少要带{B.player.merc_min_troops}人才有人雇")))
         if me_k is None and (me_c in (None, h.kingdom)):
             ok = w.player["renown"] >= B.player.vassal_renown and h.rel(PID) >= B.player.vassal_relation and not at_war
             opts.append(_opt("vassal", f"向{TITLES.get(k.id, '君主')}称臣，拜官受职，成为{k.name}之臣", ok,
@@ -594,10 +697,68 @@ def act(w: World, action: str, data: dict) -> dict:
         w.player["pending"] = pend.get("back") if kind == "captive" else None
         _next_captive(w)
         return {"ok": True}
+    if kind == "request_fief" and action == "request":
+        s = w.settlements[pend["settlement"]]
+        w.player.setdefault("fief_requests", []).append(s.id)
+        del w.player["fief_requests"][:-10]
+        for d in w.decisions.values():
+            if d.kind == "fief" and d.subject == s.id and not d.resolved:
+                for o in d.options:
+                    if o["id"] == "player" and "当面请封" not in o["label"]:
+                        o["label"] = o["label"][:-1] + "，已当面请封）"
+        w.player["pending"] = None
+        w.log("player", f"你当面向君主请封{s.name}", player=True, settlement=s.id)
+        return {"ok": True, "message": "请封的话已经递上去了，等朝议定夺"}
+    if kind == "summon":
+        h = w.heroes[pend["leader"]]
+        w.player["pending"] = None
+        if action == "follow_army":
+            lp = w.hero_party(h.id)
+            if lp:
+                w.player["following"] = h.id
+                M.set_party(p, lp.id, "follow")
+                w.log("player", f"你应召随{h.name}出征", player=True, hero=h.id)
+        else:
+            h.adjust_rel(PID, -3)
+            w.log("player", f"你推辞了{h.name}的召集", player=True, hero=h.id)
+        return {"ok": True}
+    if kind == "battle" and action == "autoresolve":
+        from . import warfare as WF2
+        w.player["pending"] = None
+        if pend["setup"].get("hideout"):
+            WF2.assault_hideout(w, p, w.settlements[pend["setup"]["hideout"]])
+        else:
+            att, dfn = w.parties.get(pend["att"]), w.parties.get(pend["dfn"])
+            if att and dfn and att.alive and dfn.alive:
+                WF2.field_battle(w, att, dfn)
+        _next_captive(w)
+        return {"ok": True}
     if kind == "captive":
         r = _captive_act(w, p, w.heroes[pend["hero"]], action)
         _next_captive(w)
         return r
+    if kind == "settlement" and action == "quests":
+        w.player["pending"] = {"type": "quest", "town": pend["id"], "back": pend}
+        return {"ok": True}
+    if kind == "settlement" and action == "deliver":
+        from . import quests as Q
+        q = next((q for q in Q.active(w) if q["id"] == data.get("choice")), None)
+        if q:
+            Q.deliver(w, q)
+            return {"ok": True, "message": f"差事完成，得赏{q['reward']}金"}
+        return {"ok": False, "message": "货物不够"}
+    if kind == "quest":
+        from . import quests as Q
+        back = pend.get("back")
+        s = w.settlements[pend["town"]]
+        if action == "accept":
+            o = next((o for o in Q.offers(w, s) if o["id"] == data.get("choice")), None)
+            if o:
+                Q.accept(w, o)
+        else:
+            Q.refuse(w, s)
+        w.player["pending"] = back
+        return {"ok": True, "message": "接下了差事" if action == "accept" else ""}
     if kind == "settlement" and action == "captive":
         w.player["pending"] = {"type": "captive", "hero": data["hero"], "back": pend}
         return {"ok": True}
@@ -680,8 +841,7 @@ def act(w: World, action: str, data: dict) -> dict:
         if action == "trade":
             return {"ok": True}
         if action == "talk":
-            w.player["pending"] = {"type": "talk", "hero": data["hero"], "back": pend}
-            return {"ok": True}
+            return _open_talk(w, data["hero"], pend)
         if action == "besiege":
             w.player["pending"] = None
             WF.start_siege(w, p, s)
@@ -692,6 +852,9 @@ def act(w: World, action: str, data: dict) -> dict:
             w.player["pending"] = None
             WF.start_raid(w, p, s)
             return {"ok": True, "message": "劫掠开始：按住空格等待"}
+        if action == "attack_hideout3d":
+            w.player["pending"] = {"type": "battle", "setup": WF.hideout_setup(w, p, s), "att": p.id, "dfn": s.id}
+            return {"ok": True}
         if action == "attack_hideout":
             w.player["pending"] = None
             WF.assault_hideout(w, p, s)
@@ -703,13 +866,18 @@ def act(w: World, action: str, data: dict) -> dict:
             w.player["pending"] = None
             return {"ok": True}
         if action == "talk":
-            w.player["pending"] = {"type": "talk", "hero": q.hero, "back": pend}
-            return {"ok": True}
-        if action == "attack":
+            return _open_talk(w, q.hero, pend)
+        if action in ("attack", "attack3d"):
             if not w.hostile(p, q) and side(w) == PLAYER:
                 declare_war(w, q.faction)
+            if action == "attack3d":
+                w.player["pending"] = {"type": "battle", "setup": WF.battle_setup(w, p, q), "att": p.id, "dfn": q.id}
+                return {"ok": True}
             w.player["pending"] = None
             WF.field_battle(w, p, q)
+            return {"ok": True}
+        if action == "fight3d":
+            w.player["pending"] = {"type": "battle", "setup": WF.battle_setup(w, q, p), "att": q.id, "dfn": p.id}
             return {"ok": True}
         if action == "fight":
             w.player["pending"] = None
@@ -745,6 +913,22 @@ def act(w: World, action: str, data: dict) -> dict:
         if action == "back":
             w.player["pending"] = back if back and back["type"] == "settlement" else None
             return {"ok": True}
+        if action == "say":
+            from . import dialogue as D
+            topic, target = str(data.get("topic", "")), str(data.get("target", "")) or None
+            t = next((t for t in D.topics(w, h) if t["topic"] == topic and t.get("target") == target), None)
+            if t is None:
+                return {"ok": False, "message": "这话题眼下不合适"}
+            reply, attitude, follow = D.say(w, h, topic, target)
+            history = w.player["chats"].setdefault(h.id, [])
+            history += [("player", t["label"]), ("lord", reply)]
+            del history[:-24]
+            if attitude:
+                h.adjust_rel(PID, attitude)
+            if follow == "quests":
+                town = next(s for s in w.fiefs_of(h.id) if s.kind in ("town", "castle"))
+                w.player["pending"] = {"type": "quest", "town": town.id, "back": pend}
+            return {"ok": True, "reply": reply, "attitude": attitude}
         if action == "merc":
             pay = round(w.party_power(p) * B.player.merc_pay_per_power)
             w.player["contract"] = h.kingdom
@@ -776,6 +960,22 @@ def act(w: World, action: str, data: dict) -> dict:
     return {"ok": False, "message": "未知操作"}
 
 
+def battle_result(w: World, result: dict) -> dict:
+    """POST /player/battle: the outcome of a 3D battle fought by the player in person."""
+    from . import warfare as WF
+    pend = w.player.get("pending")
+    if not pend or pend.get("type") != "battle":
+        return {"ok": False, "message": "当前没有进行中的战斗"}
+    w.player["pending"] = None
+    if pend["setup"].get("hideout"):
+        WF.apply_hideout_result(w, pend["setup"], result or {})
+        ev = {}
+    else:
+        ev = WF.apply_battle_result(w, pend["setup"], result or {})
+    _next_captive(w)
+    return {"ok": True, "event": ev.get("id") if ev else None}
+
+
 def declare_war(w: World, kid) -> None:
     if kid not in w.kingdoms or kid in w.player["wars"]:
         return
@@ -800,6 +1000,18 @@ def on_victory(w: World, enemy_losses: int, losers: list[Party]) -> None:
 
 def defeated(w: World, p: Party, winners: list[Party], surrendered: bool = False) -> None:
     lost = T.healthy(p.troops) + T.wounded(p.troops)
+    if T.healthy(p.troops) == 0:
+        # nobody left to fight: they turn out your purse and let you go (no captivity spiral)
+        gold = round(p.gold * B.player.defeat_gold_loss)
+        p.gold -= gold
+        for q in winners:
+            q.gold += gold / max(1, len(winners))
+            q.memo["ignore_player_until"] = w.hour + 48
+        p.target = None
+        p.mode = "idle"
+        who = "、".join(w.heroes[q.hero].name if q.hero else q.name for q in winners[:2])
+        w.log("player", f"你孤身无援，被{who}搜去{gold}金后放走了", player=True, pos=list(p.pos))
+        return
     gold = round(p.gold * B.player.defeat_gold_loss)
     p.gold -= gold
     for q in winners:
@@ -830,7 +1042,10 @@ def _escape(w: World) -> None:
     town = town or nearest_settlement(w, p.pos, lambda s: s.kind == "town")
     p.inside = None
     p.pos = list(w.terrain.nearest_passable(town.pos[0], town.pos[1], 3))
-    w.log("player", f"你趁看守不备逃了出来，来到{town.name}", player=True, pos=list(town.pos))
+    n = int(B.player.escape_followers)
+    if n and T.healthy(p.troops) < n:
+        T.add(p.troops, f"{town.culture}_t1", n - T.healthy(p.troops))
+    w.log("player", f"你趁看守不备逃了出来，来到{town.name}，几个同乡也跟着你跑了出来", player=True, pos=list(town.pos))
     _notice(w, "重获自由", f"几天的囚禁之后，你终于逃了出来，现在身在{town.name}附近。去招募些人手，重整旗鼓吧。")
 
 
@@ -839,6 +1054,16 @@ def daily(w: World) -> None:
     p = party(w)
     if p is None:
         return
+    from . import quests as Q
+    Q.daily(w)
+    # a vassal who missed the call (busy in a menu when the army formed) is summoned the next day
+    kid = w.player.get("kingdom")
+    if kid and not w.player.get("following") and not w.player.get("pending"):
+        for a in list(w.armies.values()):
+            if a.kingdom == kid and a.id not in w.player.get("summoned", []) and a.leader in w.heroes:
+                summon(w, w.heroes[a.leader], a.id)
+                if w.player.get("pending"):
+                    break
     # fiefs you hold
     for s in w.fiefs_of(PID):
         p.gold += s.tax_today
@@ -892,6 +1117,19 @@ def daily(w: World) -> None:
 
 
 # ------------------------------------------------------------- dialogue
+def _open_talk(w: World, hid: str, back: dict) -> dict:
+    """Open the talk menu: the lord greets you (from the dialogue bank), and any letter for him is handed over."""
+    from . import dialogue as D
+    from . import quests as Q
+    h = w.heroes[hid]
+    w.player["pending"] = {"type": "talk", "hero": hid, "back": back}
+    history = w.player["chats"].setdefault(hid, [])
+    history.append(("lord", D.greet(w, h)))
+    del history[:-24]
+    msg = Q.on_talk(w, hid)
+    return {"ok": True, "message": msg} if msg else {"ok": True}
+
+
 TALK_SYSTEM = """你在一个以中国南北朝为原型的架空乱世战略游戏里扮演一位将军（或君主），正在和玩家（一支队伍的首领）当面交谈。
 世界：周朝崩塌，周室南渡建康；周、燕、赵、凉、蜀、柔六国并立。这是架空世界，不提真实历史人物、民族名或朝代名，古地名可以用。
 - 完全以这个角色的身份、性格、门第、处境、记忆、对玩家的好感来回答；用中文，80字以内。
@@ -936,15 +1174,64 @@ def talk(w: World, router, hero_id: str, text: str) -> dict:
             except (TypeError, ValueError):
                 attitude = 0
     if reply is None:
-        rel = h.rel(PID)
-        reply = ("哼，尔与我无话可说。" if rel < -20 else
-                 "足下请便，一路保重。" if rel < 10 else "原来是足下，幸会。有事但说无妨。")
+        from . import content as C
+        from . import dialogue as D
+        f, fill = D.facts(w, h)
+        reply = C.pick("chat", f, fill, seed=f"{w.seed}:{h.id}:{w.hour}:{len(history)}") or "……"
+
     history.append(("player", text))
     history.append(("lord", reply))
     del history[:-24]
     if attitude:
         h.adjust_rel(PID, attitude)
     return {"ok": True, "reply": reply, "attitude": attitude, "relation": h.rel(PID)}
+
+
+# ------------------------------------------------------------- advice
+def advice(w: World) -> list[str]:
+    """Two or three "what could I do next" suggestions for the player panel, from the current situation."""
+    p = party(w)
+    if p is None or (w.player.get("pending") or {}).get("type") == "create":
+        return []
+    if captive(w):
+        return ["你被关押着。时间会自己流逝，几天后会找到机会逃脱。"]
+    out: list[str] = []
+    n = T.healthy(p.troops)
+    wounded = T.wounded(p.troops)
+    wage = T.upkeep(p.troops)
+    me_k, me_c = w.player.get("kingdom"), w.player.get("contract")
+    renown = w.player["renown"]
+    if n < 15:
+        out.append("人手太少，经不起一仗：先去城里或村落招募志愿兵。")
+    elif n < limit(w) * 0.6 and p.gold > 300:
+        out.append(f"部队还能扩充（{T.total(p.troops)}/{limit(w)}）：进城、进村招募，士兵每天操练会自动升级。")
+    if wounded > n * 0.4 and wounded >= 8:
+        out.append("伤员很多：进城休整（按住空格等待）恢复得最快，在野外恢复得慢。")
+    if wage > 0 and p.gold < wage * 4:
+        out.append(f"军饷快发不出来了（每天约{wage:.0f}金）：剿匪、跑商，或找君主签义从契约领日薪。")
+    for h in captives(w)[:1]:
+        out.append(f"你关押着{h.name}：进城可以提审他——招降、索赎、释放或斩首。")
+    if me_k is None:
+        if renown >= B.player.vassal_renown:
+            out.append("你的名望已够称臣：拜见一国君主，拜官受职后就能攻城、在朝议分封中争取封地。")
+        elif me_c is None:
+            out.append(f"无主之人：找君主交谈可以签义从契约领日薪；名望到{B.player.vassal_renown}可以称臣（现在{renown:.0f}）。")
+    elif not w.fiefs_of(PID):
+        if w.player.get("following"):
+            out.append("你正随军出征：跟着统帅走，他围城时你会自动加入；城破之后你就是攻城功臣。")
+        else:
+            out.append("你是封臣但还没有封地：本国召集军团时应召随军，攻下城池才能在分封时争得一席。")
+    known = [w.settlements[s] for s in w.player.get("known_hideouts", []) if s in w.settlements and w.settlements[s].active]
+    if known and n >= 20:
+        near = min(known, key=lambda s: dist(s.pos, p.pos))
+        out.append(f"斥候发现了匪巢「{near.name}」：剿灭可得名望、战利品，当地将军也会感激你。")
+    if not w.player.get("quests") and len(out) < 3 and renown < B.player.vassal_renown:
+        out.append("进城向城主打听差事：剿匪、送信、运货，办成了有赏金、名望，城主也会器重你（像战团里那样起家）。")
+    if not p.cargo and p.gold > 900 and len(out) < 3:
+        out.append("手头宽裕：可以跑商——在一座城低价买进，运到价高的城卖出（看市集里的价格）。")
+    if not out:
+        out.append("按住空格可以原地等待；点击地图上的城池、部队前往。按 N 看天下形势，K 看朝议。")
+    return out[:3]
 
 
 # -------------------------------------------------------------- view
@@ -968,7 +1255,8 @@ def view(w: World) -> dict:
         "known_hideouts": list(w.player.get("known_hideouts", [])), "dread": w.player.get("dread", 0),
         "captives": [{"id": h.id, "name": h.name, "kingdom": h.kingdom} for h in captives(w)],
         "vision": vision(w), "night": not (B.vision.night_end <= w.hour % 24 < B.vision.night_start),
-        "menu": menu(w), "moving": bool(p.target) and not p.inside,
+        "menu": menu(w), "moving": bool(p.target) and not p.inside, "advice": advice(w),
+        "quests": [__import__("warlords.quests", fromlist=["describe"]).describe(w, q) for q in w.player.get("quests", [])],
         "busy": p.mode in ("siege", "raid"), "mode": p.mode,
         "classes": {CLASS_NAMES[k]: v for k, v in T.class_counts(p.troops).items()},
     }

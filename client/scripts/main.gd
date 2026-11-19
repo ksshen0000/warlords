@@ -11,7 +11,7 @@ const BattleReportScript := preload("res://scripts/battle_report.gd")
 const PlayerMenuScript := preload("res://scripts/player_menu.gd")
 const SettingsScript := preload("res://scripts/settings.gd")
 
-const SPEEDS := [["慢", 0.8], ["正常", 0.45], ["快", 0.22], ["很快", 0.1]]   # real seconds per game hour
+const SPEEDS := [["慢", 0.8], ["正常", 0.4], ["快", 0.18], ["很快", 0.08], ["极快", 0.035]]   # real seconds per game hour
 const KIND_NAMES := {"lord": "将军部曲", "caravan": "商队", "villager": "村民", "bandit": "匪寇",
 	"hunter": "游侠", "merc": "义从", "player": "你的部队", "refugee": "流民"}
 const ORDER_NAMES := {"recruit": "招募", "besiege": "围攻", "defend": "驻防", "attack": "追击", "raid": "劫掠",
@@ -23,6 +23,10 @@ const TRAITS := {"aggression": "好战", "caution": "谨慎", "honor": "荣誉",
 const MINOR := ["order", "recruit", "speech", "release", "siege_end", "flee", "prisoners_sold",
 	"desertion", "raid_start", "caravan_founded", "brain_error", "hideout_new", "decision_opened", "refugees"]
 const REPORT_TYPES := ["battle", "conquest", "assault_failed", "hideout_cleared"]
+# news that reaches you from anywhere (a city changing hands, wars, peace, a realm falling…);
+# everything else is only recorded when it happens within sight or concerns your own realm
+const NEWS := ["war", "peace", "conquest", "rebellion", "kingdom_destroyed", "defection", "succession", "execution",
+	"recruit_captive", "fief_granted", "unrest", "starvation", "player", "player_war", "player_defeated"]
 const EVENT_COLORS := {
 	"battle": "e8a25b", "conquest": "f2c75c", "rebellion": "f2c75c", "war": "ff6b5b", "peace": "8fd3a0",
 	"peace_rejected": "c8a878", "capture": "c99cff", "ransom": "c99cff", "defection": "ff8fb1",
@@ -31,6 +35,7 @@ const EVENT_COLORS := {
 	"merc_hired": "b48ce0", "merc_left": "9fb4bf", "hideout_cleared": "d9b44a", "unrest": "d0a070",
 	"starvation": "a1887f", "speech": "d8dfe2", "order": "7d8f96",
 	"player": "9ff0b0", "player_war": "ff6b5b", "player_defeated": "ff6b5b",
+	"quest": "f2c75c", "quest_done": "f2c75c", "quest_failed": "ff8f8f",
 }
 const PANEL_BG := Color("1b252b")
 const CREAM := Color("efe6d2")
@@ -246,7 +251,7 @@ func _build_ui() -> void:
 	row.add_child(fol)
 	var minor := CheckBox.new()
 	minor.text = "琐事"
-	minor.tooltip_text = "编年史中显示命令、招募、台词等"
+	minor.tooltip_text = "编年史显示全部：视野外的战斗、各国朝议，以及命令、招募、台词等琐事（不勾选时只记你听得到的消息）"
 	minor.toggled.connect(func(on): show_minor = on; _render_log())
 	row.add_child(minor)
 	var terr := CheckBox.new()
@@ -398,6 +403,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_speed(2)
 		KEY_4:
 			_set_speed(3)
+		KEY_5:
+			_set_speed(4)
 		KEY_C, KEY_P, KEY_I:
 			tabs.current_tab = 0
 		KEY_N:
@@ -414,7 +421,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			map.fit()
 		KEY_F, KEY_TAB:
 			if state.has("parties") and state.parties.has("player"):
-				map.focus(map.party_world_pos("player"), max(map.zoom, map.fit_zoom * 3.0))
+				map.focus(map.party_world_pos("player"), max(map.zoom, map.close_zoom(3.0)))
 				if follow:
 					map.follow_id = "player"
 		_:
@@ -439,9 +446,9 @@ func _set_speed(i: int) -> void:
 
 func _focus_selection() -> void:
 	if map.sel_kind == "party" and state.parties.has(map.sel_id):
-		map.focus(map.party_world_pos(map.sel_id), max(map.zoom, map.fit_zoom * 3.0))
+		map.focus(map.party_world_pos(map.sel_id), max(map.zoom, map.close_zoom(3.0)))
 	elif map.sel_kind == "settlement" and state.settlements.has(map.sel_id):
-		map.focus(map.settlement_pos(map.sel_id), max(map.zoom, map.fit_zoom * 3.0))
+		map.focus(map.settlement_pos(map.sel_id), max(map.zoom, map.close_zoom(3.0)))
 
 
 func _time_wanted() -> bool:
@@ -543,6 +550,14 @@ func _on_failed(kind: String, message: String) -> void:
 
 
 func _on_response(kind: String, data: Dictionary) -> void:
+	var t_resp := Time.get_ticks_usec()
+	_on_response_inner(kind, data)
+	if kind == "step" and OS.get_cmdline_user_args().has("--prof"):
+		print("PROF step: net %.1fms parse %.1fms (%d KB) apply %.1fms" % [api.prof.get("net", 0), api.prof.get("parse", 0),
+			int(api.prof.get("bytes", 0)) / 1024, (Time.get_ticks_usec() - t_resp) / 1000.0])
+
+
+func _on_response_inner(kind: String, data: Dictionary) -> void:
 	if kind == "map":
 		map_seed = int(data.seed)
 		map.set_map(data.map)
@@ -581,7 +596,7 @@ func _on_response(kind: String, data: Dictionary) -> void:
 		# character creation just finished: fly the camera to where you start
 		var pp: Dictionary = data.get("state", {}).get("parties", {}).get("player", {})
 		if pp.has("pos"):
-			map.focus.call_deferred(Vector2(pp.pos[0], pp.pos[1]), map.fit_zoom * 3.0)
+			map.focus.call_deferred(Vector2(pp.pos[0], pp.pos[1]), map.close_zoom(3.0))
 	ai_info = data.get("ai", {})
 	goods = state.get("goods", {})
 	_fill_tiers()
@@ -595,7 +610,11 @@ func _on_response(kind: String, data: Dictionary) -> void:
 		report_popup.open(to_open, state)
 	if kind == "step" and auto_steps > 0:
 		auto_steps -= 1
-	if player.get("menu") != null:
+	if player.get("menu") != null and str(player.menu.get("type", "")) == "battle":
+		menu_panel.close()
+		map.follow_id = ""
+		_start_battle(player.menu)
+	elif player.get("menu") != null:
 		menu_panel.open(player.menu)
 		map.follow_id = ""
 	else:
@@ -610,6 +629,41 @@ func _on_response(kind: String, data: Dictionary) -> void:
 	if str(ai_info.get("error", "")) != "":
 		status_label.text += "\nLLM 不可用：" + str(ai_info.error)
 	_refresh_all()
+
+
+# ------------------------------------------------------------- 3D battles
+var _battle: Node = null
+
+
+## "亲自上阵": the server opened a battle — leave the map for the 3D field (client/battle), then send
+## the casualties back. Headless runs (tests) let the troops fight it out instead.
+func _start_battle(m: Dictionary) -> void:
+	if _battle != null:
+		return
+	if DisplayServer.get_name() == "headless" or OS.get_cmdline_user_args().has("--no3d"):
+		api.act("autoresolve")
+		return
+	var script: Script = load("res://battle/scripts/battle.gd")
+	_battle = script.new()
+	_battle.preset_setup = m.get("setup", {}).duplicate()
+	_battle.preset_setup["battle_size"] = settings.battle_size
+	_battle.embedded = true
+	if OS.get_cmdline_user_args().has("--battle-auto"):
+		_battle.auto = true                       # tests: the AI plays your character
+	_battle.closed.connect(_on_battle_closed)
+	visible = false
+	process_mode = Node.PROCESS_MODE_DISABLED
+	settings.external_mouse = true
+	get_tree().root.add_child(_battle)
+
+
+func _on_battle_closed(result: Dictionary) -> void:
+	_battle = null
+	visible = true
+	process_mode = Node.PROCESS_MODE_INHERIT
+	settings.external_mouse = false
+	settings.apply_mouse()
+	api.battle(result)
 
 
 func _apply_pending_actions() -> void:
@@ -639,7 +693,7 @@ func _apply_pending_view() -> void:
 		return
 	var v := pending_zoom.split(",")
 	if v.size() == 3:
-		map.focus(Vector2(float(v[0]), float(v[1])), map.fit_zoom * float(v[2]))
+		map.focus(Vector2(float(v[0]), float(v[1])), map.close_zoom(float(v[2])))
 
 
 func _handle_event(ev: Dictionary) -> void:
@@ -666,7 +720,7 @@ func _handle_event(ev: Dictionary) -> void:
 		var txt: String = ev.text
 		var i := txt.find("「")
 		map.say(ev.hero, txt.substr(i + 1).trim_suffix("」") if i >= 0 else txt)
-	if ev.get("player", false) and t in ["player", "player_war", "player_defeated", "ransom", "fief_granted"]:
+	if ev.get("player", false) and t in ["player", "player_war", "player_defeated", "ransom", "fief_granted", "quest_done", "quest_failed"]:
 		_toast(str(ev.text))
 	if t in REPORT_TYPES and ev.has("report"):
 		_report_seq += 1
@@ -674,6 +728,7 @@ func _handle_event(ev: Dictionary) -> void:
 		report_events[_report_seq] = ev
 		if report_events.size() > 400:
 			report_events.erase(report_events.keys()[0])
+	ev["_known"] = _heard_of(ev)
 	log_lines.append(ev)
 	if log_lines.size() > 800:
 		log_lines = log_lines.slice(log_lines.size() - 800)
@@ -915,8 +970,16 @@ func _player_panel() -> String:
 		for r in rels.slice(0, 8):
 			parts.append("%s [color=#%s]%+d[/color]" % [_hero_link(r[1]), "8fd3a0" if r[0] > 0 else "ff8f8f", r[0]])
 		out += "诸将对你的看法：%s\n" % "  ".join(parts)
-	out += "\n[color=#8c9a94]提示：在地图上左键点击地点或部队即可前往；靠近敌人会触发遭遇。"
-	out += "进城可以招募、交易、出售俘虏、拜见将军。名望达到要求后，可以向君主称臣、拜官受职。[/color]"
+	var qs: Array = player.get("quests", [])
+	if qs.size():
+		out += "\n[color=#f2c75c]差事[/color]\n"
+		for line in qs:
+			out += "[color=#efe6d2]· %s[/color]\n" % _esc(line)
+	var adv: Array = player.get("advice", [])
+	if adv.size():
+		out += "\n[color=#f2c75c]下一步[/color]\n"
+		for line in adv:
+			out += "[color=#cfd6dc]· %s[/color]\n" % _esc(line)
 	return out
 
 
@@ -1119,11 +1182,36 @@ func _council() -> String:
 
 
 
+## Would word of this event reach the player? (fog of war for the chronicle)
+func _heard_of(ev: Dictionary) -> bool:
+	var t: String = ev.type
+	if ev.get("player", false) or t in NEWS:
+		return true
+	var mine = player.get("kingdom")
+	if mine != null:
+		for k in ["kingdom", "by", "new", "old", "faction"]:
+			if str(ev.get(k, "")) == str(mine):
+				return true
+		if t in ["decision_opened", "decision_resolved"]:
+			return str(ev.get("kingdom", "")) == str(mine)
+	if t in ["decision_opened", "decision_resolved"]:
+		return false                      # other realms' court business stays behind closed doors
+	var pos = ev.get("pos")
+	if pos == null and ev.has("settlement") and state.get("settlements", {}).has(ev.settlement):
+		return map.knows_settlement(str(ev.settlement))
+	if pos == null and ev.has("hero") and state.get("heroes", {}).has(ev.hero):
+		var pid = state.heroes[ev.hero].party
+		return pid != null and map.party_known(str(pid))
+	if pos == null:
+		return true
+	return map.sees(Vector2(pos[0], pos[1]))
+
+
 func _render_log() -> void:
 	var out := ""
 	for ev in log_lines:
 		var t: String = ev.type
-		if t in MINOR and not show_minor:
+		if (t in MINOR or not ev.get("_known", true)) and not show_minor:
 			continue
 		var c: String = EVENT_COLORS.get(t, "cfd8dc")
 		var text := _esc(ev.text)
@@ -1156,7 +1244,7 @@ func _on_meta(meta) -> void:
 				report_popup.open(report_events[rid], state)
 		"goto":
 			var v := id.split(",")
-			map.focus(Vector2(float(v[0]), float(v[1])), max(map.zoom, map.fit_zoom * 3.0))
+			map.focus(Vector2(float(v[0]), float(v[1])), max(map.zoom, map.close_zoom(3.0)))
 		"hero":
 			if state.heroes.has(id) and state.heroes[id].party != null and state.parties.has(state.heroes[id].party) \
 					and map.party_known(str(state.heroes[id].party)):

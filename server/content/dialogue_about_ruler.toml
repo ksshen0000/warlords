@@ -1,0 +1,594 @@
+# 台词：dialogue_about_ruler（已审阅；格式见 warlords/content.py）
+
+[[line]]
+topic = "about_ruler"
+when = ["player_enemy"]
+priority = 1
+text = "敌国之人，也配问我主上长短？这话我记下了。"
+
+[[line]]
+topic = "about_ruler"
+when = ["player_enemy"]
+priority = 1
+text = "足下问得可笑。我主上如何，轮不到外人来打听。"
+
+[[line]]
+topic = "about_ruler"
+when = ["player_enemy"]
+priority = 1
+text = "呵，想是来打探的罢？我主上的事，不劳足下挂心。"
+
+[[line]]
+topic = "about_ruler"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "实话说与足下，{ruler}眼里那点猜忌，我早看透了，只恨无人可诉。"
+
+[[line]]
+topic = "about_ruler"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "我替他拼了这些年，换来的只是提防……足下说，这值得么？"
+
+[[line]]
+topic = "about_ruler"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "{ruler}听不进逆耳之言了。乱世之中，总得给自己留条后路——这话，我只与足下说。"
+
+[[line]]
+topic = "about_ruler"
+when = ["ruler_rel<=-10"]
+text = "呵……主上圣明，我这点微末之见，说不说，都一样。"
+
+[[line]]
+topic = "about_ruler"
+when = ["ruler_rel<=-10"]
+text = "足下问我？我还是少说两句为好，隔墙有耳。"
+
+[[line]]
+topic = "about_ruler"
+when = ["ruler_rel>=20"]
+text = "{ruler}知我信我，这份恩义，我这条命便交给他也无妨。"
+
+[[line]]
+topic = "about_ruler"
+when = ["ruler_rel>=20"]
+text = "若非{ruler}提拔，我至今不过一介无名之辈，此恩岂敢忘。"
+
+[[line]]
+topic = "about_ruler"
+when = ["ruler_rel>=20"]
+text = "旁人不晓得，{ruler}实是天生的雄主，跟着他，我心里安稳。"
+
+[[line]]
+topic = "about_ruler"
+text = "{ruler}乃我主上，为人臣者，自当尽心竭力，旁的也不必多说。"
+
+[[line]]
+topic = "about_ruler"
+text = "主上待我不薄，足下问这些做什么？各有各的缘分罢了。"
+
+[[line]]
+topic = "about_ruler"
+text = "{ruler_title}英明，吾辈但听号令行事，其余不敢议论。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["player_enemy"]
+priority = 1
+text = "敌国之人，也敢问我家主公？足下这话，问得可笑。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["player_enemy"]
+priority = 1
+text = "足下还是先说来意罢。别国的君臣，不劳足下挂心。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["player_enemy"]
+priority = 1
+text = "问得妙。只是这话一出口，价钱便不好算了。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "实不相瞒，主公近来只听身边人言语，某在前线卖命，倒像个外人。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "谁出得起价，某便替谁牵马；心里也存过别的念头。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "足下若肯听，某只说一句：凉地这池水，怕是要浑了。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["ruler_rel<=-10"]
+text = "{ruler_title}心思深，某不过在外领兵，有些事……不好说。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["ruler_rel<=-10"]
+text = "商队的事，主公自有主张；某只管护路，其余的，恕难奉告。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["ruler_rel<=-10"]
+text = "河西上下都还过得去，足下何必细问这些，喝茶罢。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["ruler_rel>=20"]
+text = "{ruler_title}知我于微末，此恩某记在心里，不敢有负。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+when = ["ruler_rel>=20"]
+text = "河西商路能通到今日，全靠主公苦心经营，某愿为主公守到老。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+text = "{ruler_title}仁厚守礼，凉地百姓皆感其恩，足下不必多问。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+text = "我家主公坐镇河西多年，待商旅宽厚，上下皆敬服。"
+
+[[line]]
+topic = "about_ruler"
+culture = "liang"
+text = "君主之事，吾辈武人不敢妄议，只知守好商路便是本分。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["player_enemy"]
+priority = 1
+text = "你一个外人，打听我们可汗的事，是想挨刀子么？"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["player_enemy"]
+priority = 1
+text = "呵，敌国的人也来问主子？先问问我的弓答不答应。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["player_enemy"]
+priority = 1
+text = "这话轮不到你问。我们对可汗立的誓，不说给外人听。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "说实话，跟着{ruler}，马蹄都快跑断了，草却没见几根。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "他眼里只有自己的帐，我们的鞍子破了，谁管过？"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "若不是顾着旧日情分，我早带着部众往北去了。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel<=-10"]
+text = "{ruler_title}自有打算，底下人听着便是。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel<=-10"]
+text = "王庭里的事，风大，说多了呛嗓子。你问别的吧。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel<=-10"]
+text = "各人有各人的路。我嘛，只管把马喂好。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel>=20"]
+text = "{ruler}指到哪，我的刀就砍到哪。这没什么好问的。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel>=20"]
+text = "他信我，把后背交给我。草原上，这比金子重。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+when = ["ruler_rel>=20"]
+text = "我跟{ruler}喝过血酒，发过誓。这辈子，我的马只认他的旗。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+text = "{ruler}是可汗，我是他的箭。箭不问主人射向何方。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+text = "草原上只有一个声音，那就是{ruler}的号令。我跟着走。"
+
+[[line]]
+topic = "about_ruler"
+culture = "rou"
+text = "草原上的誓约，出口就不改。我说过随{ruler}，那便随到底。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["player_enemy"]
+priority = 1
+text = "足下是敌国之人，倒来问我主上长短？可笑。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["player_enemy"]
+priority = 1
+text = "我主上如何，与尔何干！"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["player_enemy"]
+priority = 1
+text = "你们那边，怕是从不把咱们当人看吧。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "你我交心，我才说——主上近来听不进话了。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "跟着这样的主上，多少兄弟寒了心，我也不知还能撑几时。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "若真有那一天，还望足下念在今日情分，指条路。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel<=-10"]
+text = "主上自有主上的道理……我们做臣下的，听着便是。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel<=-10"]
+text = "我这个脾气，直来直去，可有些话，说不得。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel<=-10"]
+text = "军中之事，各人有各人的难处，不提也罢。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel>=20"]
+text = "{ruler}待我以腹心，我便以死相报，天经地义。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel>=20"]
+text = "当年我不过一介流民，是主上抬举，方有今日。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+when = ["ruler_rel>=20"]
+text = "旁人骂我们出身低，可主上从不问门第，只问肯不肯拼命。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+text = "吾王守此山川，护得一方百姓，这便是本分。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+text = "主上之事，非在下所敢妄议，足下见谅。"
+
+[[line]]
+topic = "about_ruler"
+culture = "shu"
+text = "{ruler}不曾以我等为贼，这份恩义，我等记着。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["player_enemy"]
+priority = 1
+text = "你一个外人，也配问我主上的事？"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["player_enemy"]
+priority = 1
+text = "问得好笑。我若答了你，回去怎么向部众交代？"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["player_enemy"]
+priority = 1
+text = "阁下这问题，在我这里换不来一碗酒，只换得来一句话：滚。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "我为他冲锋陷阵多少回，可他信的反倒是那些会掉书袋的。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "若有一日我走了，阁下不必惊讶。这草原上，谁不是随水草而居。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["ruler_rel<=-10"]
+text = "主上……自有主上的道理，我一个领兵的，不好评说。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["ruler_rel<=-10"]
+text = "此事说来话长，足下初来，还是先喝酒罢。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["ruler_rel<=-10"]
+text = "{kingdom}的事，自家料理。阁下才来，不必多问。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["ruler_rel>=20"]
+text = "{ruler}识得我，我便把心掏给他，这话我敢当众说。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["ruler_rel>=20"]
+text = "当年我一无所有，是{ruler}把我从草堆里提起来的。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+when = ["ruler_rel>=20"]
+text = "跟了{ruler}，我方知何为大丈夫立世。谁说他不是，先问过我这口马刀。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+text = "{ruler}是咱们的主上，我这条命是他的。旁的我不多嘴。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+text = "{ruler_title}待部众以诚，我便以诚报之。这便是咱们的规矩。"
+
+[[line]]
+topic = "about_ruler"
+culture = "yan"
+text = "主上自有主上的打算，我只需管好手里的刀和马。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["player_enemy"]
+priority = 1
+text = "你是哪一国的人？先报上来，再问主上的事。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["player_enemy"]
+priority = 1
+text = "可笑。敌营里来的，也配打听我们主上？"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["player_enemy"]
+priority = 1
+text = "问得这么细，是要回去交差，还是想寻我的把柄？"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "实话说与你听：这仗再这么打下去，卖命的和领赏的，不是一路人。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "{ruler}眼里只有他那些旧部亲信。你我流血卖命，不过是替旁人做嫁衣。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "足下若真有去处，记得言语一声。这地方，我待得也倦了。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel<=-10"]
+text = "主上的心思，做臣子的哪能全猜透。我只晓得，手里有刀，说话才有人听。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel<=-10"]
+text = "你说这些……我听着就是了。这城的风大，话传得也快。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel<=-10"]
+text = "我今日说的话，出了这帐子便不算数。你只当我什么都没说。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel>=20"]
+text = "{ruler_title}拔我于行伍，这条命便是他的，谁要动他，先问过我的刀。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel>=20"]
+text = "旁人怎么嚼舌根我不管，我只认{ruler}一个主上。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+when = ["ruler_rel>=20"]
+text = "{ruler_title}赏罚分明，从不亏待将士；这样的主上，哪里再寻？"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+text = "{ruler_title}自有{ruler_title}的道理，咱们当兵的，听令便是。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+text = "主上待我不薄，旁的不好多说，你也不必多问。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhao"
+text = "这些话，不是该在营门外讲的。你若识趣，便换个话头。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["player_enemy"]
+priority = 1
+text = "足下以敌国之身问吾君，是要某答，还是要某斩？"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["player_enemy"]
+priority = 1
+text = "江左的事，轮不到外人来问。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["player_enemy"]
+priority = 1
+text = "可笑。足下先顾好自家营寨罢。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "君上眼里只有那几家门第，我辈流血，不过替人作嫁。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "我这条命是拿刀换来的，君上却当我是件旧甲。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel<=-10", "rel>=20"]
+text = "若有一日刀要换主，足下以为，该换什么样的主？"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel<=-10"]
+text = "朝中自有朝中的道理，某在外领兵，只管守好这一方。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel<=-10"]
+text = "君上么……自有君上的打算，我等听令便是。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel<=-10"]
+text = "足下问得深了。有些话，说不得。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel>=20"]
+text = "{ruler}以国士待我，我便以死报之，足下不必再试。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel>=20"]
+text = "满朝高门皆言北伐不可，唯君上肯用某这把刀。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+when = ["ruler_rel>=20"]
+text = "此身既许君上，便不问他日青史如何写。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+text = "主上承大统于江左，某唯尽臣节而已，足下何必多问。"
+
+[[line]]
+topic = "about_ruler"
+culture = "zhou"
+text = "君上看重谁、疏远谁，非边将所宜言。"

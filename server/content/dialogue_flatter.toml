@@ -1,0 +1,813 @@
+# 台词：dialogue_flatter（已审阅；格式见 warlords/content.py）
+
+[[line]]
+topic = "flatter"
+when = ["!pleased", "honor>=1"]
+text = "足下过誉了。某这名声，经不起这般掂量。"
+
+[[line]]
+topic = "flatter"
+when = ["!pleased", "honor>=1"]
+text = "这顶高帽，某戴不稳。有事不妨直说。"
+
+[[line]]
+topic = "flatter"
+when = ["!pleased", "honor>=1"]
+text = "虚名最误人，阁下还是收着些罢。"
+
+[[line]]
+topic = "flatter"
+when = ["pleased"]
+text = "足下这话，某爱听。来，坐下细说。"
+
+[[line]]
+topic = "flatter"
+when = ["pleased"]
+text = "阁下眼光不差，某素来不喜虚言。"
+
+[[line]]
+topic = "flatter"
+when = ["recent"]
+priority = 1
+text = "又是这话。某耳朵都起茧了。"
+
+[[line]]
+topic = "flatter"
+when = ["recent"]
+priority = 1
+text = "足下连日来这一套，不嫌烦么？"
+
+[[line]]
+topic = "flatter"
+when = ["recent"]
+priority = 1
+text = "夸一句是情分，夸三遍便是无趣了。"
+
+[[line]]
+topic = "flatter"
+when = ["ruler", "pleased"]
+text = "这话我爱听。足下是明白人。"
+
+[[line]]
+topic = "flatter"
+when = ["ruler", "pleased"]
+text = "难得有人说到实处。足下有心。"
+
+[[line]]
+topic = "flatter"
+when = ["ruler", "recent"]
+priority = 1
+text = "又是这番话。你就没有别的话可说了？"
+
+[[line]]
+topic = "flatter"
+when = ["ruler", "recent"]
+priority = 1
+text = "够了。夸一次是心意，夸三次是敷衍。"
+
+[[line]]
+topic = "flatter"
+when = ["ruler", "recent"]
+priority = 1
+text = "行了行了。我耳朵起茧了。"
+
+[[line]]
+topic = "flatter"
+when = ["ruler"]
+text = "足下有心了。这些话，我听过不少。"
+
+[[line]]
+topic = "flatter"
+when = ["ruler"]
+text = "嗯。坐罢。说些别的。"
+
+[[line]]
+topic = "flatter"
+when = ["ruler"]
+text = "夸得好。只是这等话，动不了我。"
+
+[[line]]
+topic = "flatter"
+text = "足下美意，某心领了。只是乱世之中，好话最不值钱。"
+
+[[line]]
+topic = "flatter"
+text = "阁下说得动听，某却只信手里的刀。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["!pleased", "honor>=1"]
+text = "称许太过了。某这点薄名，一半是商路上传出来的，信不得。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["!pleased", "honor>=1"]
+text = "足下这好话，某不敢白受；还是谈正事罢。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["!pleased", "honor>=1"]
+text = "佛曰不可贪虚名。足下夸得越好，某越要掂量后头的话。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["pleased"]
+text = "足下这话，某爱听。来，先奉一盏茶，咱们慢慢叙。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["pleased"]
+text = "难得足下识人，某这心里熨帖，倒想说句实惠话给足下听。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["pleased"]
+text = "足下这话听着舒坦，某记在心里。走商路的最重人情，来日方长。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["recent"]
+priority = 1
+text = "足下这几日夸了某好几回了，一回比一回响，某这耳朵都起了茧。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["recent"]
+priority = 1
+text = "好话讲过便罢，再讲就成了讨价。足下究竟所为何事？"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["recent"]
+priority = 1
+text = "足下是觉得某记性不好？前番才夸过，今日又来一遍。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler", "pleased"]
+text = "呵，足下识货。孤这座城，商队、佛寺、关防，样样都值钱。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler", "pleased"]
+text = "这话孤爱听。阁下会说话，往后有生意，先想着你。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler", "pleased"]
+text = "好。孤就喜欢明白人。价钱摆在明处，才好做长久买卖。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler", "recent"]
+priority = 1
+text = "足下这番话，前几日已说过了。孤虽爱听好话，也架不住这般连本带利地送。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler", "recent"]
+priority = 1
+text = "足了，足了。好话讲多了，反叫孤疑心你要借钱。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler", "recent"]
+priority = 1
+text = "足下莫不是把夸人的话当口粮使？孤这儿可不收这个。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler"]
+text = "足下过誉了。孤这点家业，不过是守着商路收些关税罢了，比不得中原人物。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler"]
+text = "阁下这话说得漂亮。只是好话不能当粮草，在{here}，生意归生意。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+when = ["ruler"]
+text = "承蒙美言。佛法讲一个「实」字，孤也只听实实在在的话。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+text = "足下美意，某愧领了。只是这好话换不来一车绢帛，商队还是要照常走。"
+
+[[line]]
+topic = "flatter"
+culture = "liang"
+text = "佛前不敢打诳语——足下这番称许，某受之有愧，不如坐下谈谈买卖。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["!pleased", "honor>=1"]
+text = "好话我听过一箩筐了。你图什么，直说吧。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["!pleased", "honor>=1"]
+text = "嘴上抹蜜，刀上未必有血。我只看你办事。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["!pleased", "honor>=1"]
+text = "话说得再甜，不如弓弦响一声。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["pleased"]
+text = "这话中听！来，与我一碗马奶酒，就当你我有缘。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["pleased"]
+text = "这话说到我心坎上了。草原上的汉子，就认这一句。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["recent"]
+priority = 1
+text = "这几日又是好话。我记性不坏。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["recent"]
+priority = 1
+text = "你的嘴比刀子勤快。我耳朵累了。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["recent"]
+priority = 1
+text = "夸我一遍，我记你的情；夸三遍，倒像逼我立誓。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["ruler", "pleased"]
+text = "好！这话说到我心坎上了。草原上的汉子，就该这么说话。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["ruler", "pleased"]
+text = "你倒是会看人。眼睛不躲不闪，像个敢提刀的。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["ruler", "pleased"]
+text = "爽快！比那些绕弯子的南人强多了。我记下你了。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["ruler", "recent"]
+priority = 1
+text = "够了。好话嚼三遍，比干肉还难咽。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["ruler", "recent"]
+priority = 1
+text = "你前几日已说过一回。草原上不兴这个，省些气力罢。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["ruler", "recent"]
+priority = 1
+text = "再说下去，我当你是有求于我。有事直说，别绕了。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["ruler"]
+text = "嗯，你的话我听见了。草原上风大，好话也散得快。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+when = ["ruler"]
+text = "这话我收下了。但刀不磨要锈，人不练要废，你懂么？"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+text = "你的话我收下了。草原上不兴这一套，坐下喝碗酒吧。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+text = "客气话留到{here}以外去说，我只认刀和马。"
+
+[[line]]
+topic = "flatter"
+culture = "rou"
+text = "好话听着不错，可我的马不认嘴甜的人。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["!pleased", "honor>=1"]
+text = "足下这般抬举，我倒要问一句：所求何事？"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["!pleased", "honor>=1"]
+text = "好话说三遍便薄了。足下的话，我记一半便够。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["!pleased", "honor>=1"]
+text = "客气话我听得懂。你我之间，还是谈正事踏实。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["pleased"]
+text = "当真？好，好。蜀中人实诚，听不得虚的，偏你这句我爱听。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["pleased"]
+text = "足下既这么看重，某心里熨帖。巴蜀人不惯说虚话，这份情记下了。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["recent"]
+priority = 1
+text = "这话前日已说过了，足下换一句罢。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["recent"]
+priority = 1
+text = "足下近日口太甜，倒教我不知哪句是真。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["recent"]
+priority = 1
+text = "又是这般好话。蜀人不听这些虚辞，有话便直说。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler", "pleased"]
+text = "这话说到孤心坎里了。蜀地虽小，骨头却是硬的，足下懂。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler", "pleased"]
+text = "好！孤就爱听这个。那些江左门阀，几时正眼看过咱们一眼？"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler", "pleased"]
+text = "足下看得明白。孤自流民堆里杀出来，靠的就是这一口气。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler", "recent"]
+priority = 1
+text = "前日夸过了，今日又来。足下是没别的说辞了么？"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler", "recent"]
+priority = 1
+text = "够了够了。孤耳朵都起了茧，再夸可要收税了。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler", "recent"]
+priority = 1
+text = "你这般殷勤，孤倒要多想几分。有话直说，莫绕弯子。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler"]
+text = "好话人人会说，孤听惯了。栈道那头的风声，比这些话实在。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler"]
+text = "阁下这话，听着倒顺耳。只是孤这王位，不是靠人夸出来的。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+when = ["ruler"]
+text = "巴蜀的山不认奉承，只认粮草。足下这话，搁在粮仓前说才中听。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+text = "足下客气了。蜀地路远，能走到{here}，便是有心人。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+text = "好话谁不爱听？只盼足下这话，不是随口应酬。"
+
+[[line]]
+topic = "flatter"
+culture = "shu"
+text = "多谢美言。我们巴蜀人不善应酬，只善把人交托的事办妥。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["!pleased", "honor>=1"]
+text = "足下这夸法太熟了些，怕是跟不少人说过罢？"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["!pleased", "honor>=1"]
+text = "我晓得自己是哪块料。过头的捧，反倒让人心里不踏实。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["!pleased", "honor>=1"]
+text = "好话听着舒坦，可上了马，刀不认这些话。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["pleased"]
+text = "你倒会说话。好，就凭这句，今日我心情不坏。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["pleased"]
+text = "当真？那这话我记下了——他日你若有所求，我兴许记得。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["pleased"]
+text = "痛快！周人那些文书绕来绕去，不如你这一句。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["recent"]
+priority = 1
+text = "又是这套？足下这几日，怕是把好话都使尽了。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["recent"]
+priority = 1
+text = "我还没糊涂。这些虚话，省着说给别人听罢。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["recent"]
+priority = 1
+text = "足下若真敬我，省下这些力气，留着上阵时用罢。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["ruler", "pleased"]
+text = "好！这话孤爱听。孤这份威风，原是阵前一刀一枪杀出来的。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["ruler", "pleased"]
+text = "你倒是会说。孤记下了——{kingdom}的勇士，就该这样夸他的王。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["ruler", "pleased"]
+text = "痛快！孤就喜欢你这样的直性子，比那些绕弯子的周人强。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["ruler", "recent"]
+priority = 1
+text = "又是这一套。孤听厌了。真本事不在嘴上，在敌人的旗上。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["ruler", "recent"]
+priority = 1
+text = "朕知道了，朕知道了。再夸，朕就要疑心你另有所求了。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["ruler"]
+text = "足下的心意，朕收下了。只是朕更信刀箭上的本事，好话抵不得一刀。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["ruler"]
+text = "孤受得起这话。{here}风硬，你这话倒还实在。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+when = ["ruler"]
+text = "周人讲究辞令，朕学了一些。你这一句，朕听着受用，但不至于忘形。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+text = "足下客气了。这些话，我在龙城听得不少，风一吹就散了。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+text = "好话我收下，可军中的规矩，不是靠嘴皮子立的。"
+
+[[line]]
+topic = "flatter"
+culture = "yan"
+text = "周人的礼数我学不全，只晓得——虚言不若一刀一马。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["!pleased", "honor>=1"]
+text = "足下抬举了。某若真这般了得，也不必困守在这{here}。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["!pleased", "honor>=1"]
+text = "某这辈子杀过不少人，倒还听不惯这等好话。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["!pleased", "honor>=1"]
+text = "夸得太过，反倒让某疑心。足下还是说些实在的罢。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["pleased"]
+text = "这话中听。某就爱听实在人说实在话，足下算一个。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["pleased"]
+text = "好，好。足下有眼力。某这里只认强者，你这话，某记下了。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["recent"]
+priority = 1
+text = "这话某前日刚听过一遍。足下是记性不好，还是没别的话可说？"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["recent"]
+priority = 1
+text = "够了。好话反复说，就成馊饭了。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler", "pleased"]
+text = "好！这话孤爱听，足下是个明白人。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler", "pleased"]
+text = "嘿嘿，你倒会说话。孤记下了。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler", "pleased"]
+text = "痛快。这话孤爱听——不过孤最恨口是心非的，你若只是耍嘴皮子，孤可不饶。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler", "recent"]
+priority = 1
+text = "又来了？孤的耳朵都磨出茧了，住口罢。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler", "recent"]
+priority = 1
+text = "你这几日翻来覆去，就这几句？"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler", "recent"]
+priority = 1
+text = "够了。再说，孤要疑你有别的心思了。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler"]
+text = "嗯。话说得不错，可孤看的是刀，不是嘴。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler"]
+text = "足下有心了。这话孤听着，不往心里去。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+when = ["ruler"]
+text = "恭维孤的人多了，你这话，且搁着吧。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+text = "足下嘴甜，某耳朵不软。{here}这地方，好话换不来粮草。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+text = "客气话某收下了。可某只认刀和马，不认舌头。"
+
+[[line]]
+topic = "flatter"
+culture = "zhao"
+text = "你夸某，某谢你。可这世道，嘴上抹蜜的，多半另有所图。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["!pleased", "honor>=1"]
+text = "足下这话，听着像清谈席上拾来的。可惜某不喜此调。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["!pleased", "honor>=1"]
+text = "奉承话留与高门听罢。某是带兵的人，只认刀箭。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["!pleased", "honor>=1"]
+text = "君之好意心领了。然名节二字，非口舌可立。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["pleased"]
+text = "足下所言，倒有几分眼力。某虽不才，尚知进退。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["pleased"]
+text = "君之褒奖，愧领了。他日阵前，必不使君失望。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["recent"]
+priority = 1
+text = "足下连日如此，莫非有事相求？但说无妨。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["recent"]
+priority = 1
+text = "又是这几句。敬不敬，不在嘴上。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["recent"]
+priority = 1
+text = "够了。米汤灌多了，也腻。说正事。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["ruler", "pleased"]
+text = "好话朕听得多了，你这句倒有几分真心。赐座。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["ruler", "pleased"]
+text = "足下知朕。这话朕愿意让{kingdom}上下再传一遍。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["ruler", "pleased"]
+text = "嗯，中听。朕左右说话多绕弯子，你这句倒是直的。足下有心了。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["ruler", "recent"]
+priority = 1
+text = "足下连日美言，朕已尽知，何必再言？省些口舌吧。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["ruler", "recent"]
+priority = 1
+text = "足下这般言语，朕听得腻了。与其奉承，朕更愿听防地的实报。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["ruler"]
+text = "足下美言，朕心领了。然江左风雅，不在言辞，在门第与诗书。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["ruler"]
+text = "此语且存着，待北伐捷报传来，再受不迟。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+when = ["ruler"]
+text = "朕受此语，面无喜色。满朝高门哪个不称朕英明？好话听得多了，便不足为贵。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+text = "足下过誉了。礼者，敬而已矣，何必多言。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+text = "客气。吾辈行事，但求无愧于心。"
+
+[[line]]
+topic = "flatter"
+culture = "zhou"
+text = "闻君雅言，愧不敢当。然此地风霜，尚需实绩。"

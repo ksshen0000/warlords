@@ -7,7 +7,7 @@ from .. import troops as T
 from ..economy import party_limit
 from ..model import World
 from ..options import Option, army_power
-from ..data import PEDIGREE_WEIGHT
+from ..data import PEDIGREE_WEIGHT, RAID_BIAS, SIEGE_BIAS
 from ..politics import fief_share, hegemon, pedigree_rank
 from ..rules import B
 from .base import Brain, Decision
@@ -46,9 +46,12 @@ class RuleBrain(Brain):
             danger = i["threat"] / max(1.0, my + i["ally_power"])
             s -= max(0.0, danger - 0.7) * (5 + t["caution"])
             s += min(5.0, (w.day - k.last_offensive) / 6)
+            # near_before_far: a town far from our own lands can't be held or relieved
+            s -= B.ai.far_target_weight * max(0.0, i.get("from_home", 0.0) - B.ai.far_target_free_days)
+            s += SIEGE_BIAS.get(h.kingdom, 0.0)
             return s - d * 0.7
         if o.type == "raid":
-            s = 2 + 1.2 * t["aggression"] + t["greed"] - 2.5 * t["honor"] - d * 0.8
+            s = 2 + 1.2 * t["aggression"] + t["greed"] - 2.5 * t["honor"] - d * 0.8 + RAID_BIAS.get(h.kingdom, 0.0)
             if i["threat"] > my * 0.8:
                 s -= 6
             if i["militia"] * 1.3 > my:
@@ -93,12 +96,14 @@ class RuleBrain(Brain):
         a = B.ai
         t = h.traits
         k = w.kingdoms[h.kingdom]
-        s = (info["ratio"] - 1) * a.war_strength_weight + 0.6 * t["aggression"] - info["rel"] / 25
+        # being stronger helps, but a much weaker victim is not endlessly more attractive (no dogpiling)
+        s = (min(info["ratio"], a.war_ratio_cap) - 1) * a.war_strength_weight + 0.6 * t["aggression"] - info["rel"] / 25
         s += 0.3 * info["border"] - 1.5
         s += min(2.5, (w.day - k.last_offensive) / a.war_peace_boredom_days) - a.war_per_extra_front * info["wars"]
         share = fief_share(w, target)
         others = sum(1 for e in w.kingdoms[target].wars if e != k.id)
         s -= a.war_dogpile_penalty * others          # lips_and_teeth: don't pile onto a beaten realm
+        s -= a.war_distance_weight * max(0.0, info.get("far", 0.0) - a.war_distance_free_days)   # near_before_far
         if share > a.hegemon_share:
             s += a.hegemon_war_bonus * (share - a.hegemon_share) * 3
         return s
@@ -170,11 +175,19 @@ class RuleBrain(Brain):
         # fief: candidates are hero ids
         best, best_s = 0, -1e9
         for i, hid in enumerate(ids):
+            n_fiefs = len(w.fiefs_of(hid))
             if hid == hero.id:
-                s = 8 + 3 * t["greed"] - 1.5 * t["honor"]
+                # grabbing yet another town when you already hold two makes enemies at court
+                # a ruler has the crown's revenue: he hands conquests to his vassals more readily than a lord would
+                base = B.ai.fief_ruler_self if w.kingdoms[hero.kingdom].ruler == hero.id else 8
+                s = base + 3 * t["greed"] - 1.5 * t["honor"] - B.ai.fief_self_per_fief * max(0, n_fiefs - 1)
             else:
                 s = hero.rel(hid) / 10 + (3 + t["honor"] if "功臣" in options[i].label else 0)
-                s -= len(w.fiefs_of(hid)) * 0.8
+                s -= n_fiefs * 0.8
+                if n_fiefs == 0 and "功臣" in options[i].label:
+                    s += B.ai.fief_landless_contributor     # a landless man who bled for it deserves it
+                if "当面请封" in options[i].label:
+                    s += B.ai.fief_request_weight          # asked the ruler in person (Warband: ask for the fief)
             # 门第: in 周 a high-born claimant is favoured, in 燕/蜀 it hardly matters
             s += B.pedigree.vote_weight * PEDIGREE_WEIGHT.get(hero.kingdom, 0.5) * (pedigree_rank(w, hid) - 2)
             s += self.rng.uniform(0, 1)

@@ -5,11 +5,12 @@ from __future__ import annotations
 
 from . import movement as M
 from . import troops as T
-from .common import destroy_party, dist, nearest_settlement
+from .common import destroy_party, dist, nearest_settlement, realm_days
 from .data import CAPTIVE_RECRUIT, KIND_NAMES, PEDIGREE, PEDIGREE_NAMES, PEDIGREE_WEIGHT, TOWN_MIN_PEDIGREE
 from .model import BANDIT, DEAD, Decision, Hero, World
 from .options import Option
 from .rules import B
+from .terrain import H, W
 
 
 # ------------------------------------------------------------ helpers
@@ -67,11 +68,13 @@ def proposal_options(w: World, h: Hero) -> list[Option]:
         elif k.truces.get(oid, 0) <= w.day and h.influence >= B.politics.war_proposal_cost \
                 and not open_decision_exists(w, k.id, "war", oid):
             border = _border_fiefs(w, k.id, oid)
+            far = realm_days(w, k.id, oid)
             opts.append(Option("propose_war", oid,
                                f"提议向{o.name}宣战（实力 {my:.0f} vs {their:.0f}，接壤据点{border}，"
+                               f"两国最近的城池相距{far:.1f}天，"
                                f"本国现有战争{len(k.wars)}场，你对其君主好感{h.rel(o.ruler):+d}）",
                                {"ratio": my / max(1, their), "border": border, "wars": len(k.wars),
-                                "rel": h.rel(o.ruler), "share": fief_share(w, oid)}))
+                                "rel": h.rel(o.ruler), "share": fief_share(w, oid), "far": far}))
     return opts
 
 
@@ -89,7 +92,7 @@ def hegemon(w: World) -> str | None:
 def _border_fiefs(w: World, a: str, b: str) -> int:
     mine = w.kingdom_settlements(a, ("town", "castle"))
     theirs = w.kingdom_settlements(b, ("town", "castle"))
-    return sum(1 for s in theirs if any(dist(s.pos, m.pos) < 260 for m in mine))
+    return sum(1 for s in theirs if any(dist(s.pos, m.pos) < 420 for m in mine))
 
 
 def apply_proposal(w: World, h: Hero, opt: Option, reason: str = "") -> Decision | None:
@@ -142,8 +145,9 @@ def open_fief_decision(w: World, s, contributors: list[str]) -> None:
         tag = "，攻城功臣" if hid in contributors else ""
         ped = PEDIGREE_NAMES.get(pedigree_of(w, hid), "")
         if hid == "player":
+            asked = "，已当面请封" if s.id in w.player.get("fief_requests", []) else ""
             opts.append({"id": hid, "label": f"封给玩家（新晋封臣，{ped}，现有封地{len(w.fiefs_of(hid))}处，声望"
-                                             f"{w.player.get('renown', 0):.0f}{tag}）"})
+                                             f"{w.player.get('renown', 0):.0f}{tag}{asked}）"})
             continue
         h = w.heroes[hid]
         opts.append({"id": hid, "label": f"封给{h.name}（{ped}，现有封地{len(w.fiefs_of(hid))}处，声望{h.renown}{tag}）"})
@@ -213,6 +217,9 @@ def grant_fief(w: World, d: Decision, hid: str) -> None:
     h.influence += 5
     h.remember(w.day, f"获封{s.name}")
     for o in d.options:
+        if o["id"] == "player" and hid != "player":
+            w.log("player", f"朝议把{s.name}封给了{h.name}，你这次没有得到封地", player=True, settlement=s.id)
+            continue
         if o["id"] != hid:
             loser = w.heroes[o["id"]]
             loser.adjust_rel(r, -5)
@@ -284,7 +291,7 @@ def army_candidates(w: World, leader: Hero) -> list[Hero]:
         p = w.hero_party(h.id)
         if h.id == leader.id or not p or p.army or p.mode in ("siege", "raid"):
             continue
-        if dist(p.pos, lp.pos) < 320 and T.healthy(p.troops) >= 20:
+        if dist(p.pos, lp.pos) < 500 and T.healthy(p.troops) >= 20:
             out.append(h)
     out.sort(key=lambda h: dist(w.hero_party(h.id).pos, lp.pos))
     return out[:4]
@@ -309,6 +316,9 @@ def gather_army(w: World, leader: Hero) -> str | None:
         h.remember(w.day, f"应召加入{leader.name}的军团")
     w.log("army_formed", f"{leader.name}召集军团：{'、'.join(h.name for h in members)}应召",
           army=aid, kingdom=leader.kingdom, hero=leader.id)
+    if w.player.get("kingdom") == leader.kingdom:
+        from .player import summon
+        summon(w, leader, aid)
     return aid
 
 
@@ -320,7 +330,7 @@ def release_hero(w: World, h: Hero, why: str, near=None) -> None:
     h.captive_at = None
     h.captive_days = 0
     if near is None:
-        near = at.pos if at else [600, 400]
+        near = at.pos if at else [W / 2, H / 2]
     home = nearest_settlement(w, near,
                               lambda s: s.faction == h.kingdom and s.kind in ("town", "castle"))
     if home is None:
@@ -422,9 +432,9 @@ def respawn_heroes(w: World) -> None:
     for h in w.heroes.values():
         if h.captive_of or h.party or not w.kingdoms[h.kingdom].alive:
             continue
-        home = nearest_settlement(w, [600, 400], lambda s: s.faction == h.kingdom and s.kind in ("town", "castle")
+        home = nearest_settlement(w, [W / 2, H / 2], lambda s: s.faction == h.kingdom and s.kind in ("town", "castle")
                                   and s.owner == h.id) or \
-            nearest_settlement(w, [600, 400], lambda s: s.faction == h.kingdom and s.kind in ("town", "castle"))
+            nearest_settlement(w, [W / 2, H / 2], lambda s: s.faction == h.kingdom and s.kind in ("town", "castle"))
         if home is None:
             continue
         p = new_lord_party(w, h, home, 0)
