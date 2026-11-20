@@ -20,6 +20,7 @@ var chat_input: LineEdit
 var waiting_label: Label
 var menu: Dictionary = {}
 var trading := false
+var trade_next := false        # back from the market stall in the 3D town walk: open the market straight away
 var _sig := ""
 
 
@@ -101,6 +102,9 @@ func open(m: Dictionary) -> void:
 	if sig != _sig:
 		trading = false
 		chat_input.text = ""
+	if trade_next and m.has("market"):
+		trade_next = false
+		trading = true
 	_sig = sig
 	menu = m
 	visible = true

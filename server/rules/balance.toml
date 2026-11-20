@@ -170,6 +170,7 @@ hideout_player_renown = 6     # 玩家剿灭匪巢得到的名望
 bounty_hunters = 3
 
 [player]
+fief_village_rent = 2.0          # 食邑：村子交给玩家的租税，是普通村税的几倍（战团里一个村子一周数百金，足够贴补一支小部队）
 start_gold = 2000
 start_troops = 22
 battle_bonus = 1.6            # 玩家部队战力倍率（目前给玩家较好的加成）
@@ -233,7 +234,38 @@ hegemon_peace_bonus = 2.0         # 与非霸主议和、集中力量对付霸�
 besiege_idle_days_bonus = 6       # 很久没进攻会更想攻城（每 N 天 +1，最多 +5）
 
 # ============================================================
+# 大地图小事件（流民、逃兵、疫病、设宴……；内容在 content/events.toml）
+[events]
+near_range = 45                  # 离村镇多近才算「在附近」（地图单位≈里）
+min_gap_days = 4                 # 两次事件至少隔几天
+chance_scale = 1.0               # 所有事件触发概率的总倍率（0 = 关闭事件）
+
+# ============================================================
 # 对话（不连 LLM 时的话题对话；台词在 content/dialogue*.toml）
 [dialogue]
 flatter_cooldown_days = 7        # 对同一位将军套近乎，几天内只有第一次有效
 flatter_max_rel = 20             # 好感到这个数以上，客套话就不再加好感了
+
+# ============================================================
+# 封地事务（玩家自己的城、关、食邑）
+[fief]
+garrison_step = 10               # 每次留下 / 抽调多少人
+wall_cost = 600                  # 加固城墙：600 ×（目标等级）金
+wall_max = 5
+wall_days = 10                   # 两次加固至少隔几天（工匠在干活）
+relief_cost = 300                # 开仓赈济
+relief_loyalty = 12
+relief_renown = 1
+relief_days = 7
+farm_cost = 400                  # 食邑修渠垦田
+farm_prosperity = 6
+farm_max = 80
+farm_days = 10
+
+# ============================================================
+# 擂台比武（城里，3D 一对一，木兵器）
+[arena]
+prize = 60                       # 赢一场的赏钱
+renown = 2
+bets = [100, 300]                # 可以押的赌注（赢了一赔一）
+cooldown_days = 2                # 同一座城的擂台隔几天再开

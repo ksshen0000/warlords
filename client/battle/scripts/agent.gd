@@ -18,6 +18,7 @@ var troop: Dictionary = {}           # {id, name, culture, tier, cls}
 var hero_name := ""
 var is_player := false
 var color := Color.WHITE
+var safe_pos := Vector3.ZERO          # last position known to be on legal ground (siege works)
 var division := "inf"                # inf / arc / cav (order groups)
 var rng_seed := 0
 
@@ -68,7 +69,9 @@ var aim_point := Vector3.ZERO        # ranged target point (world)
 var ai: Dictionary = {}
 
 var rig: AgentRig
-var _rig_dt := 0.0
+var rig_dt := 0.0                     # simulated time since the rig was last posed
+var rig_done := false
+var hoof_t := 0.0                      # time to the next hoof beat (sound)                 # a corpse that has finished falling: no more posing
 var velocity := Vector3.ZERO
 var radius := 0.32                   # footprint for pushing apart (soldiers don't use the physics engine)
 
@@ -113,6 +116,11 @@ func alive() -> bool:
 	return state != DEAD
 
 
+## Just died: the body is still toppling over (the battle keeps stepping it for the animation).
+func falling() -> bool:
+	return state == DEAD and visible and state_t < FALL_TIME + 0.3
+
+
 func active() -> bool:
 	return state != DEAD and not routed
 
@@ -155,11 +163,20 @@ func allowed_dirs() -> Array:
 
 
 func ready_time() -> float:
-	return rules.num("combat", "ready_time", 0.38) / float(weapon().get("speed", 1.0))
+	return rules.num("combat", "ready_time", 0.38) / float(weapon().get("speed", 1.0)) / float(battle.diff.combat_speed)
 
 
 func strike_time() -> float:
-	return rules.num("combat", "strike_time", 0.32) / float(weapon().get("speed", 1.0))
+	return rules.num("combat", "strike_time", 0.32) / float(weapon().get("speed", 1.0)) / float(battle.diff.combat_speed)
+
+
+func _whoosh() -> void:
+	# heavier weapons swing lower and slower
+	battle.sound("whoosh", chest(), -6.0, clampf(float(weapon().get("speed", 1.0)), 0.7, 1.3))
+
+
+func recover_time() -> float:
+	return rules.num("combat", "recover_time", 0.28) / float(battle.diff.combat_speed)
 
 
 func attacking() -> bool:
@@ -195,6 +212,7 @@ func release_attack() -> void:
 	if state_t >= ready_time():
 		_set_state(STRIKE, strike_time())
 		_prev_seg = []
+		_whoosh()
 	else:
 		release_pending = true
 
@@ -255,6 +273,7 @@ func release_shot(extra_error: float = 0.0) -> void:
 	var mag := randf() * spr
 	dir = (b * Vector3(cos(ang) * sin(mag), sin(ang) * sin(mag), -cos(mag))).normalized()
 	battle.spawn_arrow(self, from, dir * float(ranged.speed), float(ranged.damage))
+	battle.sound("crossbow" if ranged.kind == "crossbow" else "twang", from, -3.0)
 	ammo -= 1
 	if ranged.kind == "crossbow":
 		crossbow_loaded = false
@@ -300,10 +319,11 @@ func step(dt: float) -> void:
 			if release_pending and state_t >= ready_time():
 				_set_state(STRIKE, strike_time())
 				_prev_seg = []
+				_whoosh()
 		STRIKE:
 			_check_strike()
 			if state == STRIKE and state_t >= state_len:
-				_set_state(RECOVER, rules.num("combat", "recover_time", 0.28))
+				_set_state(RECOVER, recover_time())
 		RECOVER, STUN:
 			if state_t >= state_len:
 				_set_state(IDLE, 0.0)
@@ -318,16 +338,14 @@ func step(dt: float) -> void:
 			if using_ranged and ranged.get("kind", "") == "crossbow" and not crossbow_loaded and ammo > 0:
 				_set_state(RELOAD, 0.0)
 	if state == DEAD:
+		rig_dt += dt                            # Battle keeps posing the body while it topples over
 		return
 	_move(dt)
 	if mounted:
 		_horse_contacts()
-	# the rig is only for show (hits use pose() maths), so far-away soldiers animate at a lower rate
-	_rig_dt += dt
-	var every: int = battle.rig_interval(self)
-	if every > 0 and (battle.frame + rng_seed) % every == 0:
-		_update_rig(_rig_dt)
-		_rig_dt = 0.0
+	# the rig is only for show (hits use pose() maths): Battle poses it once per *rendered* frame
+	# (fewer for far-away soldiers), so a slow frame never makes the simulation fall behind
+	rig_dt += dt
 
 
 func _move(dt: float) -> void:
@@ -371,6 +389,8 @@ func _move(dt: float) -> void:
 			mult = 0.25
 		if down:
 			mult = 0.0
+		if battle.siege_def >= 0 and battle.field.on_ladder(position):
+			mult *= rules.num("siege", "ladder_speed", 0.45)     # hand over hand up a scaling ladder
 		var m := intent_move.limit_length(1.0)
 		if m.length() > 0.01 and m.normalized().dot(forward()) < -0.3:
 			mult *= rules.num(H, "backward", 0.6)
@@ -386,26 +406,64 @@ func _move(dt: float) -> void:
 					rules.num(H, "turn", 7.0) * dt)
 	# plain kinematics on the heightmap (Battle pushes overlapping soldiers / trees apart afterwards)
 	var p := position
-	p.x += velocity.x * dt
-	p.z += velocity.z * dt
-	p.y = battle.field.height_at(p.x, p.z)
+	var f: BattleField = battle.field
+	var nx := p.x + velocity.x * dt
+	var nz := p.z + velocity.z * dt
+	if not f.has_works():
+		p.x = nx
+		p.z = nz
+	else:
+		# siege works: no walking up a wall face (slide along it instead); stepping off an edge drops you
+		var y0 := f.height_at(p.x, p.z)
+		var max_drop := INF if is_player else MAX_DROP    # only you may jump off on purpose
+		if f.height_at(nx, nz) - y0 <= MAX_STEP and y0 - f.height_at(nx, nz) <= max_drop:
+			p.x = nx
+			p.z = nz
+		elif f.height_at(nx, p.z) - y0 <= MAX_STEP and y0 - f.height_at(nx, p.z) <= max_drop:
+			p.x = nx
+			velocity.z = 0.0
+		elif f.height_at(p.x, nz) - y0 <= MAX_STEP and y0 - f.height_at(p.x, nz) <= max_drop:
+			p.z = nz
+			velocity.x = 0.0
+		else:
+			velocity.x = 0.0
+			velocity.z = 0.0
+		var drop := y0 - f.height_at(p.x, p.z)
+		if drop > 2.5 and alive():
+			battle.fall_damage(self, drop)
+	p.y = f.height_at(p.x, p.z)
 	position = p
+	safe_pos = p
 	velocity.y = 0.0
 	rotation.y = heading
+
+
+func update_rig() -> void:
+	if rig == null or rig_done:
+		return
+	_update_rig(rig_dt)
+	rig_dt = 0.0
+	if state == DEAD and state_t > FALL_TIME + 0.35:
+		rig_done = true
 
 
 func _update_rig(dt: float) -> void:
 	var v := Vector2(velocity.x, velocity.z).length()
 	walk_phase += dt * (v * (1.7 if mounted else 3.2) + 0.0)
 	rig.show_pose(self, pose(), walk_phase, v, dt)
+	rig.show_fall(_fall_amount(), fall_dir)
+
+
+## How far the body has toppled (0 = upright, 1 = flat on the ground): knocked down, getting up, dying.
+func _fall_amount() -> float:
+	if state == DEAD:
+		var t := clampf(state_t / FALL_TIME, 0.0, 1.0)
+		return t * t + 0.06 * sin(clampf((state_t - FALL_TIME) / 0.25, 0.0, 1.0) * PI)   # gravity, then a small bounce
 	if state == DOWN:
-		rig.rotation.x = lerpf(rig.rotation.x, deg_to_rad(-80), 0.3)
-		rig.position.y = 0.15
-	elif rig.rotation.x != 0.0:
-		rig.rotation.x = lerpf(rig.rotation.x, 0.0, 0.25)
-		rig.position.y = 0.0
-		if absf(rig.rotation.x) < 0.01:
-			rig.rotation.x = 0.0
+		var t := clampf(state_t / FALL_TIME, 0.0, 1.0)
+		var up := clampf((state_len - state_t) / 0.55, 0.0, 1.0)                          # get up at the end
+		return minf(t * t, up * up * (3.0 - 2.0 * up))
+	return 0.0
 
 
 # ------------------------------------------------------------------ pose (shared by visuals and hits)
@@ -421,7 +479,20 @@ static func _arc(keys: Array, t: float) -> Vector3:
 	return _sl(keys[i], keys[i + 1], f - i)
 
 
-const REST := Vector3(0.25, 0.15, -0.95)
+static func _smooth(t: float) -> float:
+	t = clampf(t, 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+
+static func _ease_out(t: float) -> float:
+	t = clampf(t, 0.0, 1.0)
+	return 1.0 - (1.0 - t) * (1.0 - t)
+
+
+# Arm directions are in the soldier's own frame (-Z forward, +X right), from the shoulder.
+const MAX_STEP := 0.45          # highest step a man can take (siege works: no climbing a wall face)
+const MAX_DROP := 1.2           # AI soldiers don't step off the wall walk or a ladder
+const REST := Vector3(0.3, -0.55, -0.75)            # weapon hand low and forward, elbow bent
 const READY_POSE := [Vector3(0.15, 0.9, 0.45), Vector3(0.95, 0.35, 0.25), Vector3(-0.8, 0.45, 0.2), Vector3(0.2, 0.05, -1.0)]
 const STRIKE_PATH := [
 	[Vector3(0.15, 0.9, 0.45), Vector3(0.05, 0.6, -0.8), Vector3(0.05, -0.75, -0.65)],          # overhead
@@ -429,64 +500,149 @@ const STRIKE_PATH := [
 	[Vector3(-0.8, 0.45, 0.2), Vector3(0.0, 0.15, -1.0), Vector3(0.85, -0.15, -0.45)],         # left swing
 	[Vector3(0.12, 0.05, -1.0), Vector3(0.08, 0.04, -1.0), Vector3(0.05, 0.03, -1.0)],         # thrust
 ]
+# The body behind each swing: [twist wound up, twist at the end, lean wound up, lean at the end, step at the end].
+# twist > 0 turns the chest to the left (yaw), lean > 0 bends forward, step = how far the hips come forward (m).
+const SWING_BODY := [
+	[0.15, -0.1, -0.2, 0.35, 0.12],     # overhead: rear back, then chop down leaning in
+	[-0.7, 0.5, 0.02, 0.12, 0.1],       # right swing: wound up to the right, unwinds through to the left
+	[0.6, -0.45, 0.02, 0.12, 0.1],      # left swing
+	[-0.45, 0.2, -0.06, 0.25, 0.32],    # thrust: shoulder back, then a lunge
+]
+const PELVIS_Y := 0.92
+const FALL_TIME := 0.42
+var fall_dir := Vector3(0, 0, 1)        # direction the body topples (own frame), set when hit
 
 
 func pose() -> Dictionary:
 	var arm := REST
 	var off := Vector3.ZERO
 	var wdir := Vector3.ZERO
-	var larm := Vector3(-0.15, 0.1, -1.0)
+	var larm := Vector3(-0.25, -0.5, -0.8)
 	var shooting := false
-	var lift := Vector3(0, RIDER_LIFT if mounted else 0.0, 0)
+	var twist := 0.0
+	var lean := 0.0
+	var crouch := 0.0
+	var step := 0.0
+	var reach := 0.48
+	var lreach := 0.5
 	var long_weapon: bool = weapon().get("kind", "") in ["polearm", "lance"]
+	var body: Array = SWING_BODY[attack_dir]
 	match state:
 		READY:
-			var p := clampf(state_t / ready_time(), 0.0, 1.0)
+			var p := _ease_out(state_t / ready_time())
 			arm = _sl(REST, READY_POSE[attack_dir], p)
+			twist = body[0] * p
+			lean = body[2] * p
+			reach = lerpf(0.48, 0.56, p)
+			crouch = 0.05 * p
 			if attack_dir == Dir.DOWN:
 				off = Vector3(0, 0, 0.35 * p)
+				reach = lerpf(0.48, 0.42, p)
 		STRIKE:
-			var p := clampf(state_t / state_len, 0.0, 1.0)
+			var raw := clampf(state_t / state_len, 0.0, 1.0)
+			var p := _smooth(raw)
 			arm = _arc(STRIKE_PATH[attack_dir], p)
+			twist = lerpf(body[0], body[1], p)
+			lean = lerpf(body[2], body[3], p)
+			step = body[4] * p
+			crouch = 0.05 + 0.04 * p
+			reach = 0.6
 			if attack_dir == Dir.DOWN:
 				off = Vector3(0, 0, lerpf(0.35, -0.45, p))
+				reach = lerpf(0.42, 0.6, p)
 		RECOVER:
-			arm = REST
+			var q := _smooth(state_t / maxf(0.01, state_len))
+			arm = _sl(STRIKE_PATH[attack_dir][-1], REST, q)
+			twist = body[1] * (1.0 - q)
+			lean = body[3] * (1.0 - q)
+			step = body[4] * (1.0 - q)
+			crouch = 0.09 * (1.0 - q)
+			reach = lerpf(0.6, 0.48, q)
+			if attack_dir == Dir.DOWN:
+				off = Vector3(0, 0, -0.45 * (1.0 - q))
 		BLOCK:
 			arm = Vector3(0.1, 0.45, -0.9)
+			reach = 0.44
+			crouch = 0.06
 			match block_dir:
-				Dir.UP: wdir = Vector3(-1.0, 0.25, -0.1)
-				Dir.RIGHT: wdir = Vector3(0.35, 1.0, -0.25)       # guarding against a swing from the enemy's right = my left
-				Dir.LEFT: wdir = Vector3(-0.35, 1.0, -0.25)
-				Dir.DOWN: wdir = Vector3(0.0, -0.9, -0.5)
+				Dir.UP:
+					wdir = Vector3(-1.0, 0.25, -0.1)
+					lean = -0.06
+				Dir.RIGHT:
+					wdir = Vector3(0.35, 1.0, -0.25)       # guarding against a swing from the enemy's right = my left
+					twist = 0.25
+				Dir.LEFT:
+					wdir = Vector3(-0.35, 1.0, -0.25)
+					twist = -0.25
+				Dir.DOWN:
+					wdir = Vector3(0.0, -0.9, -0.5)
+					lean = 0.1
 			if not shield.is_empty():
 				larm = Vector3(-0.05, 0.25, -1.0)
+				lreach = 0.42
 		AIM, RELOAD:
 			shooting = true
 			var d := (aim_point - chest()).normalized() if state == AIM else forward()
 			var loc := (global_transform.basis.inverse() * d).normalized()
 			larm = loc
-			arm = (loc + Vector3(0.0, 0.0, 0.9) * draw_progress()).normalized() if ranged.get("kind", "") == "bow" else loc
-		DOWN, STUN:
-			arm = Vector3(0.4, -0.6, -0.5)
+			lreach = 0.6
+			twist = -0.35 * draw_progress()           # an archer turns his shoulder into the draw
+			if ranged.get("kind", "") == "bow":
+				arm = (loc + Vector3(0.0, 0.0, 0.9) * draw_progress()).normalized()
+				reach = lerpf(0.5, 0.3, draw_progress())
+			else:
+				arm = loc
+				reach = 0.45
+		STUN:
+			# staggered by the blow: rock away from where it came from
+			var k := 1.0 - clampf(state_t / maxf(0.01, state_len), 0.0, 1.0)
+			arm = Vector3(0.45, -0.45, -0.5)
+			lean = -0.3 * fall_dir.z * k
+			twist = 0.35 * fall_dir.x * k
+			crouch = 0.06
+		DOWN:
+			arm = Vector3(0.6, -0.4, 0.2)
+			larm = Vector3(-0.6, -0.4, 0.2)
+		DEAD:
+			arm = Vector3(0.75, 0.1, 0.4)
+			larm = Vector3(-0.75, 0.15, 0.3)
+			reach = 0.6
+			lreach = 0.6
 	if couched:
 		arm = Vector3(0.18, -0.12, -1.0)
+		reach = 0.55
+		lean = 0.15
 	if long_weapon and state in [IDLE, RECOVER, BLOCK] and not couched:
 		arm = Vector3(0.2, -0.1, -1.0)
 		wdir = Vector3(0.0, 0.25, -1.0) if state != BLOCK else wdir
-	if not shield.is_empty() and state != BLOCK and not shooting:
-		larm = Vector3(-0.45, 0.0, -0.85)
+		larm = Vector3(-0.05, -0.15, -1.0)      # both hands on the shaft
+		lreach = 0.55
+	if not shield.is_empty() and state != BLOCK and not shooting and state not in [DOWN, DEAD]:
+		# shield carried at the side, ready to come up
+		larm = Vector3(-0.5, -0.45, -0.6) if state in [IDLE, RECOVER] else Vector3(-0.45, 0.0, -0.85)
+		lreach = 0.45
 	if wdir == Vector3.ZERO:
-		wdir = arm
-	return {"arm": arm, "weapon": wdir, "off": off, "larm": larm, "shooting": shooting}
+		wdir = arm if state != IDLE or long_weapon else Vector3(0.1, 0.55, -0.85)   # idle: blade up and forward
+	if mounted:
+		crouch = 0.0
+		step = 0.0
+	return {"arm": arm, "weapon": wdir, "off": off, "larm": larm, "shooting": shooting, "twist": twist,
+		"lean": lean, "crouch": crouch, "step": step, "reach": reach, "lreach": lreach}
+
+
+## Where a shoulder is (own frame) for a pose: the chest twists, leans and lunges with the swing.
+## side = 1 right, -1 left. Used by both the rig and the hit tests.
+func shoulder_local(ps: Dictionary, side_sign := 1.0) -> Vector3:
+	var pel := Vector3(0, PELVIS_Y - float(ps.crouch) + (RIDER_LIFT if mounted else 0.0), -float(ps.step))
+	var bas := Basis(Vector3.UP, float(ps.twist)) * Basis(Vector3.RIGHT, -float(ps.lean))
+	var sh := pel + bas * Vector3(SHOULDER.x * side_sign, SHOULDER.y - PELVIS_Y, 0)
+	return sh + (ps.off as Vector3) if side_sign > 0 else sh
 
 
 ## Weapon blade as [hand, tip] in world space (for hit tests)
 func weapon_segment() -> Array:
 	var ps := pose()
-	var lift := Vector3(0, RIDER_LIFT if mounted else 0.0, 0)
-	var sh: Vector3 = SHOULDER + lift + ps.off
-	var hand: Vector3 = sh + (ps.arm as Vector3).normalized() * 0.6
+	var hand: Vector3 = shoulder_local(ps) + (ps.arm as Vector3).normalized() * float(ps.reach)
 	var L := maxf(0.35, reach() - 0.75)
 	var tip: Vector3 = hand + (ps.weapon as Vector3).normalized() * L
 	var gb := global_transform
@@ -543,6 +699,11 @@ func take_hit(dmg: float, from: Agent, knock: bool, blunt: bool) -> void:
 	if state == DEAD:
 		return
 	last_attacker = from
+	if from != null and from != self:
+		# fall away from the blow (own frame); a little sideways so bodies don't all lie the same way
+		var away := global_transform.basis.inverse() * (global_position - from.global_position)
+		away.y = 0
+		fall_dir = (away.normalized() if away.length() > 0.01 else Vector3(0, 0, 1)).rotated(Vector3.UP, randf_range(-0.5, 0.5))
 	hp -= dmg
 	rig.flash(Color(1, 0.2, 0.15))
 	if hp <= 0.0:
@@ -582,8 +743,6 @@ func die(blunt: bool) -> void:
 	outcome = "wounded" if wounded else "killed"
 	_set_state(DEAD, 0.0)
 	velocity = Vector3.ZERO
-	rig.rotation.x = deg_to_rad(-88)
-	rig.position.y = 0.12 + (0.5 if mounted else 0.0)
 	if rig.label:
 		rig.label.visible = false
 	battle.on_agent_down(self)

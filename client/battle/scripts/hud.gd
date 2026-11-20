@@ -14,6 +14,11 @@ var _feed: Array = []
 var _marker := 0.0
 var _marker_txt := ""
 var _result_panel: Control
+var show_map := false          # Backspace: battle overview (Warband)
+
+
+func toggle_map() -> void:
+	show_map = not show_map
 
 
 func setup(b: Battle) -> void:
@@ -80,6 +85,8 @@ func _draw() -> void:
 		return
 	var vs := canvas.size
 	var c := vs * 0.5
+	if show_map:
+		_draw_map(vs)
 	if _hurt > 0.0:
 		# red vignette when you take a hit
 		for i in 6:
@@ -103,7 +110,8 @@ func _draw() -> void:
 	for g in battle.ctrl.selected:
 		var o: Dictionary = battle.orders[me][g]
 		sel.append("%s:%s" % [sel_names[g], {"hold": "驻守", "follow": "跟随", "charge": "冲锋", "stand": "站住", "retreat": "撤退"}.get(o.type, o.type)])
-	_t(Vector2(16, 76), "  ".join(sel), 14, MUTED)
+	if not battle.setup.get("arena", false):
+		_t(Vector2(16, 76), "  ".join(sel), 14, MUTED)
 	# messages (top centre) and kill feed (right)
 	for i in _msgs.size():
 		var m: Array = _msgs[i]
@@ -199,3 +207,77 @@ func show_result(r: Dictionary) -> void:
 		body += "  [color=#aab4ae]合计 阵亡 %d · 重伤 %d · 溃逃 %d · 完好 %d[/color]\n" % [tot.killed, tot.wounded, tot.routed, tot.fine]
 	lab.text = head + "用时 %d 秒\n" % int(r.time) + body + "\n[color=#aab4ae]回车 / Tab 离开战场[/color]"
 	panel.position = (canvas.size - panel.get_combined_minimum_size()) * 0.5
+
+
+## Battle overview (Backspace): every soldier as a dot, your divisions' order points, you as an arrow.
+## Drawn with your army at the bottom, facing up.
+func _draw_map(vs: Vector2) -> void:
+	var size := minf(vs.y * 0.72, vs.x * 0.6)
+	var r := Rect2(Vector2((vs.x - size) * 0.5, (vs.y - size) * 0.5), Vector2(size, size))
+	canvas.draw_rect(r.grow(10), Color(0.05, 0.07, 0.06, 0.96))
+	canvas.draw_rect(r, Color(0.2, 0.27, 0.17, 1.0))
+	canvas.draw_rect(r, Color("6b5a3a"), false, 2.0)
+	var flip := -1.0 if battle.player_side == 1 else 1.0
+	# frame the fighting: the box around everyone still standing (and the order points), at least 80 m
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for a in battle.agents:
+		if a.visible and a.alive():
+			var q := Vector2(a.global_position.x, a.global_position.z) * flip
+			lo = lo.min(q)
+			hi = hi.max(q)
+	if lo.x == INF:
+		lo = Vector2(-50, -50)
+		hi = Vector2(50, 50)
+	var mid := (lo + hi) * 0.5
+	var span := maxf(80.0, maxf(hi.x - lo.x, hi.y - lo.y) * 1.15)
+	var to_map := func(p: Vector3) -> Vector2:
+		var q := (Vector2(p.x, p.z) * flip - mid) / span + Vector2(0.5, 0.5)
+		return r.position + q.clamp(Vector2.ZERO, Vector2.ONE) * size
+	var fd: BattleField = battle.field
+	if not fd.siege.is_empty():
+		# the town wall, its ladders (brown) and the stairs down into the town (grey)
+		var sd: float = fd.siege.sd
+		var band := func(x0: float, x1: float, u0: float, u1: float, c: Color) -> void:
+			var a0: Vector2 = to_map.call(Vector3(x0, 0, u0 * sd))
+			var a1: Vector2 = to_map.call(Vector3(x1, 0, u1 * sd))
+			canvas.draw_rect(Rect2(a0.min(a1), (a1 - a0).abs()).grow(0.5), c)
+		band.call(-fd.size * 0.5, fd.size * 0.5, BattleField.W_FRONT, BattleField.W_BACK, Color("8a8478"))
+		for lx in fd.siege.ladders:
+			band.call(lx - BattleField.LADDER_HALF, lx + BattleField.LADDER_HALF, BattleField.W_FRONT - BattleField.LADDER_LEN, BattleField.W_FRONT, Color("a0703a"))
+		for sx in fd.siege.stairs:
+			band.call(sx - BattleField.STAIR_HALF, sx + BattleField.STAIR_HALF, BattleField.W_BACK, BattleField.W_BACK + BattleField.STAIR_LEN, Color("6f6a60"))
+	for a in battle.agents:
+		if not a.visible:
+			continue
+		var col: Color = (battle.side_colors[a.side] as Color).lightened(0.25)
+		if not a.alive():
+			canvas.draw_circle(to_map.call(a.global_position), 1.2, Color(col, 0.25))
+			continue
+		var rad := 3.4 if a.mounted else 2.6
+		if a.routed:
+			col = col.darkened(0.5)
+		canvas.draw_circle(to_map.call(a.global_position), rad, col)
+	# your divisions' orders
+	var names := {"inf": "步", "arc": "射", "cav": "骑"}
+	for div in names:
+		var o: Dictionary = battle.orders[battle.player_side].get(div, {})
+		if o.is_empty() or o.get("type", "") == "charge":
+			continue
+		var at: Vector2 = to_map.call(o.pos)
+		canvas.draw_circle(at, 7.0, Color(GOLD, 0.35))
+		canvas.draw_string(font, at + Vector2(-6, 5), names[div], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, GOLD)
+	var p = battle.player
+	if p and p.alive():
+		var at: Vector2 = to_map.call(p.global_position)
+		var f: Vector3 = p.forward() * flip
+		var d := Vector2(f.x, f.z).normalized()
+		var n := Vector2(-d.y, d.x)
+		canvas.draw_colored_polygon(PackedVector2Array([at + d * 11, at - d * 6 + n * 6, at - d * 6 - n * 6]), CREAM)
+	canvas.draw_string(font, r.position + Vector2(0, -16), "战场全图（Backspace 关闭）· 金色：你下令驻守的位置 · 图宽 %d 米" % int(span),
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, MUTED)
+	for s in 2:
+		var alive: int = battle.alive_by_side[s].size()
+		var txt := "%s %d 人" % [battle.side_names[s], alive]
+		canvas.draw_string(font, r.position + Vector2(0 if s == battle.player_side else size * 0.55, size + 26), txt,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, battle.side_colors[s])

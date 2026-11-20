@@ -1,6 +1,8 @@
 """Battles on the map, sieges, village raids, hideout assaults, captures."""
 from __future__ import annotations
 
+import random
+
 from . import movement as M
 from . import troops as T
 from .battle import Unit, report, resolve
@@ -297,8 +299,13 @@ def siege_tick(w: World) -> None:
             s.siege = None
             continue
         n = sum(T.healthy(p.troops) for p in camp)
-        s.siege["progress"] = round(s.siege["progress"] + n / (s.walls * B.siege.progress_per_wall), 4)
+        s.siege["progress"] = round(min(1.0, s.siege["progress"] + n / (s.walls * B.siege.progress_per_wall)), 4)
         if s.siege["progress"] >= 1.0:
+            if any(p.kind == "player" for p in camp):
+                # the ladders are ready: the player decides when to storm (and whether to lead it in person)
+                if w.player.get("pending") is None and w.hour >= int(s.siege.get("wait_until", 0)):
+                    w.player["pending"] = {"type": "assault_ready", "settlement": s.id}
+                continue
             assault(w, s, camp)
 
 
@@ -320,6 +327,10 @@ def assault(w: World, s: Settlement, camp: list[Party]) -> None:
     rep = report(res, au, du)
     rep["walls"] = s.walls
     s.militia = militia.get("militia", [0, 0])[0]
+    _assault_outcome(w, s, camp, inside, res, rep)
+
+
+def _assault_outcome(w: World, s: Settlement, camp: list[Party], inside: list[Party], res, rep: dict) -> None:
     kid = s.siege["kingdom"]
     old_fac = s.faction
     if res.winner == "attacker":
@@ -624,6 +635,63 @@ def _side_troops(parties: list[Party]) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ the arena (比武)
+ARENA_KITS = [
+    {"melee": ["club"], "shield": "round", "armor": 8},
+    {"melee": ["spear"], "armor": 8},
+    {"melee": ["mace"], "shield": "rattan", "armor": 8},
+    {"melee": ["axe"], "armor": 8},
+]
+ARENA_NAMES = ["擂主", "城中力士", "游侠儿", "退伍的老卒", "豪族的家将", "胡商的护卫", "屠户之子", "军中教头"]
+
+
+def arena_odds(w: World) -> float:
+    """Chance to win a bout when not fought in person (auto): falls as the opponents get tougher."""
+    return max(0.25, 0.6 - 0.05 * int(w.player.get("arena_wins", 0)))
+
+
+def arena_setup(w: World, p: Party, s: Settlement, bet: int) -> dict:
+    """A one-on-one bout in a town's arena with blunted weapons (Warband's arena / tournament)."""
+    rng = random.Random(f"{w.seed}:arena:{w.hour}:{s.id}")
+    wins = int(w.player.get("arena_wins", 0))
+    tier = min(4, 2 + wins // 2)
+    tid = next((t for t in (f"{s.culture}_inf{tier}", f"{s.culture}_cav{tier}", f"{s.culture}_inf3", f"{s.culture}_t1")
+                if t in TROOPS), "zhou_t1")
+    me = dict(_hero_entry(w, p))
+    me["loadout"] = dict(rng.choice(ARENA_KITS))
+    foe = dict(rng.choice(ARENA_KITS))
+    foe["armor"] = 8 + 4 * max(0, tier - 2)
+    return {"terrain": "plains", "seed": w.hour * 7 + 3, "night": False, "player_side": 0, "dismounted": True,
+            "arena": True, "spawn_gap": 12, "place": s.name, "pos": list(s.pos), "player_attacks": True,
+            "town": s.id, "bet": int(bet), "battle_size": 2,
+            "sides": [{"name": "你", "color": "#3f6fb0", "troops": {}, "hero": me, "parties": [p.id]},
+                      {"name": "对手", "color": "#a8503a", "troops": {},
+                       "hero": {"name": rng.choice(ARENA_NAMES), "troop": tid, "loadout": foe}, "parties": []}]}
+
+
+def apply_arena_result(w: World, setup: dict, result: dict) -> None:
+    A = B.arena
+    p = w.parties.get("player")
+    s = w.settlements[setup["town"]]
+    bet = int(setup.get("bet", 0))
+    foe = setup["sides"][1]["hero"]["name"]
+    if p is None:
+        return
+    if int(result.get("winner", 1)) == 0 and result.get("how", "") != "retreat":
+        w.player["arena_wins"] = int(w.player.get("arena_wins", 0)) + 1
+        p.gold += A.prize + bet
+        w.player["renown"] = round(w.player["renown"] + A.renown, 1)
+        owner = w.heroes.get(s.owner)
+        if owner:
+            owner.adjust_rel("player", 1)
+        w.log("player", f"你在{s.name}的擂台上打倒了{foe}，得赏{A.prize}金" + (f"，赢了{bet}金赌注" if bet else "")
+              + f"，名望+{A.renown}", player=True, settlement=s.id)
+    else:
+        p.gold -= bet
+        w.log("player", f"你在{s.name}的擂台上被{foe}打倒了" + (f"，输了{bet}金赌注" if bet else ""), player=True,
+              settlement=s.id)
+
+
 def _hero_entry(w: World, p: Party) -> dict:
     if p.kind == "player":
         from .data import BACKGROUNDS
@@ -660,6 +728,91 @@ def battle_setup(w: World, att: Party, dfn: Party) -> dict:
             "night": not (B.vision.night_end <= h < B.vision.night_start), "player_side": 0,
             "place": _place_name(w, pos), "pos": pos, "player_attacks": player_att,
             "sides": [side(mine, lead_mine), side(theirs, lead_theirs)]}
+
+
+# ------------------------------------------------------------------ 3D siege assault (登城)
+def siege_setup(w: World, s: Settlement, camp: list[Party]) -> dict:
+    """The player leads the storming of a town in person: ladders against the wall, the garrison, the town
+    militia and any lords inside defend it (client/battle: setup["siege"])."""
+    from .data import KINGDOMS
+    colors = {k[0]: k[3] for k in KINGDOMS}
+    me = next(p for p in camp if p.kind == "player")
+    inside = defenders_inside(w, s)
+    foes: dict[str, int] = {}
+    for tid, v in s.garrison.items():
+        if v[0] > 0:
+            foes[tid] = foes.get(tid, 0) + v[0]
+    if int(s.militia) > 0:
+        foes["militia"] = int(s.militia)
+    for tid, n in _side_troops(inside).items():
+        foes[tid] = foes.get(tid, 0) + n
+    lead = next((p for p in inside if p.hero), None)
+    capt = next((t for t in (f"{s.culture}_inf3", f"{s.culture}_t1") if t in TROOPS), "zhou_t1")
+    hero = _hero_entry(w, lead) if lead else ({"name": w.heroes[s.owner].name + "的守将", "troop": capt}
+                                               if s.owner in w.heroes else {})
+    n_att = sum(T.healthy(p.troops) for p in camp)
+    ladders = 3 if n_att < 120 else (4 if n_att < 300 else 5)
+    h = w.hour % 24
+    hero_me = dict(_hero_entry(w, me))
+    lo = dict(hero_me.get("loadout", {}))
+    lo.pop("horse", None)
+    hero_me["loadout"] = lo
+    return {"terrain": BIOME_FIELD.get(TERRAIN[w.terrain.biome_at(*s.pos)][0], "plains"), "seed": w.hour * 11 + 3,
+            "night": not (B.vision.night_end <= h < B.vision.night_start), "player_side": 0, "dismounted": True,
+            "place": s.name, "pos": list(s.pos), "player_attacks": True, "siege_town": s.id,
+            "siege": {"defender": 1, "walls": int(s.walls), "ladders": ladders},
+            "sides": [{"name": _names(w, camp), "color": colors.get(w.side_of(me)) or "#3f6fb0",
+                       "troops": _side_troops(camp), "hero": hero_me, "parties": [p.id for p in camp]},
+                      {"name": f"{s.name}守军", "color": colors.get(s.faction) or "#9a9a9a", "troops": foes,
+                       "hero": hero, "parties": [p.id for p in inside]}]}
+
+
+def apply_siege_result(w: World, setup: dict, result: dict) -> None:
+    """The storming of a town fought in person: casualties to the camp, the garrison, the militia and the
+    lords inside, then the same outcome as an auto-resolved assault (conquest, or the siege is lifted)."""
+    s = w.settlements.get(setup["siege_town"])
+    if s is None or not s.siege:
+        return
+    rng = w.rng
+    camp = [w.parties[pid] for pid in setup["sides"][0]["parties"] if pid in w.parties and w.parties[pid].alive]
+    inside = defenders_inside(w, s)
+    militia = {"militia": [int(s.militia), 0]}
+    holders = [[(p.troops, _unit(w, p)) for p in camp],
+               [(s.garrison, Unit(f"{s.name}守军", s.garrison, 1)), (militia, Unit(f"{s.name}民兵", militia, 0))]
+               + [(p.troops, _unit(w, p)) for p in inside]]
+    for side in holders:
+        for roster, u in side:
+            u.start = {tid: v[0] for tid, v in roster.items() if v[0] > 0}
+    for si, side in enumerate(holders):
+        res_side = result["sides"][si]["troops"] if si < len(result.get("sides", [])) else {}
+        for tid, r in res_side.items():
+            for outcome in ("killed", "wounded"):
+                for _ in range(int(r.get(outcome, 0))):
+                    have = [(ro, u) for ro, u in side if ro.get(tid, [0, 0])[0] > 0]
+                    if not have:
+                        break
+                    ro, u = rng.choices(have, [ro[tid][0] for ro, _u in have])[0]
+                    ro[tid][0] -= 1
+                    if outcome == "wounded" and ro is not militia:
+                        ro[tid][1] += 1
+                        u.wounded[tid] = u.wounded.get(tid, 0) + 1
+                    else:
+                        u.killed[tid] = u.killed.get(tid, 0) + 1
+    for ro, _u in holders[0] + holders[1]:
+        T.prune(ro)
+    s.militia = float(militia.get("militia", [0, 0])[0])
+    won = int(result.get("winner", 1)) == 0 and result.get("how") != "retreat"
+    from .battle import Result
+    au, du = [u for _r, u in holders[0]], [u for _r, u in holders[1]]
+    lost = lambda us: sum(sum(u.killed.values()) + sum(u.wounded.values()) for u in us)
+    killed = lambda us: sum(sum(u.killed.values()) for u in us)
+    res = Result("attacker" if won else "defender", [], sum(sum(u.start.values()) for u in au),
+                 sum(sum(u.start.values()) for u in du), lost(au), lost(du), killed(au), killed(du),
+                 terrain=w.terrain.biome_at(*s.pos))
+    rep = report(res, au, du)
+    rep["walls"] = s.walls
+    rep["live"] = True
+    _assault_outcome(w, s, camp, inside, res, rep)
 
 
 def apply_battle_result(w: World, setup: dict, result: dict) -> dict:

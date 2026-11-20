@@ -16,6 +16,9 @@ var embedded := false
 
 var rules := BattleRules.new()
 var setup: Dictionary = {}
+# Warband-style difficulty (setup["difficulty"], from the campaign's settings; --ai=0..2 etc. standalone)
+var diff := {"player_damage": 1.0, "ally_damage": 1.0, "ai_level": 1, "combat_speed": 1.0,
+	"auto_block": false, "auto_attack": false}
 var field: BattleField
 var agents: Array = []                 # every Agent ever spawned (dead ones stay as corpses)
 var player: Agent = null
@@ -36,6 +39,7 @@ var routing_announced: Array = [false, false]
 var auto := false
 var out_path := ""
 var hud: Node = null
+var sfx: BattleSfx = null
 var ctrl: Node = null
 
 var _grid := {}
@@ -57,6 +61,8 @@ var _arrow_mesh: BoxMesh
 var _capture_path := ""
 var _capture_at := 0.0
 var _arrow_mat: StandardMaterial3D
+var siege_def := -1                    # siege assault: the side behind the wall (-1 = open field)
+var peaceful := false                  # walking round a town (walk.gd): no attacking, no orders
 
 
 func _ready() -> void:
@@ -76,15 +82,30 @@ func _ready() -> void:
 		seed(int(setup.get("seed", 1)))
 	else:
 		_parse_args()
+	diff.merge(setup.get("difficulty", {}), true)
 	field = BattleField.new()
 	add_child(field)
+	if setup.has("siege"):
+		var sg: Dictionary = setup.siege
+		siege_def = int(sg.get("defender", 1))
+		field.set_siege(siege_def, int(sg.get("walls", 2)), int(sg.get("ladders", 4)))
+	elif setup.has("town"):
+		field.set_town(setup.town)
 	field.build(str(setup.get("terrain", "plains")), rules.num("battle", "field", 300), int(setup.get("seed", 1)),
 		bool(setup.get("night", false)))
+	if not _headless:
+		sfx = BattleSfx.new()
+		add_child(sfx)
+		var vol := float(diff.get("sfx_volume", 0.8))
+		sfx.volume_db = linear_to_db(maxf(vol, 0.001))
+		sfx.visible = vol > 0.0
 	_arrow_mesh = BoxMesh.new()
 	_arrow_mesh.size = Vector3(0.025, 0.025, 0.8)
 	_arrow_mat = StandardMaterial3D.new()
 	_arrow_mat.albedo_color = Color("4a3a28")
 	_deploy()
+	if setup.get("arena", false) and not _headless:
+		_build_arena_ring()
 	ctrl = load("res://battle/scripts/player_ctrl.gd").new()
 	ctrl.name = "PlayerCtrl"
 	add_child(ctrl)
@@ -93,7 +114,14 @@ func _ready() -> void:
 		hud = load("res://battle/scripts/hud.gd").new()
 		add_child(hud)
 		hud.setup(self)
-	message("战斗开始！1 步兵 2 射手 3 骑兵 0 全军 · F1 驻守 F2 跟我来 F3 冲锋 · Tab 撤离", Color("f2c75c"))
+		if OS.get_cmdline_user_args().has("--overview"):
+			hud.show_map = true                 # tests: screenshot with the battle overview open
+	if setup.get("arena", false):
+		message("比武开始！木兵器，打倒对手即胜 · Tab 认输", Color("f2c75c"))
+	elif siege_def >= 0:
+		message("攻城！%s架云梯靠上了城墙 · 攻方须登城杀尽守军 · F1 驻守 F3 冲锋 · Backspace 全图" % field.siege.ladders.size(), Color("f2c75c"))
+	else:
+		message("战斗开始！1 步兵 2 射手 3 骑兵 0 全军 · F1 驻守 F2 跟我来 F3 冲锋 · Backspace 全图 · Tab 撤离", Color("f2c75c"))
 
 
 func _parse_args() -> void:
@@ -115,6 +143,12 @@ func _parse_args() -> void:
 			over_terrain = a.substr(10)
 		elif a == "--night":
 			night = true
+		elif a.begins_with("--ai="):
+			diff["ai_level"] = clampi(int(a.substr(5)), 0, 2)
+		elif a.begins_with("--player-damage="):
+			diff["player_damage"] = float(a.substr(16))
+		elif a.begins_with("--combat-speed="):
+			diff["combat_speed"] = float(a.substr(15))
 		elif a.begins_with("--seed="):
 			seed_over = int(a.substr(7))
 		elif a.begins_with("--capture="):
@@ -184,12 +218,41 @@ func _deploy() -> void:
 	_enemy_commander(true)
 
 
+## The arena: a ring of wooden posts with a rail (only for show).
+func _build_arena_ring() -> void:
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color("6b4a2a")
+	var n := 40
+	for i in n:
+		var ang := TAU * i / n
+		var p := Vector3(cos(ang), 0, sin(ang)) * 17.5
+		var post := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.14, 1.3, 0.14)
+		post.mesh = bm
+		post.material_override = wood
+		post.position = field.ground(p) + Vector3(0, 0.65, 0)
+		add_child(post)
+		var nxt := Vector3(cos(TAU * (i + 1) / n), 0, sin(TAU * (i + 1) / n)) * 17.5
+		var rail := MeshInstance3D.new()
+		var rm := BoxMesh.new()
+		rm.size = Vector3(0.08, 0.08, p.distance_to(nxt))
+		rail.mesh = rm
+		rail.material_override = wood
+		add_child(rail)
+		var mid := (p + nxt) * 0.5
+		rail.position = field.ground(mid) + Vector3(0, 1.05, 0)
+		rail.look_at(rail.position + (nxt - p), Vector3.UP)
+
+
 func _side_facing(s: int) -> float:
 	return 0.0 if s == 0 else PI
 
 
 func _spawn_center(s: int) -> Vector3:
-	var z := rules.num("battle", "spawn_gap", 110) * 0.5 * (1 if s == 0 else -1)
+	if siege_def >= 0:
+		return field.siege_point(0.0, 48.0) if s == siege_def else field.siege_point(0.0, -55.0)
+	var z := float(setup.get("spawn_gap", rules.num("battle", "spawn_gap", 110))) * 0.5 * (1 if s == 0 else -1)
 	return Vector3(0, 0, z)
 
 
@@ -206,6 +269,13 @@ func _spawn_wave(s: int, n: int) -> void:
 	var fwd := Vector3(0, 0, -1) if s == 0 else Vector3(0, 0, 1)
 	var rightv := Vector3(1, 0, 0) if s == 0 else Vector3(-1, 0, 0)
 	var place := {"inf": c, "arc": c - fwd * 9.0, "cav": c + rightv * 28.0 - fwd * 4.0}
+	if s == siege_def:
+		# the garrison's archers go straight up on the wall walk; everyone else musters in the town
+		var lst: Array = groups.arc
+		for k in lst.size():
+			var x := (k - (lst.size() - 1) * 0.5) * 1.7
+			_spawn(s, lst[k], field.wall_point(clampf(x, -field.size * 0.45, field.size * 0.45), randf_range(0.1, 0.5)))
+		groups.arc = []
 	for g in groups:
 		var lst: Array = groups[g]
 		var cols := maxi(4, int(ceil(sqrt(lst.size() * 3.0))))
@@ -225,6 +295,7 @@ func _spawn(s: int, tid: String, p: Vector3, override: Dictionary = {}, hname :=
 	a.rng_seed = agents.size()
 	a.setup(self, rules, tid, s, side_colors[s], override, hname)
 	a.global_position = field.ground(p) + Vector3(0, 0.05, 0)
+	a.safe_pos = a.global_position
 	a.heading = _side_facing(s)
 	a.intent_yaw = a.heading
 	a.rotation.y = a.heading
@@ -252,11 +323,11 @@ func _physics_process(dt: float) -> void:
 			continue
 		if a == player and a.is_player:
 			ctrl.drive(a, dt)
-		else:
+		elif not a.ai.has("lab"):            # tests/pose_lab.gd drives these by hand
 			BattleAI.update(a, self, dt)
 	var t1 := Time.get_ticks_usec()
 	for a in agents:
-		if a.alive():
+		if a.alive() or a.falling():
 			a.step(dt)
 	var t15 := Time.get_ticks_usec()
 	_resolve_overlaps()
@@ -295,17 +366,44 @@ func _physics_process(dt: float) -> void:
 		get_tree().quit()
 	if int(prof.get("n", 0)) % 600 == 0 and OS.get_cmdline_user_args().has("--prof"):
 		var n := float(prof.n)
-		print("PROF ai %.2fms step %.2fms (overlap %.2f) per frame, alive %d" % [prof.ai / n / 1000.0, prof.step / n / 1000.0, prof.get("overlap", 0.0) / n / 1000.0, agents.filter(func(x): return x.alive()).size()])
+		print("PROF ai %.2fms step %.2fms (overlap %.2f) per frame, alive %d, fps %d" % [prof.ai / n / 1000.0, prof.step / n / 1000.0, prof.get("overlap", 0.0) / n / 1000.0, agents.filter(func(x): return x.alive()).size(), Engine.get_frames_per_second()])
 
 
-## How often (in physics frames) a soldier's 3D model is re-posed: 0 = never (no screen).
-func rig_interval(a: Agent) -> int:
+## How often (in rendered frames) a soldier's 3D model is re-posed: 0 = never (no screen).
+## Close and in view: every frame; far away or behind the camera: every few frames.
+func rig_interval(a: Agent, cam: Camera3D = null) -> int:
 	if _headless:
 		return 0
-	if ctrl == null or ctrl.cam == null:
+	if cam == null:
 		return 1
-	var d: float = ctrl.cam.global_position.distance_to(a.global_position)
-	return 1 if d < 40.0 else (2 if d < 90.0 else 4)
+	var to: Vector3 = a.global_position - cam.global_position
+	var d := to.length()
+	if d > 10.0 and to.dot(-cam.global_basis.z) < 0.0:
+		return 8                                   # behind the camera
+	return 1 if d < 22.0 else (2 if d < 50.0 else (4 if d < 100.0 else 8))
+
+
+var render_frame := 0
+
+
+func _process(_delta: float) -> void:
+	if _headless:
+		return
+	render_frame += 1
+	var cam := get_viewport().get_camera_3d()
+	for a in agents:
+		if a.rig_done or not a.visible:
+			continue
+		var every := rig_interval(a, cam)
+		if every > 0 and (render_frame + a.rng_seed) % every == 0:
+			a.update_rig()
+		# hooves of horses close to the camera
+		if sfx and a.mounted and a.speed > 2.5 and a.alive() and cam \
+				and cam.global_position.distance_squared_to(a.global_position) < 900.0:
+			a.hoof_t -= _delta * a.speed * 0.45
+			if a.hoof_t <= 0.0:
+				a.hoof_t = 1.0
+				sfx.play("hoof", a.global_position, -10.0 + a.speed * 0.6)
 
 
 static func _gkey(cx: int, cz: int) -> int:
@@ -371,7 +469,13 @@ func _resolve_overlaps() -> void:
 					a.speed *= 0.5
 		a.position.x = clampf(a.position.x, -half, half)
 		a.position.z = clampf(a.position.z, -half, half)
+		var works := field.has_works()
+		var hh := field.height_at(a.position.x, a.position.z) if works else 0.0
+		if works and (hh - a.position.y > Agent.MAX_STEP or (a.position.y - hh > Agent.MAX_DROP and a != player)):
+			a.position.x = a.safe_pos.x       # shoved against a wall face or over the edge: stays put
+			a.position.z = a.safe_pos.z
 		a.position.y = field.height_at(a.position.x, a.position.z)
+		a.safe_pos = a.position
 
 
 func agents_near(p: Vector3, r: float) -> Array:
@@ -478,6 +582,9 @@ func _assign_slots() -> void:
 			var lst := division_agents(s, div)
 			if lst.is_empty():
 				continue
+			if o.get("wall", false):
+				_wall_slots(lst, div)
+				continue
 			var f := float(o.facing)
 			var fwd := Vector3(-sin(f), 0, -cos(f))
 			var rv := Vector3(cos(f), 0, -sin(f))
@@ -490,6 +597,43 @@ func _assign_slots() -> void:
 				var row := k / cols
 				var p: Vector3 = c + rv * (col - (mini(cols, lst.size()) - 1) * 0.5) * sp - fwd * row * sp * 1.25
 				_slots[lst[k].get_instance_id()] = field.ground(p)
+
+
+## Siege defenders' posts: archers spread along the wall walk, infantry in knots at the ladder heads
+## (the rest wait at the foot of the stairs in the town).
+func _wall_slots(lst: Array, div: String) -> void:
+	if div == "arc":
+		lst.sort_custom(func(x, y): return x.global_position.x < y.global_position.x)
+		for k in lst.size():
+			var x := clampf((k - (lst.size() - 1) * 0.5) * 1.7, -field.size * 0.45, field.size * 0.45)
+			_slots[lst[k].get_instance_id()] = field.wall_point(x, 0.15 + 0.3 * float(k % 2))
+		return
+	var ladders: Array = field.siege.ladders
+	var per := 7                                        # men posted at each ladder head
+	var posted := 0
+	lst.sort_custom(func(x, y): return x.rng_seed < y.rng_seed)
+	var count := {}
+	for a in lst:
+		# fill the ladder heads in turn, nearest first
+		var best := INF
+		var pick := INF
+		for lx in ladders:
+			if int(count.get(lx, 0)) >= per:
+				continue
+			var d := absf(a.global_position.x - float(lx))
+			if d < best:
+				best = d
+				pick = lx
+		if pick == INF:
+			var sx: float = field._nearest(field.siege.stairs, a.global_position.x)
+			_slots[a.get_instance_id()] = field.siege_point(sx + randf_range(-4, 4), BattleField.W_BACK + BattleField.STAIR_LEN + 4.0 + (posted % 3) * 1.5)
+			posted += 1
+			continue
+		var k := int(count.get(pick, 0))
+		count[pick] = k + 1
+		var row := k / 4
+		var col := k % 4
+		_slots[a.get_instance_id()] = field.wall_point(float(pick) + (col - 1.5) * 1.2, 0.2 + 0.35 * row)
 
 
 ## Player's orders (Warband keys): groups = ["inf", "arc", "cav"] subset; kind = hold / follow / charge /
@@ -544,6 +688,9 @@ func _enemy_commander(first: bool) -> void:
 		var o: Dictionary = orders[s]
 		var c := _spawn_center(s)
 		var fwd := Vector3(0, 0, -1) if s == 0 else Vector3(0, 0, 1)
+		if siege_def >= 0:
+			_siege_commander(s, first)
+			continue
 		if first:
 			o.arc.type = "hold"
 			o.arc.pos = c + fwd * 4.0
@@ -573,6 +720,33 @@ func _enemy_commander(first: bool) -> void:
 			o.arc.type = "charge"
 
 
+## Siege: the garrison holds the wall to the last; the attackers' archers shoot from below while
+## everyone else goes up the ladders.
+func _siege_commander(s: int, first: bool) -> void:
+	var o: Dictionary = orders[s]
+	if s == siege_def:
+		if first:
+			for div in ["arc", "inf", "cav"]:
+				o[div].type = "hold"
+				o[div].wall = true
+				o[div].pos = field.wall_point(0.0, 0.5)
+				o[div].facing = _side_facing(s)
+		return
+	if first:
+		o.arc.type = "hold"
+		o.arc.pos = field.siege_point(0.0, BattleField.W_FRONT - 34.0)
+		o.arc.facing = _side_facing(s)
+		o.inf.type = "charge"
+		o.cav.type = "charge"
+		return
+	var arc := division_agents(s, "arc")
+	var ammo := 0
+	for a in arc:
+		ammo += a.ammo
+	if o.arc.type == "hold" and (ammo == 0 or time > 150.0):
+		o.arc.type = "charge"
+
+
 func _reinforce() -> void:
 	for s in 2:
 		if reserves[s].is_empty():
@@ -587,8 +761,12 @@ func _reinforce() -> void:
 
 
 func _morale() -> void:
+	if setup.get("arena", false):
+		return                      # a bout in the arena: nobody runs
 	var M := "morale"
 	for s in 2:
+		if s == siege_def:
+			continue                # a garrison has nowhere to run: it holds the wall to the last
 		var lost := 0
 		for a in agents:
 			if a.side == s and (not a.alive() or a.routed):
@@ -634,7 +812,7 @@ func _check_end() -> void:
 func request_retreat() -> bool:
 	if over:
 		return false
-	if player and player.alive():
+	if player and player.alive() and not setup.get("arena", false):      # in the arena Tab = concede
 		for a in agents_near(player.global_position, 40.0):
 			if a.side != player_side and a.active():
 				message("附近有敌人，无法撤离", Color("ff8f8f"))
@@ -759,6 +937,7 @@ func melee_hit(att: Agent, tgt: Agent, point: Vector3, part: String, thrust: boo
 		att.state_t = 0.0
 		att.state_len = rules.num(C, "block_stun", 0.4)
 		_effect(point, Color("ffd27a"), 6)
+		sound("shield" if not tgt.shield.is_empty() else "clash", point)
 		if att == player or tgt == player:
 			message("格挡！" if tgt == player else "被挡住了", Color("cfd6dc"))
 		return
@@ -793,13 +972,17 @@ func _apply(att: Agent, tgt: Agent, raw: float, dtype: String, part: String, poi
 		raw *= rules.num(C, "friendly_fire", 0.5)
 	if part == "horse":
 		var harm := rules.num("horse", "barded_armor", 28) if tgt.horse_kind == "barded" else 6.0
-		var hd := _armor(raw, harm, dtype)
+		var hd := _armor(raw, harm, dtype) * damage_scale(tgt)
 		tgt.hit_horse(hd, att)
 		_effect(point, Color("8a1a14"), 5)
 		return
 	if part == "head":
 		raw *= 1.25
-	var dmg := _armor(raw, tgt.armor, dtype)
+	if siege_def >= 0 and not att.using_ranged and att.global_position.y > tgt.global_position.y + 0.6:
+		raw *= 1.0 + rules.num("siege", "height_edge", 0.25)    # striking down from the wall
+	var dmg := _armor(raw, tgt.armor, dtype) * damage_scale(tgt)
+	if not att.using_ranged:
+		sound("thud" if dtype == "blunt" else "hit", point, clampf(-8.0 + dmg * 0.25, -8.0, 3.0))
 	stat("dmg_" + att.division, int(dmg))
 	if tgt.side == att.side:
 		stat("friendly_hits")
@@ -814,6 +997,36 @@ func _apply(att: Agent, tgt: Agent, raw: float, dtype: String, part: String, poi
 		_feed(att, tgt)
 	elif tgt == player and hud and hud.has_method("hurt"):
 		hud.hurt(int(dmg))
+	if tgt == player and ctrl and ctrl.has_method("jolt"):
+		ctrl.jolt(clampf(0.3 + dmg / 40.0, 0.3, 1.0))
+
+
+## Difficulty: damage taken by the player (and his horse) / by his troops and allies.
+## Falling off the wall or a ladder (drop in metres).
+func fall_damage(a: Agent, drop: float) -> void:
+	var dmg := (drop - 2.5) * 9.0 * damage_scale(a)
+	if dmg > 1.0:
+		sound("thud", a.global_position, -4.0)
+		a.take_hit(dmg, null, true, true)
+
+
+func damage_scale(tgt: Agent) -> float:
+	if tgt == player and tgt.is_player:
+		return float(diff.player_damage)
+	if tgt.side == player_side and player != null:
+		return float(diff.ally_damage)
+	return 1.0
+
+
+## Difficulty: combat AI level 0 (poor) .. 2 (good), as an offset into battle.toml [difficulty] lists.
+func ai_skill(key: String) -> float:
+	var arr = rules.sec("difficulty").get(key, [0.0, 0.0, 0.0])
+	return float(arr[clampi(int(diff.ai_level), 0, arr.size() - 1)])
+
+
+func sound(kind: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
+	if sfx:
+		sfx.play(kind, pos, vol, pitch)
 
 
 func _feed(att: Agent, tgt: Agent) -> void:
@@ -834,6 +1047,9 @@ func hud_hit(dmg: int, early: bool) -> void:
 
 
 func on_agent_down(a: Agent) -> void:
+	if siege_def >= 0:
+		var by: Agent = a.last_attacker
+		stat("down_s%d_lv%d_by_%s" % [a.side, field.level(a.global_position), "fall" if by == null else ("arrow" if by.using_ranged else "melee")])
 	if a == player:
 		message("你被打倒了！按 Tab 让部下继续作战", Color("ff6b5b"))
 		if auto:
@@ -957,10 +1173,20 @@ func _update_arrows(dt: float) -> void:
 			if _shield_stops(tgt, v, hit[2]):
 				stat("arrow_shield")
 				_effect(hit[1], Color("c8a060"), 3)
+				sound("shield", hit[1], -6.0, 1.3)
 			elif is_instance_valid(owner):
 				var spd := v.length() / rules.num("ranged", "speed_damage_ref", 50.0)
 				var raw: float = ar.dmg * clampf(spd, 0.5, 1.4) * randf_range(0.85, 1.15)
 				_apply(owner, tgt, raw, "pierce", hit[2], hit[1], false)
+				sound("arrow_hit", hit[1], -2.0)
+			_place_arrow(ar)
+			keep.append(ar)
+			continue
+		if siege_def >= 0 and p0.distance_to(ar.origin) > 2.5 and field.merlon_hit(p0, p1):
+			ar.stuck = true
+			ar.life = 6.0
+			ar.pos = p0.lerp(p1, 0.5)
+			stat("arrow_merlon")
 			_place_arrow(ar)
 			keep.append(ar)
 			continue

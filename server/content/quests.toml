@@ -1,0 +1,237 @@
+# 差事文本：城主托付差事时说的话（格式同 dialogue_*.toml，见 warlords/content.py）。
+# topic = 差事种类：hideout 剿灭匪巢 / bandits 追剿匪帮 / letter 送信 / goods 运送物资
+# 占位符：{town} 委托人的城  {lair} 匪巢  {band} 匪帮  {target} 收信人  {target_kingdom} 收信人的国家
+#         {good} 货物  {qty} 份数  {bonus} 辛苦钱
+# 由人工撰写（不经 LLM）；可以用 tools/author.py check 检查。
+
+# ------------------------------------------------------------------ 剿灭匪巢
+[[line]]
+topic = "hideout"
+text = "{lair}的贼人屡屡劫掠{town}的商旅，足下若能剿灭此巢，必有重谢。"
+
+[[line]]
+topic = "hideout"
+text = "{lair}那伙人越聚越多，再不除掉，{town}的路就没人敢走了。你带人去端了它。"
+
+[[line]]
+topic = "hideout"
+culture = "zhou"
+text = "{lair}聚着一伙亡命之徒，郡兵畏缩不前。足下若能扫清此巢，某当具表上闻。"
+
+[[line]]
+topic = "hideout"
+culture = "zhou"
+text = "城中士族的庄客，三天两头被{lair}的贼劫了去。此事拖不得，劳足下走一趟。"
+
+[[line]]
+topic = "hideout"
+culture = "yan"
+text = "{lair}有一窝贼，专抢过路的马群。你去把他们的寨子烧了，我说话算数，赏你。"
+
+[[line]]
+topic = "hideout"
+culture = "yan"
+text = "我的人追到{lair}就不敢进了。你要是有胆，带人进去，把贼头的首级提来。"
+
+[[line]]
+topic = "hideout"
+culture = "zhao"
+text = "{lair}那帮杂碎，抢到某的地界上来了。去，一个不留。办成了，赏钱少不了你的。"
+
+[[line]]
+topic = "hideout"
+culture = "zhao"
+text = "{lair}的贼窝，某早想平了，只是腾不出人手。你替某去，别让某失望。"
+
+[[line]]
+topic = "hideout"
+culture = "liang"
+text = "{lair}的贼断了商路，一季的绢帛压在库里出不去。足下若剿了它，酬金照市价加倍。"
+
+[[line]]
+topic = "hideout"
+culture = "liang"
+text = "这笔账某算过：养着{lair}的贼，比请足下去剿贵得多。如何，接下这单生意？"
+
+[[line]]
+topic = "hideout"
+culture = "shu"
+text = "{lair}那伙人，从前也是流民，如今却抢起乡亲来了。这种人留不得，劳你去收拾。"
+
+[[line]]
+topic = "hideout"
+culture = "shu"
+text = "山里的路本就难走，{lair}的贼还要来截。你去把他们赶出去，乡亲们记你的好。"
+
+[[line]]
+topic = "hideout"
+culture = "rou"
+text = "{lair}有贼，偷我们的羊。你去，把他们的帐子掀了。"
+
+[[line]]
+topic = "hideout"
+culture = "rou"
+text = "贼躲在{lair}，以为我们的马进不去。你带步卒去，把他们赶出来。"
+
+# ------------------------------------------------------------------ 追剿匪帮
+[[line]]
+topic = "bandits"
+text = "一伙{band}在城外出没，百姓不敢出城。替我追上去，把他们收拾了。"
+
+[[line]]
+topic = "bandits"
+text = "{band}昨日又劫了一个村子，走不远。你现在追，还来得及。"
+
+[[line]]
+topic = "bandits"
+culture = "zhou"
+text = "{band}扰乱乡里，有司不能禁。足下兵马精整，若能追而歼之，{town}上下感念。"
+
+[[line]]
+topic = "bandits"
+culture = "yan"
+text = "一股{band}就在附近游荡。追上去，砍了。我只要听到这一个消息。"
+
+[[line]]
+topic = "bandits"
+culture = "zhao"
+text = "{band}在某眼皮底下作乱，当某是死人么？你去，把他们的脑袋给某带回来。"
+
+[[line]]
+topic = "bandits"
+culture = "liang"
+text = "{band}在{town}附近劫了两支驼队。足下追上去，货能夺回多少，都算足下的。"
+
+[[line]]
+topic = "bandits"
+culture = "shu"
+text = "{band}在山口转悠好几天了，专等落单的人。你带人去，莫叫他们再害人。"
+
+[[line]]
+topic = "bandits"
+culture = "rou"
+text = "{band}在附近，马蹄印还新。去追，追上就打。"
+
+# ------------------------------------------------------------------ 送信
+[[line]]
+topic = "letter"
+text = "这封书信务必亲手交给{target_kingdom}的{target}。他行踪不定，你得去找他。"
+
+[[line]]
+topic = "letter"
+text = "有封信要送到{target}手上，不能经旁人的手。他在哪里，你沿路打听吧。"
+
+[[line]]
+topic = "letter"
+culture = "zhou"
+text = "此信关系非轻，须面呈{target_kingdom}的{target}。足下沿途可向诸将打听其行止。"
+
+[[line]]
+topic = "letter"
+culture = "zhou"
+text = "这是一封家书，也是一封要紧的书信。烦足下亲手交给{target}，莫要假手他人。"
+
+[[line]]
+topic = "letter"
+culture = "yan"
+text = "把这封信给{target}。他要是问起，就说是我亲手封的。"
+
+[[line]]
+topic = "letter"
+culture = "zhao"
+text = "这信你给某送到{target}手里。路上拆了看，某就拆了你。"
+
+[[line]]
+topic = "letter"
+culture = "liang"
+text = "这封信送到{target}手里，脚钱照算。{target_kingdom}那边的路某熟，消息却不灵，劳足下多打听。"
+
+[[line]]
+topic = "letter"
+culture = "shu"
+text = "这信要交给{target}。我们蜀中的人出去不方便，就托你了。"
+
+[[line]]
+topic = "letter"
+culture = "rou"
+text = "这是给{target}的信。找到他，给他。就这么简单。"
+
+# ------------------------------------------------------------------ 运送物资
+[[line]]
+topic = "goods"
+text = "{town}的{good}眼看就要断了。你若能运来{qty}份，我按市价收下，另有{bonus}金辛苦钱。"
+
+[[line]]
+topic = "goods"
+text = "城里缺{good}，市上的价一天一个样。运{qty}份来，市价照付，再加{bonus}金。"
+
+[[line]]
+topic = "goods"
+culture = "zhou"
+text = "府库的{good}所余无几，转运的漕船又迟迟不到。足下若能先运{qty}份来，市价之外，另酬{bonus}金。"
+
+[[line]]
+topic = "goods"
+culture = "yan"
+text = "我的人要用{good}，城里不够。你去弄{qty}份来，钱照市价给，再多给你{bonus}金。"
+
+[[line]]
+topic = "goods"
+culture = "zhao"
+text = "{good}不够用了。{qty}份，尽快。市价给你，另加{bonus}金，误了事一文没有。"
+
+[[line]]
+topic = "goods"
+culture = "liang"
+text = "{good}缺得紧，这是门好买卖。足下运{qty}份来，市价收，另有{bonus}金辛苦钱，童叟无欺。"
+
+[[line]]
+topic = "goods"
+culture = "shu"
+text = "山里运东西难，{good}眼看见底了。你帮忙弄{qty}份来，市价收，再贴你{bonus}金。"
+
+[[line]]
+topic = "goods"
+culture = "rou"
+text = "我们缺{good}。拿{qty}份来，给你钱，再给你{bonus}金。"
+
+# ------------------------------------------------------------------ 君主亲自托付（不带自称，各国君主通用）
+[[line]]
+topic = "hideout"
+when = ["ruler"]
+text = "{lair}的贼竟敢在{town}左近作乱，是欺国中无人。你去把这个巢平了，赏格从优。"
+
+[[line]]
+topic = "hideout"
+when = ["ruler"]
+text = "{lair}之患，有司屡剿不绝。你若能一举荡平，功劳记在簿上。"
+
+[[line]]
+topic = "bandits"
+when = ["ruler"]
+text = "一伙{band}就在都城左近游荡，成何体统。追上去，剿了。"
+
+[[line]]
+topic = "bandits"
+when = ["ruler"]
+text = "{band}劫了往{town}来的粮车。去追，追回来有赏。"
+
+[[line]]
+topic = "letter"
+when = ["ruler"]
+text = "这封国书，你亲手交给{target_kingdom}的{target}。路上不许旁人经手。"
+
+[[line]]
+topic = "letter"
+when = ["ruler"]
+text = "此信须面交{target}。他在哪里，你自己去打听；送到了，自有赏赐。"
+
+[[line]]
+topic = "goods"
+when = ["ruler"]
+text = "{town}的{good}不够用了。运{qty}份来，按市价收，另赏{bonus}金。"
+
+[[line]]
+topic = "goods"
+when = ["ruler"]
+text = "府库里的{good}快见底了。你去筹{qty}份来，价钱照市上的给，再赏你{bonus}金。"

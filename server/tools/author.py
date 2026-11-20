@@ -80,6 +80,8 @@ def problems(ln: dict, cell_vars: set[str] | None = None) -> tuple[list[str], li
     used = set(re.findall(r"\{(\w+)\}", t))
     allowed = COMMON_VARS | (cell_vars if cell_vars is not None else
                              {"enemy", "siege", "fief", "target", "place"})
+    if ln.get("topic") in ("hideout", "bandits", "letter", "goods"):          # content/quests.toml
+        allowed = {"town", "lair", "band", "target", "target_kingdom", "good", "qty", "bonus"}
     if used - allowed:
         errs.append("未知占位符 " + "、".join(sorted(used - allowed)))
     if re.search(r"\{[^}]*$|^[^{]*\}", t):

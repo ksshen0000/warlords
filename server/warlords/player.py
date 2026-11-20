@@ -6,6 +6,8 @@ whenever a menu is open (`w.player["pending"]`) the simulation refuses to step.
 """
 from __future__ import annotations
 
+import random
+
 from . import movement as M
 from . import troops as T
 from .common import dist, nearest_settlement
@@ -320,6 +322,12 @@ def menu(w: World) -> dict | None:
         return {"type": "notice", "title": pend["title"], "text": pend["text"], "options": [_opt("ok", "继续")]}
     if kind == "settlement":
         return _settlement_menu(w, p, w.settlements[pend["id"]])
+    if kind == "walk":
+        from . import walk as WK
+        st = w.settlements[pend["id"]]
+        base = _settlement_menu(w, p, st)
+        return {"type": "walk", "id": st.id, "title": st.name, "text": "",
+                "setup": WK.setup(w, st, base["options"]), "options": base["options"] + [_opt("back", "返回")]}
     if kind == "encounter":
         q = w.parties.get(pend["party"])
         if q is None or not q.alive:
@@ -327,6 +335,13 @@ def menu(w: World) -> dict | None:
         return _encounter_menu(w, p, q, pend["initiator"])
     if kind == "talk":
         return _talk_menu(w, p, w.heroes[pend["hero"]])
+    if kind == "event":
+        from . import events as EV
+        return EV.menu(w, pend)
+    if kind == "fief":
+        return _fief_menu(w, p, w.settlements[pend["id"]])
+    if kind == "arena":
+        return _arena_menu(w, p, w.settlements[pend["town"]])
     if kind == "quest":
         from . import quests as Q
         s = w.settlements[pend["town"]]
@@ -363,8 +378,18 @@ def menu(w: World) -> dict | None:
                     _opt("decline", f"这次不去（{h.name}会不高兴）")],
                 "text": f"{h.name}召集{kingdom_name(w, h.kingdom)}诸将出征{where}。作为{kingdom_name(w, h.kingdom)}之臣，你被点了名。\n"
                         "随军攻下城池，你就是攻城功臣，朝议分封时有你一份。"}
+    if kind == "assault_ready":
+        return _assault_menu(w, p, w.settlements[pend["settlement"]])
     if kind == "battle":
         st = pend["setup"]
+        if st.get("siege_town"):
+            return {"type": "battle", "title": f"强攻{st['place']}", "setup": st,
+                    "text": f"{st['sides'][0]['name']}（{sum(st['sides'][0]['troops'].values())}人） 登城强攻 "
+                            f"{st['sides'][1]['name']}（{sum(st['sides'][1]['troops'].values())}人）",
+                    "options": [_opt("autoresolve", "改为让部下强攻（自动结算）")]}
+        if st.get("arena"):
+            return {"type": "battle", "title": f"{st['place']}擂台", "setup": st,
+                    "text": f"你 对阵 {st['sides'][1]['hero']['name']}", "options": [_opt("autoresolve", "不亲自看了（直接定胜负）")]}
         return {"type": "battle", "title": f"{st['place']}之战", "setup": st,
                 "text": f"{st['sides'][0]['name']}（{sum(st['sides'][0]['troops'].values())}人） 对阵 "
                         f"{st['sides'][1]['name']}（{sum(st['sides'][1]['troops'].values())}人）",
@@ -375,6 +400,25 @@ def menu(w: World) -> dict | None:
             return {"type": "notice", "title": "俘虏已不在你手中", "text": "", "options": [_opt("ok", "继续")]}
         return _captive_menu(w, p, h)
     return None
+
+
+def _assault_menu(w: World, p, s) -> dict:
+    from . import warfare as WF
+    camp = WF.siege_camp(w, s)
+    inside = WF.defenders_inside(w, s)
+    mine = sum(T.healthy(q.troops) for q in camp)
+    garrison = T.healthy(s.garrison) + int(s.militia) + sum(T.healthy(q.troops) for q in inside)
+    bonus = 1 + B.siege.wall_bonus_per_level * s.walls
+    lords = "、".join(w.heroes[q.hero].name for q in inside if q.hero)
+    text = (f"云梯已经造好，{s.name}的城墙就在眼前（城墙{s.walls}级）。\n"
+            f"城下我方{mine}人；城上守军{T.healthy(s.garrison)}人、民兵{int(s.militia)}人"
+            + (f"，还有{lords}的部曲" if lords else "") + "。\n"
+            "守军据城而守，人数要多出一倍以上才有把握。亲自登城，你的人会跟着你爬云梯；让部下强攻则自动结算。")
+    return {"type": "assault_ready", "title": f"强攻{s.name}", "text": text, "options": [
+        _opt("assault3d", f"亲自率军登城（进入战场：{mine}人对{garrison}人）"),
+        _opt("assault", f"下令强攻（自动结算；我方战力约{sum(w.party_power(q) for q in camp):.0f}，"
+                        f"守方约{(T.power(s.garrison) + s.militia) * bonus:.0f}）"),
+        _opt("wait", "再围一天")]}
 
 
 # ------------------------------------------------------- captive generals
@@ -585,6 +629,14 @@ def _settlement_menu(w: World, p: Party, s) -> dict:
     if s.kind in ("town", "castle"):
         for h in captives(w)[:4]:
             opts.append(_opt("captive", f"提审被你关押的{h.name}（{kingdom_name(w, h.kingdom)}）", hero=h.id))
+    if s.kind == "town":
+        cd = max(0, int(w.player.get("arena_cd", {}).get(s.id, 0)) - w.day)
+        opts.append(_opt("arena", "上擂台比武（木兵器，可以下注）", cd == 0 and not w.player.get("following"),
+                         f"擂台{cd}天后再开" if cd else "随军途中"))
+    if s.owner == PID:
+        opts.insert(0, _opt("manage", "处理封地事务（守军、城防、赈济）" if s.kind != "village" else "处理食邑事务（修渠垦田）"))
+    from . import walk as WK
+    opts.append(_opt("walk", WK.label(s)))
     opts.append(_opt("rest", "进城休整（按住空格等待，伤员恢复更快）" if s.kind != "village" else "在村里歇脚（按住空格等待）"))
     opts.append(_opt("leave", "离开"))
     m.update(text="\n".join(lines), options=opts)
@@ -685,6 +737,15 @@ def act(w: World, action: str, data: dict) -> dict:
     if action not in ("buy", "sell") and (opt is None or not opt["enabled"]):
         return {"ok": False, "message": "现在不能这么做"}
     kind = pend["type"]
+    if kind == "walk":
+        # back from the streets: carry out what the player chose there as a settlement-menu option
+        w.player["pending"] = {"type": "settlement", "id": pend["id"]}
+        if action == "back":
+            return {"ok": True}
+        return act(w, action, data)
+    if kind == "settlement" and action == "walk":
+        w.player["pending"] = {"type": "walk", "id": pend["id"]}
+        return {"ok": True}
     if kind == "create":
         if action == "origin":
             w.player["pending"] = {"type": "create", "step": "background", "origin": data["choice"]}
@@ -725,13 +786,37 @@ def act(w: World, action: str, data: dict) -> dict:
     if kind == "battle" and action == "autoresolve":
         from . import warfare as WF2
         w.player["pending"] = None
+        if pend["setup"].get("arena"):
+            won = random.Random(f"{w.seed}:arena:{w.hour}").random() < WF2.arena_odds(w)
+            WF2.apply_arena_result(w, pend["setup"], {"winner": 0 if won else 1})
+            w.player["pending"] = pend.get("back")
+            return {"ok": True}
         if pend["setup"].get("hideout"):
             WF2.assault_hideout(w, p, w.settlements[pend["setup"]["hideout"]])
+        elif pend["setup"].get("siege_town"):
+            s = w.settlements.get(pend["setup"]["siege_town"])
+            if s and s.siege:
+                WF2.assault(w, s, WF2.siege_camp(w, s))
         else:
             att, dfn = w.parties.get(pend["att"]), w.parties.get(pend["dfn"])
             if att and dfn and att.alive and dfn.alive:
                 WF2.field_battle(w, att, dfn)
         _next_captive(w)
+        return {"ok": True}
+    if kind == "assault_ready":
+        from . import warfare as WF2
+        s = w.settlements[pend["settlement"]]
+        w.player["pending"] = None
+        camp = WF2.siege_camp(w, s)
+        if not s.siege or not camp:
+            return {"ok": True}
+        if action == "assault3d":
+            w.player["pending"] = {"type": "battle", "setup": WF2.siege_setup(w, s, camp), "att": p.id, "dfn": s.id}
+        elif action == "assault":
+            WF2.assault(w, s, camp)
+            _next_captive(w)
+        elif action == "wait":
+            s.siege["wait_until"] = w.hour + 24
         return {"ok": True}
     if kind == "captive":
         r = _captive_act(w, p, w.heroes[pend["hero"]], action)
@@ -747,6 +832,33 @@ def act(w: World, action: str, data: dict) -> dict:
             Q.deliver(w, q)
             return {"ok": True, "message": f"差事完成，得赏{q['reward']}金"}
         return {"ok": False, "message": "货物不够"}
+    if kind == "settlement" and action == "arena":
+        w.player["pending"] = {"type": "arena", "town": pend["id"], "back": pend}
+        return {"ok": True}
+    if kind == "arena":
+        s = w.settlements[pend["town"]]
+        if action == "back":
+            w.player["pending"] = pend.get("back")
+            return {"ok": True}
+        bet = int(data.get("choice", 0) or 0)
+        if bet > p.gold:
+            return {"ok": False, "message": "钱不够"}
+        from . import warfare as WF3
+        w.player.setdefault("arena_cd", {})[s.id] = w.day + int(B.arena.cooldown_days)
+        w.player["pending"] = {"type": "battle", "setup": WF3.arena_setup(w, p, s, bet), "att": p.id, "dfn": s.id,
+                               "back": pend.get("back")}
+        return {"ok": True}
+    if kind == "settlement" and action == "manage":
+        w.player["pending"] = {"type": "fief", "id": pend["id"], "back": pend}
+        return {"ok": True}
+    if kind == "fief":
+        return _fief_act(w, p, w.settlements[pend["id"]], pend, action)
+    if kind == "event":
+        from . import events as EV
+        if action == "choose":
+            return EV.choose(w, pend, int(data.get("choice", -1)))
+        w.player["pending"] = None
+        return {"ok": True}
     if kind == "quest":
         from . import quests as Q
         back = pend.get("back")
@@ -943,7 +1055,8 @@ def act(w: World, action: str, data: dict) -> dict:
             for o in w.kingdom_heroes(h.kingdom):
                 o.adjust_rel(PID, 5)
             w.log("player", f"你向{h.name}称臣，拜官受职，成为{kingdom_name(w, h.kingdom)}之臣！", player=True)
-            return {"ok": True, "message": "你拜官受职了"}
+            v = _grant_village(w, h)
+            return {"ok": True, "message": "你拜官受职了" + (f"，受封{v.name}为食邑" if v else "")}
         if action == "renounce":
             kid = h.kingdom
             was_vassal = w.player.get("kingdom") == kid
@@ -954,6 +1067,9 @@ def act(w: World, action: str, data: dict) -> dict:
                 s.owner = w.kingdoms[kid].ruler
                 for vid in s.villages:
                     w.settlements[vid].owner = s.owner
+            for v in villages_of(w):
+                town = parent_town(w, v)
+                v.owner = town.owner if town else w.kingdoms[kid].ruler
             h.adjust_rel(PID, -20 if was_vassal else -5)
             w.log("player", f"你脱离了{kingdom_name(w, kid)}", player=True)
             return {"ok": True}
@@ -967,8 +1083,15 @@ def battle_result(w: World, result: dict) -> dict:
     if not pend or pend.get("type") != "battle":
         return {"ok": False, "message": "当前没有进行中的战斗"}
     w.player["pending"] = None
+    if pend["setup"].get("arena"):
+        WF.apply_arena_result(w, pend["setup"], result or {})
+        w.player["pending"] = pend.get("back")           # back in the town
+        return {"ok": True, "event": None}
     if pend["setup"].get("hideout"):
         WF.apply_hideout_result(w, pend["setup"], result or {})
+        ev = {}
+    elif pend["setup"].get("siege_town"):
+        WF.apply_siege_result(w, pend["setup"], result or {})
         ev = {}
     else:
         ev = WF.apply_battle_result(w, pend["setup"], result or {})
@@ -1056,6 +1179,8 @@ def daily(w: World) -> None:
         return
     from . import quests as Q
     Q.daily(w)
+    from . import events as EV
+    EV.daily(w)
     # a vassal who missed the call (busy in a menu when the army formed) is summoned the next day
     kid = w.player.get("kingdom")
     if kid and not w.player.get("following") and not w.player.get("pending"):
@@ -1064,7 +1189,10 @@ def daily(w: World) -> None:
                 summon(w, w.heroes[a.leader], a.id)
                 if w.player.get("pending"):
                     break
-    # fiefs you hold
+    # fiefs you hold: your 食邑 villages, then your towns with their villages
+    for v in villages_of(w):
+        if v.raided_until <= w.hour:
+            p.gold += v.prosperity * B.economy.village_tax_per_hearth * B.player.fief_village_rent
     for s in w.fiefs_of(PID):
         p.gold += s.tax_today
         p.gold -= T.upkeep(s.garrison) * B.economy.garrison_upkeep_share
@@ -1114,6 +1242,144 @@ def daily(w: World) -> None:
         p.xp[tid] -= n * t["xp"]
         p.gold -= n * t["upgrade_cost"]
     T.prune(p.troops)
+
+
+# ------------------------------------------------------------- the arena (比武)
+def _arena_menu(w: World, p: Party, s) -> dict:
+    A = B.arena
+    wins = int(w.player.get("arena_wins", 0))
+    lines = [f"{s.name}城中的擂台。台上用木刀、木棍、包了头的枪，打倒对手即胜，伤不了性命。",
+             f"你在擂台上赢过{wins}场。连赢下去，上台的对手会越来越强。",
+             f"赢了：赏钱{A.prize}金、名望+{A.renown}；下了注的，赢了按一赔一。"]
+    opts = [_opt("bet", "上台，不下注", choice=0)]
+    for b in A.bets:
+        opts.append(_opt("bet", f"押{b}金（赢了得回{b * 2}）", p.gold >= b, "钱不够", choice=b))
+    opts.append(_opt("back", "算了"))
+    return {"type": "arena", "title": f"{s.name}·擂台", "text": "\n".join(lines), "options": opts}
+
+
+# ------------------------------------------------------------- managing your fiefs
+def _fief_cd(w: World, s, what: str) -> int:
+    """Days until `what` can be done again here (0 = now)."""
+    return max(0, int(w.player.setdefault("fief_cd", {}).get(f"{s.id}:{what}", 0)) - w.day)
+
+
+def _fief_menu(w: World, p: Party, s) -> dict:
+    F = B.fief
+    lines = [f"{s.name} · 你的{'食邑' if s.kind == 'village' else '封地'}",
+             f"繁荣 {s.prosperity:.0f}" + ("" if s.kind == "village" else
+                                         f" · 民心 {s.loyalty:.0f} · 守军 {T.healthy(s.garrison)}（{T.describe_classes(s.garrison)}）"
+                                         f" · 城墙 {s.walls} 级")]
+    opts = []
+
+    def _o(oid: str, label: str, ok: bool, why: str) -> dict:
+        return _opt(oid, label, ok, "" if ok else why)
+
+    if s.kind == "village":
+        lines.append("食邑的租税按繁荣每天交给你。修渠垦田能让村子更富，租税也跟着涨。")
+        cd = _fief_cd(w, s, "farm")
+        cost = int(F.farm_cost)
+        opts.append(_o("farm", f"修渠垦田（繁荣 +{F.farm_prosperity:.0f}，{cost}金）",
+                         p.gold >= cost and cd == 0 and s.prosperity < F.farm_max,
+                         f"{cd}天后才能再修" if cd else ("钱不够" if p.gold < cost else "已经修到头了")))
+    else:
+        if s.loyalty < B.loyalty.rebellion_threshold + 10:
+            lines.append("【民心不稳】民心太低会叛乱（异族统治的城池尤其如此）：赈济百姓、多留守军都能安定人心。")
+        inf = sum(v[0] for t, v in p.troops.items() if TROOPS[t]["cls"] == "inf")
+        k_in = min(F.garrison_step, inf)
+        opts.append(_o("garrison_in", f"留下{k_in}名步卒守城（你还有{inf}名步卒）", k_in > 0, "你没有步卒可留"))
+        room = limit(w) - T.total(p.troops)
+        k_out = min(F.garrison_step, T.healthy(s.garrison), room)
+        opts.append(_o("garrison_out", f"从守军中抽调{k_out}人随你出征", k_out > 0,
+                         "部队已满" if room <= 0 else "守军不能再少了"))
+        cost = int(F.wall_cost * (s.walls + 1))
+        cd = _fief_cd(w, s, "walls")
+        opts.append(_o("walls", f"加固城墙（{s.walls}→{s.walls + 1}级，{cost}金）",
+                         s.walls < F.wall_max and p.gold >= cost and cd == 0,
+                         "城墙已经修到最高" if s.walls >= F.wall_max else (f"工匠还在干活，{cd}天后" if cd else "钱不够")))
+        cost = int(F.relief_cost)
+        cd = _fief_cd(w, s, "relief")
+        opts.append(_o("relief", f"开仓赈济（民心 +{F.relief_loyalty:.0f}，{cost}金）",
+                         p.gold >= cost and cd == 0 and s.loyalty < 100,
+                         f"{cd}天后才能再赈济" if cd else "钱不够"))
+    opts.append(_opt("back", "返回"))
+    return {"type": "fief", "title": f"{s.name}·{'食邑' if s.kind == 'village' else '封地'}事务", "text": "\n".join(lines),
+            "options": opts}
+
+
+def _fief_act(w: World, p: Party, s, pend: dict, action: str) -> dict:
+    F = B.fief
+    if s.owner != PID or action == "back":
+        w.player["pending"] = pend.get("back")
+        return {"ok": True}
+    cds = w.player.setdefault("fief_cd", {})
+    rng = random.Random(f"{w.seed}:fief:{w.hour}")
+    if action == "garrison_in":
+        inf = {t: v for t, v in p.troops.items() if TROOPS[t]["cls"] == "inf"}
+        moved = T.take_healthy(inf, F.garrison_step, rng)
+        for t, v in moved.items():
+            p.troops[t][0] -= v[0]
+            T.add(s.garrison, t, v[0])
+        T.prune(p.troops)
+        return {"ok": True, "message": f"留下{T.healthy(moved)}人守城"}
+    if action == "garrison_out":
+        k = min(F.garrison_step, T.healthy(s.garrison), limit(w) - T.total(p.troops))
+        moved = T.take_healthy(s.garrison, k, rng, low_tier_first=False)
+        T.merge(p.troops, moved)
+        return {"ok": True, "message": f"抽调了{T.healthy(moved)}名守军"}
+    if action == "walls" and s.walls < F.wall_max:
+        cost = int(F.wall_cost * (s.walls + 1))
+        if p.gold >= cost and _fief_cd(w, s, "walls") == 0:
+            p.gold -= cost
+            s.walls += 1
+            cds[f"{s.id}:walls"] = w.day + int(F.wall_days)
+            w.log("player", f"你出钱加固了{s.name}的城墙（{s.walls}级）", player=True, settlement=s.id)
+            return {"ok": True, "message": f"城墙加固到{s.walls}级"}
+    if action == "relief":
+        cost = int(F.relief_cost)
+        if p.gold >= cost and _fief_cd(w, s, "relief") == 0:
+            p.gold -= cost
+            s.loyalty = min(100.0, s.loyalty + F.relief_loyalty)
+            cds[f"{s.id}:relief"] = w.day + int(F.relief_days)
+            w.player["renown"] = round(w.player["renown"] + F.relief_renown, 1)
+            w.log("player", f"你在{s.name}开仓赈济，百姓感念", player=True, settlement=s.id)
+            return {"ok": True, "message": f"民心 +{F.relief_loyalty:.0f}"}
+    if action == "farm":
+        cost = int(F.farm_cost)
+        if p.gold >= cost and _fief_cd(w, s, "farm") == 0 and s.prosperity < F.farm_max:
+            p.gold -= cost
+            s.prosperity = min(F.farm_max, s.prosperity + F.farm_prosperity)
+            cds[f"{s.id}:farm"] = w.day + int(F.farm_days)
+            w.log("player", f"你在食邑{s.name}修渠垦田", player=True, settlement=s.id)
+            return {"ok": True, "message": f"繁荣 +{F.farm_prosperity:.0f}"}
+    return {"ok": False, "message": "做不到"}
+
+
+# ------------------------------------------------------------- 食邑 (Warband: a village when you swear fealty)
+def parent_town(w: World, v):
+    return next((s for s in w.settlements.values() if v.id in getattr(s, "villages", [])), None)
+
+
+def villages_of(w: World) -> list:
+    """Villages held by the player on their own (not as part of a town the player holds)."""
+    return [s for s in w.settlements.values() if s.kind == "village" and s.owner == PID
+            and not ((t := parent_town(w, s)) and t.owner == PID)]
+
+
+def _grant_village(w: World, ruler):
+    """On swearing fealty the ruler hands the new vassal one of his own villages as a 食邑."""
+    if villages_of(w):
+        return None
+    mine = [w.settlements[vid] for s in w.fiefs_of(ruler.id) for vid in s.villages]
+    if not mine:
+        mine = [w.settlements[vid] for s in w.settlements.values() if s.kind in ("town", "castle")
+                and s.faction == ruler.kingdom for vid in s.villages]
+    if not mine:
+        return None
+    v = min(mine, key=lambda x: x.prosperity)              # the modest one
+    v.owner = PID
+    w.log("player", f"{ruler.name}将{v.name}赐给你为食邑，每日的租税归你", player=True, settlement=v.id)
+    return v
 
 
 # ------------------------------------------------------------- dialogue
@@ -1203,6 +1469,8 @@ def advice(w: World) -> list[str]:
     renown = w.player["renown"]
     if n < 15:
         out.append("人手太少，经不起一仗：先去城里或村落招募志愿兵。")
+    if renown < 40 and p.gold < 600 and len(out) < 3:
+        out.append("手头紧、名声小：可以去城里的擂台比武（木兵器，不伤性命），赢了有赏钱和名望。")
     elif n < limit(w) * 0.6 and p.gold > 300:
         out.append(f"部队还能扩充（{T.total(p.troops)}/{limit(w)}）：进城、进村招募，士兵每天操练会自动升级。")
     if wounded > n * 0.4 and wounded >= 8:
@@ -1221,6 +1489,16 @@ def advice(w: World) -> list[str]:
             out.append("你正随军出征：跟着统帅走，他围城时你会自动加入；城破之后你就是攻城功臣。")
         else:
             out.append("你是封臣但还没有封地：本国召集军团时应召随军，攻下城池才能在分封时争得一席。")
+    for f in w.fiefs_of(PID):
+        if f.loyalty < B.loyalty.rebellion_threshold + 15:
+            out.append(f"{f.name}民心只有{f.loyalty:.0f}，太低会叛乱：进城「处理封地事务」开仓赈济、多留些守军。")
+            break
+        if T.healthy(f.garrison) < 30:
+            out.append(f"{f.name}守军只有{T.healthy(f.garrison)}人，敌军一来就守不住：留些步卒守城。")
+            break
+    if villages_of(w) and not w.fiefs_of(PID) and len(out) < 3:
+        v = villages_of(w)[0]
+        out.append(f"你的食邑{v.name}每天交租；有闲钱可以去那里修渠垦田，租税会涨。")
     known = [w.settlements[s] for s in w.player.get("known_hideouts", []) if s in w.settlements and w.settlements[s].active]
     if known and n >= 20:
         near = min(known, key=lambda s: dist(s.pos, p.pos))
@@ -1245,7 +1523,7 @@ def view(w: World) -> dict:
         "wars": list(w.player["wars"]), "kingdom": w.player.get("kingdom"), "contract": w.player.get("contract"),
         "contract_until": w.player.get("contract_until", 0), "contract_pay": w.player.get("contract_pay", 0),
         "side": side(w), "limit": limit(w), "cargo": dict(p.cargo), "cargo_cap": cargo_cap(p),
-        "fiefs": [s.id for s in w.fiefs_of(PID)], "relations": rel,
+        "fiefs": [s.id for s in w.fiefs_of(PID)], "villages": [v.id for v in villages_of(w)], "relations": rel,
         "origin": w.player.get("origin"), "background": w.player.get("background"),
         "origin_name": (f"{CULTURES[w.kingdoms[w.player['origin']].culture]['name']}（{w.kingdoms[w.player['origin']].name}）"
                         if w.player.get("origin") in w.kingdoms else ""),

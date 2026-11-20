@@ -7,6 +7,8 @@ LLM 只在开发时用来**写和打磨**这些内容（`server/tools/author.py`
 | 文件 | 内容 | 谁读 |
 |---|---|---|
 | `dialogue_*.toml` | 与将军、君主交谈的台词（按话题分文件） | `warlords/dialogue.py`、`warlords/content.py` |
+| `quests.toml` | 城主托付差事时的说法（按差事种类、国家口吻、是否君主），人工撰写 | `warlords/quests.py` |
+| `events.toml` | 大地图小事件：流民来投、逃兵、疫病、暑病、城主设宴、名士来投、寺僧化缘、路遇伤兵、山贼投诚、坞堡犒军、欠饷、同乡投军；人工撰写 | `warlords/events.py` |
 | `spec/dialogue.toml` | 台词需求表：每个话题在什么情形下需要什么台词、各国口吻 | `tools/author.py` |
 | `drafts/` | LLM 写的草稿和审稿记录（`*.review.md`），审阅后用 `accept` 并入 | 人 |
 
@@ -49,3 +51,24 @@ cd server
 
 编辑时发现的常见问题（已写进写作和审稿的提示）：许诺游戏里没有的事（「随我出征」「价钱好说」）、
 编造和玩家的往事、占位符含义用错（`{name}` 是说话人自己）、君主的自称（皇帝「朕」，王与公「孤/本王」，可汗「我」）。
+
+## 事件格式（events.toml）
+
+```toml
+[[event]]
+id = "refugees"
+title = "流民"
+when = ["near_kind=village", "room>=5", "!inside"]   # 条件（事实见 warlords/events.py 的 facts()）
+chance = 0.05                                       # 每天触发的概率（还受 balance.toml [events] 的间隔和总倍率限制）
+cooldown = 25                                       # 同一事件至少隔几天
+vars = { n = [5, 12] }                              # 随机数；cost_per = 6 表示 cost = n × 6
+text = "……{village}……{n}……"
+[[event.option]]
+label = "收留他们（{n}人入伍，花{cost}金）"
+require = ["gold>=cost"]                            # 选项的条件，可以和 vars 比较
+effects = { gold = "-cost", recruit = "n", renown = 1 }
+result = "写进编年史的一句话"
+```
+
+效果：`gold` `renown` `recruit`（附近村镇文化的一级兵）`recruit2`（二级兵）`recruit_wounded`（带伤入伍）`recruit_bandit`
+`rel_owner`（附近村镇的领主）`rel_kingdom`（那一国所有将军）`heal`（伤兵痊愈的比例）`sicken`（病倒的比例）`desert`（逃走的比例）。

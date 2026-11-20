@@ -30,6 +30,7 @@ var roads: Array = []
 var fords: Array = []        # ferry crossings over the great river
 var terrain_rect: TextureRect
 var zoom := 1.0
+const MAX_ZOOM := 16.0       # closest zoom, in close_zoom() units (was 9)
 var offset := Vector2.ZERO
 var fit_zoom := 1.0
 var sel_kind := ""
@@ -299,7 +300,7 @@ func fit() -> void:
 
 func focus(world_pos: Vector2, z: float = -1.0) -> void:
 	if z > 0:
-		zoom = clamp(z, fit_zoom * 0.9, close_zoom(9.0))
+		zoom = clamp(z, fit_zoom * 0.9, close_zoom(MAX_ZOOM))
 	offset = size * 0.5 - world_pos * zoom
 	_clamp_view()
 
@@ -320,7 +321,7 @@ func _clamp_view() -> void:
 
 
 func _scale() -> float:
-	return clamp(sqrt(zoom / max(close_zoom(1.0), 0.001)), 0.7, 1.9)
+	return clamp(sqrt(zoom / max(close_zoom(1.0), 0.001)), 0.7, 2.4)
 
 
 ## Zoom levels are tuned for a 1200-unit-wide world; a bigger world (more km on the same screen)
@@ -336,7 +337,7 @@ func _gui_input(event: InputEvent) -> void:
 		if mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
 			var before := to_world(mb.position)
 			var f := 1.15 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.15
-			zoom = clamp(zoom * f, fit_zoom * 0.9, close_zoom(9.0))
+			zoom = clamp(zoom * f, fit_zoom * 0.9, close_zoom(MAX_ZOOM))
 			offset = mb.position - before * zoom
 			_clamp_view()
 			accept_event()

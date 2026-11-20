@@ -29,7 +29,7 @@ static func _think(a: Agent, b) -> void:
 	var anchor: Vector3 = a.global_position
 	if t in ["hold", "stand", "follow"]:
 		anchor = b.slot_of(a)
-		engage = 7.0 if a.division == "inf" else (30.0 if a.division == "cav" else 0.0)
+		engage = 7.0 if a.division == "inf" else (30.0 if a.division == "cav" else (0.0 if a.ammo > 0 else 5.0))
 	elif t == "retreat":
 		a.ai["target"] = null
 		return
@@ -47,7 +47,11 @@ static func _think(a: Agent, b) -> void:
 			limit = maxf(engage, b.rules.num("ai", "archer_range", 85))
 		if from_anchor > limit and d > limit:
 			continue
+		if b.siege_def >= 0 and not ranged_ok and t in ["hold", "stand"] and b.field.level(e.position) != b.field.level(anchor):
+			continue          # posted on the wall: don't go down the ladder after him
 		var s := d + (6.0 if int(b.attackers_on.get(e.get_instance_id(), 0)) >= crowd and e != cur else 0.0)
+		if b.siege_def >= 0 and not (ranged_ok and a.using_ranged) and b.field.level(e.position) != b.field.level(a.position):
+			s += 18.0          # siege: rather fight the man on my own level than the one up on the wall
 		if ranged_ok and a.using_ranged and d > 12.0 and b.engaged_with_ally(e, a.side):
 			s += 40.0          # don't shoot into a melee where our own men are fighting
 		if e.routed:
@@ -118,6 +122,8 @@ static func _idle_move(a: Agent, b) -> void:
 
 
 static func _steer(a: Agent, b, dest: Vector3, mag: float) -> void:
+	if b.siege_def >= 0:
+		dest = b.field.waypoint(a.global_position, dest)     # by way of the ladders and stairs
 	var d := dest - a.global_position
 	d.y = 0
 	if d.length() < 0.05:
@@ -142,6 +148,12 @@ static func _face(a: Agent, p: Vector3) -> void:
 static func _melee(a: Agent, b, tgt: Agent) -> void:
 	var d := Vector2(tgt.global_position.x - a.global_position.x, tgt.global_position.z - a.global_position.z).length()
 	var r := a.reach() + (0.25 if not tgt.mounted else 0.6)
+	if b.siege_def >= 0 and absf(tgt.global_position.y - a.global_position.y) > 1.6:
+		# he's up on the wall (or I am): find the way round instead of swinging at his feet
+		_steer(a, b, tgt.global_position, 1.0)
+		if a.state == Agent.READY:
+			a.release_attack()
+		return
 	if d > r * 0.85:
 		_steer(a, b, tgt.global_position, 1.0)
 		a.intent_run = d > 4.0
@@ -184,7 +196,7 @@ static func _melee(a: Agent, b, tgt: Agent) -> void:
 		a.ai["hold"] = randf_range(0.0, 0.25)
 	elif a.state == Agent.READY and a.state_t >= a.ready_time() + float(a.ai.get("hold", 0.0)) and d <= r:
 		a.release_attack()
-		a.ai["cd"] = now + b.rules.num("ai", "attack_cooldown", 0.35) + randf_range(0.0, 0.5)
+		a.ai["cd"] = now + b.rules.num("ai", "attack_cooldown", 0.35) + b.ai_skill("attack_cooldown") + randf_range(0.0, 0.5)
 
 
 static func _ally_ahead(a: Agent, b, tgt_dist: float):
@@ -234,13 +246,15 @@ static func _defend(a: Agent, b) -> void:
 	var key := "%d_%d" % [threat.get_instance_id(), int(threat.ai.get("swing_id", 0))]
 	if a.ai.get("block_key", "") != key:
 		a.ai["block_key"] = key
-		var p: float = b.rules.num("ai", "block_base", 0.35) + b.rules.num("ai", "block_per_tier", 0.12) * a.tier()
+		var p: float = b.rules.num("ai", "block_base", 0.35) + b.rules.num("ai", "block_per_tier", 0.12) * a.tier() \
+			+ b.ai_skill("block")
 		if not a.shield.is_empty():
 			p += 0.25
 		if a.is_player:
 			p = 0.0
 		a.ai["block_ok"] = randf() < p
-		a.ai["block_at"] = b.time + maxf(0.05, b.rules.num("ai", "reaction", 0.22) + b.rules.num("ai", "reaction_per_tier", -0.03) * a.tier())
+		a.ai["block_at"] = b.time + maxf(0.05, b.rules.num("ai", "reaction", 0.22) + b.rules.num("ai", "reaction_per_tier", -0.03) * a.tier()
+			+ b.ai_skill("reaction"))
 		a.ai["block_wrong"] = randi() % 4
 	if not bool(a.ai.get("block_ok", false)) or b.time < float(a.ai.get("block_at", 0.0)):
 		return
@@ -328,5 +342,5 @@ static func _shoot(a: Agent, b, tgt: Agent, dt: float) -> void:
 			if b.ally_in_line(a, p):
 				a.ai["aim_extra"] = float(a.ai.get("aim_extra", 0.3)) + 0.4   # wait for a clear shot
 				return
-			var err: float = maxf(0.2, b.rules.num("ranged", "ai_aim_error", 1.4) - 0.25 * a.tier())
+			var err: float = maxf(0.2, b.rules.num("ranged", "ai_aim_error", 1.4) - 0.25 * a.tier() + b.ai_skill("aim_error"))
 			a.release_shot(err)

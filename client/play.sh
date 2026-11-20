@@ -4,11 +4,16 @@
 #   TIER=0 ./play.sh                只用规则 AI（不调用 LLM）
 #   TIER=2 PROVIDER=openai ./play.sh
 #   SEED=7 ./play.sh                换一张地图
+#   GPU=igpu ./play.sh              用核显（默认有 NVIDIA 驱动就用独显）
 set -euo pipefail
 project_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 sim_dir="${WARLORDS_DIR:-$project_dir/../server}"
 port="${PORT:-8765}"
 godot_bin="${GODOT_BIN:-godot}"
+# 双显卡笔记本：有 NVIDIA 驱动就用独显（PRIME 渲染卸载）；GPU=igpu 则用核显
+if [ "${GPU:-auto}" != "igpu" ] && [ -e /proc/driver/nvidia/version ]; then
+  export __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only
+fi
 command -v "$godot_bin" >/dev/null 2>&1 || godot_bin=godot4
 
 py="python3"

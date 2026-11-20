@@ -32,6 +32,15 @@ def _giver_name(w: World, q: dict) -> str:
     return h.name if h else w.settlements[q["town"]].name
 
 
+def _say(w: World, owner, s, kind: str, default: str, **fill) -> str:
+    """The giver's words for a job, from content/quests.toml in his culture's voice."""
+    from . import content as C
+    ruler = owner.kingdom in w.kingdoms and w.kingdoms[owner.kingdom].ruler == owner.id
+    line = C.pick(kind, {"culture": owner.culture, "ruler": ruler}, dict(fill, town=s.name),
+                  seed=f"{w.seed}:{s.id}:{w.day}", kind="quests") or default
+    return f"{owner.name}：「{line}」"
+
+
 def offers(w: World, s) -> list[dict]:
     """The jobs on offer in town/castle `s` today (stable for the day, so reopening the menu shows the same)."""
     Q = B.quests
@@ -56,7 +65,8 @@ def offers(w: World, s) -> list[dict]:
         out.append({"id": base_id + "h", "kind": "hideout", "giver": owner.id, "town": s.id, "target": h.id,
                     "reward": Q.hideout_gold, "renown": Q.hideout_renown, "days": Q.hideout_days,
                     "title": f"剿灭匪巢{h.name}",
-                    "text": f"{owner.name}：「{h.name}的贼人屡屡劫掠{s.name}的商旅，足下若能剿灭此巢，必有重谢。」"})
+                    "text": _say(w, owner, s, "hideout", f"{h.name}的贼人屡屡劫掠{s.name}的商旅，足下若能剿灭此巢，必有重谢。",
+                                 lair=h.name)})
     # 追剿匪帮: a band roaming near the town
     bands = [b for b in w.parties.values() if b.alive and b.kind == "bandit" and dist(b.pos, s.pos) < Q.bandit_range
              and b.id not in taken]
@@ -67,7 +77,8 @@ def offers(w: World, s) -> list[dict]:
         out.append({"id": base_id + "b", "kind": "bandits", "giver": owner.id, "town": s.id, "target": b.id,
                     "reward": Q.bandit_gold, "renown": Q.bandit_renown, "days": Q.bandit_days,
                     "title": f"追剿{b.name}",
-                    "text": f"{owner.name}：「一伙{b.name}在城外出没，百姓不敢出城。替我追上去，把他们收拾了。」"})
+                    "text": _say(w, owner, s, "bandits", f"一伙{b.name}在城外出没，百姓不敢出城。替我追上去，把他们收拾了。",
+                                 band=b.name)})
     # 送信: to another lord, of any realm at peace with the giver (or of his own)
     others = [h for h in w.heroes.values() if h.id != owner.id and h.captive_of is None and h.party
               and (h.kingdom == owner.kingdom or not w.at_war(owner.kingdom, h.kingdom))]
@@ -78,7 +89,8 @@ def offers(w: World, s) -> list[dict]:
         out.append({"id": base_id + "l", "kind": "letter", "giver": owner.id, "town": s.id, "target": t.id,
                     "reward": gold, "renown": Q.letter_renown, "days": Q.letter_days,
                     "title": f"送信给{t.name}",
-                    "text": f"{owner.name}：「这封书信务必亲手交给{w.kingdoms[t.kingdom].name}的{t.name}。他行踪不定，你得去找他。」"})
+                    "text": _say(w, owner, s, "letter", f"这封书信务必亲手交给{w.kingdoms[t.kingdom].name}的{t.name}。",
+                                 target=t.name, target_kingdom=w.kingdoms[t.kingdom].name)})
     # 运送物资: a good the town market is short of
     if s.kind == "town":
         # everyday goods only (grain, timber, salt, iron, cloth): an errand, not a fortune
@@ -89,8 +101,9 @@ def offers(w: World, s) -> list[dict]:
         out.append({"id": base_id + "g", "kind": "goods", "giver": owner.id, "town": s.id, "target": s.id,
                     "good": g, "qty": qty, "reward": int(price * qty + Q.goods_bonus), "renown": Q.goods_renown,
                     "days": Q.goods_days, "title": f"运{qty}份{GOODS[g][0]}到{s.name}",
-                    "text": f"{owner.name}：「{s.name}的{GOODS[g][0]}眼看就要断了。你若能运来{qty}份，我按市价收下，"
-                            f"另有{Q.goods_bonus}金辛苦钱。」" + _where_to_buy(w, s, g, qty)})
+                    "text": _say(w, owner, s, "goods", f"{s.name}的{GOODS[g][0]}眼看就要断了。你若能运来{qty}份，我按市价收下，"
+                                 f"另有{Q.goods_bonus}金辛苦钱。", good=GOODS[g][0], qty=qty, bonus=Q.goods_bonus)
+                            + _where_to_buy(w, s, g, qty)})
     rng.shuffle(out)
     return out[:Q.offers_per_town]
 

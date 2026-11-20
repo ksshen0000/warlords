@@ -1,0 +1,297 @@
+# 大地图上的小事件（格式见 warlords/events.py）。人工撰写。
+# 占位符：{place}/{village} 附近的村镇  {lord} 那里的领主  {culture} 那里的风俗（如「江左」）  {kingdom} 那里所属的国
+#         以及每个事件的 vars：{n} 人数  {cost} 花费  {half} 一半花费  {gain} 收入
+
+# ------------------------------------------------------------------ 流民来投
+[[event]]
+id = "refugees"
+title = "流民"
+when = ["near_kind=village", "room>=5", "!inside"]
+chance = 0.05
+cooldown = 25
+vars = { n = [5, 12] }
+cost_per = 6
+text = """{village}外的土坡上，蹲着一群面黄肌瘦的流民，男女老少，约莫{n}个能拿得动刀的汉子。
+为首的老者拦住你的马头：「将军，北边的仗打过来了，田烧了，坞堡不收人。给口饭吃，这些后生跟你走。」"""
+
+[[event.option]]
+label = "收留他们（{n}人入伍，花{cost}金置办口粮衣甲）"
+require = ["gold>=cost"]
+why = "钱不够（要{cost}金）"
+effects = { gold = "-cost", recruit = "n", renown = 1 }
+result = "你收留了{village}外的{n}个流民后生，编入队伍。"
+
+[[event.option]]
+label = "分些粮食，打发他们去{place}安身（{half}金）"
+require = ["gold>=half"]
+why = "钱不够"
+effects = { gold = "-half", renown = 3, rel_owner = 2 }
+result = "你拿出粮食救济{village}外的流民。消息传开，人都说你仁义。"
+
+[[event.option]]
+label = "自顾不暇，策马而过"
+result = ""
+
+# ------------------------------------------------------------------ 逃兵
+[[event]]
+id = "deserters"
+title = "逃兵"
+when = ["has_owner", "room>=3", "!inside", "!same_realm"]
+chance = 0.03
+cooldown = 30
+vars = { n = [3, 7] }
+text = """几个丢了旗号的兵卒从{place}方向的林子里钻出来，见了你的队伍，扔下兵器跪在路边。
+他们原是{kingdom}的兵，说是欠饷半年、上官克扣，杀了伍长逃出来的。「愿投足下麾下，只求一口饱饭。」"""
+
+[[event.option]]
+label = "收编（{n}名老兵入伍；{kingdom}诸将知道了会不快）"
+effects = { recruit2 = "n", rel_kingdom = -2 }
+result = "你收编了{n}个{kingdom}的逃兵。他们是见过阵仗的老兵。"
+
+[[event.option]]
+label = "绑了送还{lord}（{kingdom}诸将会记你的情）"
+effects = { rel_kingdom = 2, rel_owner = 3, renown = 1 }
+result = "你把{n}个逃兵绑了送还{lord}。"
+
+[[event.option]]
+label = "给些干粮，放他们走"
+effects = { renown = 1 }
+result = "你给了逃兵一些干粮，放他们自寻生路去了。"
+
+# ------------------------------------------------------------------ 营中疫病
+[[event]]
+id = "sickness"
+title = "疫病"
+when = ["troops>=25", "!inside", "biome=marsh", "near_kind"]
+chance = 0.08
+cooldown = 30
+cost_per = 2.5
+cost_of = "troops"
+text = """连日在湿地里行军，营中有人开始发热、腹泻，一个传一个。军中的老卒说这是瘴气，再拖下去要倒一片。
+附近{place}有个游方郎中，说他的药能止住，只是价钱不低。"""
+
+[[event.option]]
+label = "重金买药（{cost}金）"
+require = ["gold>=cost"]
+why = "钱不够（要{cost}金）"
+effects = { gold = "-cost" }
+result = "你买下郎中的药，营中的疫病止住了。"
+
+[[event.option]]
+label = "硬撑过去（约一成半的人会病倒）"
+effects = { sicken = 0.15 }
+result = "营中疫病流行，不少人病倒了。"
+
+[[event]]
+id = "sickness_heat"
+title = "暑病"
+when = ["troops>=25", "!inside", "biome=desert", "near_kind"]
+chance = 0.06
+cooldown = 30
+cost_per = 2
+cost_of = "troops"
+text = """烈日下行军，水囊早空了。队伍里接连有人中暑倒下，嘴唇干裂出血。
+向导说往{place}去能找到水，但得绕远路；要么花钱向过路的驼队买水。"""
+
+[[event.option]]
+label = "向驼队买水（{cost}金）"
+require = ["gold>=cost"]
+why = "钱不够"
+effects = { gold = "-cost" }
+result = "你向驼队高价买了水，队伍熬过了这段旱路。"
+
+[[event.option]]
+label = "咬牙赶路（约一成的人会倒下）"
+effects = { sicken = 0.1 }
+result = "旱路上倒下了不少人。"
+
+# ------------------------------------------------------------------ 城主设宴
+[[event]]
+id = "feast"
+title = "设宴"
+when = ["inside", "has_owner", "owner_rel>=5"]
+chance = 0.06
+cooldown = 30
+text = """{lord}听说你进了城，派人送来请帖：今晚府中设宴，请足下赴席。
+席上有歌舞，有{culture}的佳肴，自然也少不了城中的豪族和{lord}的部将。"""
+
+[[event.option]]
+label = "赴宴（与{lord}更亲近，部下也能歇一歇）"
+effects = { rel_owner = 4, heal = 0.25 }
+result = "你赴了{lord}的宴，宾主尽欢。"
+
+[[event.option]]
+label = "推说军务繁忙，婉拒"
+effects = { rel_owner = -1 }
+result = ""
+
+# ------------------------------------------------------------------ 名士来投
+[[event]]
+id = "scholar"
+title = "名士"
+when = ["inside", "renown>=60"]
+chance = 0.03
+cooldown = 60
+vars = { cost = 200 }
+text = """一个穿旧儒衫的中年人在驿馆门口求见。他自称出身寒门，读过几卷兵书，在{place}教过蒙童，
+听说了你的名声，愿为你记室，替你起草文书、结交士人。「束脩不多，只求明主。」"""
+
+[[event.option]]
+label = "以礼聘之（{cost}金，名望大增）"
+require = ["gold>=cost"]
+why = "钱不够（要{cost}金）"
+effects = { gold = "-cost", renown = 8 }
+result = "你礼聘了一位寒门名士为记室。士人间渐渐有了你的名字。"
+
+[[event.option]]
+label = "谢绝"
+result = ""
+
+# ------------------------------------------------------------------ 寺僧化缘
+[[event]]
+id = "monk"
+title = "化缘"
+when = ["near_culture=liang", "!inside"]
+chance = 0.04
+cooldown = 30
+vars = { cost = 60 }
+text = """路边一座小寺，寺前的僧人合十相迎，说寺里正在为阵亡的将士做法会，请施主随喜布施，为你麾下的弟兄祈福。"""
+
+[[event.option]]
+label = "布施{cost}金"
+require = ["gold>=cost"]
+why = "钱不够"
+effects = { gold = "-cost", renown = 2, heal = 0.15 }
+result = "你在路边小寺布施了{cost}金。僧人为你的伤兵诵经，伤兵们精神好了许多。"
+
+[[event.option]]
+label = "道声打扰，走了"
+result = ""
+
+[[event]]
+id = "monk_south"
+title = "化缘"
+when = ["near_culture=zhou", "!inside"]
+chance = 0.02
+cooldown = 40
+vars = { cost = 60 }
+text = """江南多佛寺。一座山寺的知客僧在山门前等你，说住持久闻足下之名，请入寺奉茶，顺便为寺里修缮大殿化些缘。"""
+
+[[event.option]]
+label = "入寺奉茶，布施{cost}金"
+require = ["gold>=cost"]
+why = "钱不够"
+effects = { gold = "-cost", renown = 2, heal = 0.15 }
+result = "你在山寺布施了{cost}金。住持与你谈了半日，你的伤兵也在寺里得了些照料。"
+
+[[event.option]]
+label = "婉辞"
+result = ""
+
+# ------------------------------------------------------------------ 路遇伤兵
+[[event]]
+id = "wounded"
+title = "伤兵"
+when = ["at_war", "room>=4", "!inside"]
+chance = 0.03
+cooldown = 30
+vars = { n = [4, 9] }
+text = """前几日这里打过一仗，路边的沟里还躺着些没人管的伤兵，有的已经没了气，有的还在呻吟。
+看衣甲是附近的乡兵，被自家队伍丢下了。"""
+
+[[event.option]]
+label = "抬上车带走（{n}人，伤好后入伍）"
+effects = { recruit_wounded = "n", renown = 2 }
+result = "你收容了路边的{n}个伤兵。"
+
+[[event.option]]
+label = "留些水和干粮"
+effects = { renown = 1 }
+result = ""
+
+# ------------------------------------------------------------------ 山贼投诚
+[[event]]
+id = "bandit_surrender"
+title = "投诚"
+when = ["troops>=40", "room>=5", "!inside", "renown>=40", "has_owner"]
+chance = 0.02
+cooldown = 45
+vars = { n = [5, 10] }
+text = """一伙山贼的头目带着{n}个手下，在路口拦住你，不是要劫，是要降。
+「早听说了足下的名头，跟着足下吃粮，总比在山里提心吊胆强。」他们手里的刀倒还磨得锋利。"""
+
+[[event.option]]
+label = "收下（{n}个山贼入伍；{place}的领主会不高兴）"
+effects = { recruit_bandit = "n", rel_owner = -2 }
+result = "你收编了{n}个投诚的山贼。"
+
+[[event.option]]
+label = "拿下，送官领赏"
+effects = { renown = 3, rel_owner = 3, gold = 80 }
+result = "你拿下了投诚的山贼，送到{place}领了赏。"
+
+[[event.option]]
+label = "不收，让他们滚"
+result = ""
+
+# ------------------------------------------------------------------ 坞堡犒军
+[[event]]
+id = "wubao_gift"
+title = "犒军"
+when = ["near_kind=village", "same_realm", "!inside", "status=vassal"]
+chance = 0.03
+cooldown = 30
+vars = { gain = 150 }
+text = """{village}的坞堡主听说同为{kingdom}之臣的你路过，打开堡门，抬出酒肉犒劳你的部下，
+临走还捧出一匣钱，说是「略表心意，望将军他日照应乡里」。"""
+
+[[event.option]]
+label = "收下酒肉和钱（{gain}金）"
+effects = { gold = "gain" }
+result = "{village}的坞堡主犒劳了你的部下。"
+
+[[event.option]]
+label = "只领酒肉，钱请收回（名望和{lord}的好感）"
+effects = { renown = 2, rel_owner = 2 }
+result = "你只领了酒肉，把钱还给了{village}的坞堡主。乡里都说你不贪。"
+
+# ------------------------------------------------------------------ 欠饷
+[[event]]
+id = "unpaid"
+title = "欠饷"
+when = ["unpaid", "troops>=15"]
+chance = 0.15
+cooldown = 12
+text = """军饷已经拖了好些日子。营中有人聚在一起嘀咕，几个老兵当面问你：饷钱到底什么时候发？
+再拖下去，怕是要有人卷了铺盖走人。"""
+
+[[event.option]]
+label = "许以下一仗的战利品，好言安抚（名望受损）"
+effects = { renown = -3, desert = 0.04 }
+result = "你许诺下一仗的战利品，暂时稳住了军心，还是有几个人走了。"
+
+[[event.option]]
+label = "杀一儆百"
+effects = { desert = 0.08 }
+result = "你斩了带头闹饷的人。营中没人再敢多嘴，但夜里跑了一些人。"
+
+# ------------------------------------------------------------------ 还乡
+[[event]]
+id = "homeland"
+title = "乡里"
+when = ["homeland", "near_kind=village", "room>=3", "renown>=30", "!inside"]
+chance = 0.04
+cooldown = 40
+vars = { n = [3, 6] }
+text = """{village}的乡音让你想起了故乡。村里的老人认出了你的旗号，说你是从{culture}出去的人里有出息的，
+几个后生已经收拾好包袱，要跟着你去闯一闯。"""
+
+[[event.option]]
+label = "带上他们（{n}个同乡入伍）"
+effects = { recruit = "n", renown = 1 }
+result = "{village}的{n}个同乡后生投到你的麾下。"
+
+[[event.option]]
+label = "劝他们留下种地"
+effects = { rel_owner = 1 }
+result = ""

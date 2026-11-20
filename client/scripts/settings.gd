@@ -29,6 +29,18 @@ var lock_mouse := true
 var edge_scroll := true
 var edge_speed := 1.0
 var battle_size := 120          # 3D battles: most soldiers on the field at once (Warband's battle size)
+# Warband-style difficulty options for 3D battles (indices into the lists below)
+const DMG_LEVELS := [["1/4", 0.25], ["1/2", 0.5], ["全额", 1.0]]
+const AI_LEVELS := ["差", "一般", "好"]
+const SPEED_LEVELS := [["最慢", 0.75], ["慢", 0.875], ["正常", 1.0], ["快", 1.125], ["最快", 1.25]]
+var player_damage := 2           # damage to player
+var ally_damage := 2             # damage to your troops and allies
+var ai_level := 1                # combat AI
+var combat_speed := 2
+var auto_block := false          # block direction: automatic (towards the nearest swing) or by mouse
+var auto_attack := false         # attack direction: automatic or by mouse movement
+var sfx_volume := 0.8            # battle sounds 0..1
+var _diff_label: Label
 
 var _focused := true
 var _armed := false        # lock only after the first click inside the window
@@ -71,6 +83,13 @@ func _load() -> void:
 	edge_scroll = bool(cf.get_value("input", "edge_scroll", edge_scroll))
 	edge_speed = float(cf.get_value("input", "edge_speed", edge_speed))
 	battle_size = int(cf.get_value("battle", "size", battle_size))
+	player_damage = clampi(int(cf.get_value("battle", "player_damage", player_damage)), 0, 2)
+	ally_damage = clampi(int(cf.get_value("battle", "ally_damage", ally_damage)), 0, 2)
+	ai_level = clampi(int(cf.get_value("battle", "ai_level", ai_level)), 0, 2)
+	combat_speed = clampi(int(cf.get_value("battle", "combat_speed", combat_speed)), 0, 4)
+	auto_block = bool(cf.get_value("battle", "auto_block", auto_block))
+	auto_attack = bool(cf.get_value("battle", "auto_attack", auto_attack))
+	sfx_volume = clampf(float(cf.get_value("audio", "sfx", sfx_volume)), 0.0, 1.0)
 
 
 func save() -> void:
@@ -83,7 +102,46 @@ func save() -> void:
 	cf.set_value("input", "edge_scroll", edge_scroll)
 	cf.set_value("input", "edge_speed", edge_speed)
 	cf.set_value("battle", "size", battle_size)
+	cf.set_value("battle", "player_damage", player_damage)
+	cf.set_value("battle", "ally_damage", ally_damage)
+	cf.set_value("battle", "ai_level", ai_level)
+	cf.set_value("battle", "combat_speed", combat_speed)
+	cf.set_value("battle", "auto_block", auto_block)
+	cf.set_value("battle", "auto_attack", auto_attack)
+	cf.set_value("audio", "sfx", sfx_volume)
 	cf.save(PATH)
+
+
+# ------------------------------------------------------------ battle difficulty
+## What the 3D battle reads (setup["difficulty"]).
+func difficulty() -> Dictionary:
+	return {"player_damage": DMG_LEVELS[player_damage][1], "ally_damage": DMG_LEVELS[ally_damage][1],
+		"ai_level": ai_level, "combat_speed": SPEED_LEVELS[combat_speed][1],
+		"auto_block": auto_block, "auto_attack": auto_attack, "sfx_volume": sfx_volume}
+
+
+## Warband shows a difficulty rating for the chosen options; ours adds up to 100%.
+func difficulty_percent() -> int:
+	return [0, 15, 30][player_damage] + [0, 10, 20][ally_damage] + [0, 12, 25][ai_level] \
+		+ (0 if auto_block else 15) + (0 if auto_attack else 10)
+
+
+func _opt(grid: GridContainer, label: String, items: Array, sel: int, tip: String, cb: Callable) -> void:
+	var o := OptionButton.new()
+	for it in items:
+		o.add_item(str(it[0]) if it is Array else str(it))
+	o.select(sel)
+	o.tooltip_text = tip
+	o.item_selected.connect(func(i):
+		cb.call(i)
+		save()
+		_update_diff())
+	_row(grid, label, o)
+
+
+func _update_diff() -> void:
+	if _diff_label:
+		_diff_label.text = "战斗难度 %d%%" % difficulty_percent()
 
 
 # ------------------------------------------------------------ applying
@@ -304,6 +362,40 @@ func _build() -> void:
 	grid.add_child(bs_label)
 	bs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_child(bs)
+
+	# ---- 3D battle difficulty (Warband's options)
+	_diff_label = Label.new()
+	_diff_label.add_theme_color_override("font_color", GOLD)
+	v.add_child(_diff_label)
+	_update_diff()
+	var dg := GridContainer.new()
+	dg.columns = 2
+	dg.add_theme_constant_override("h_separation", 14)
+	dg.add_theme_constant_override("v_separation", 8)
+	v.add_child(dg)
+	_opt(dg, "你受到的伤害", DMG_LEVELS, player_damage, "亲自上阵时你本人（和你的坐骑）受到的伤害比例",
+		func(i): player_damage = i)
+	_opt(dg, "友军受到的伤害", DMG_LEVELS, ally_damage, "你的部下和友军受到的伤害比例",
+		func(i): ally_damage = i)
+	_opt(dg, "战斗 AI", AI_LEVELS, ai_level, "敌我士兵格挡、反应和射箭的本事",
+		func(i): ai_level = i)
+	_opt(dg, "战斗速度", SPEED_LEVELS, combat_speed, "出招、收招的快慢（不影响跑动）",
+		func(i): combat_speed = i)
+	_opt(dg, "格挡方向", ["手动（鼠标方向）", "自动"], 1 if auto_block else 0, "自动：按住右键时自动挡向最近的来招",
+		func(i): auto_block = i == 1)
+	_opt(dg, "攻击方向", ["手动（鼠标方向）", "自动"], 1 if auto_attack else 0, "自动：挑对方没有防住的方向出招",
+		func(i): auto_attack = i == 1)
+
+	var vol := HSlider.new()
+	vol.min_value = 0.0
+	vol.max_value = 1.0
+	vol.step = 0.05
+	vol.value = sfx_volume
+	vol.custom_minimum_size = Vector2(160, 0)
+	vol.value_changed.connect(func(x):
+		sfx_volume = x
+		save())
+	_row(dg, "战斗音效音量", vol)
 
 	v.add_child(_check("垂直同步", vsync, func(on):
 		vsync = on

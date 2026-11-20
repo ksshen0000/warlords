@@ -218,7 +218,7 @@ func _build_ui() -> void:
 	side_margin.add_child(side)
 
 	var head := HBoxContainer.new()
-	head.add_child(_label("战旗领主", 22, GOLD))
+	head.add_child(_label("流民帅：南北朝", 22, GOLD))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
@@ -614,6 +614,10 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 		menu_panel.close()
 		map.follow_id = ""
 		_start_battle(player.menu)
+	elif player.get("menu") != null and str(player.menu.get("type", "")) == "walk":
+		menu_panel.close()
+		map.follow_id = ""
+		_start_walk(player.menu)
 	elif player.get("menu") != null:
 		menu_panel.open(player.menu)
 		map.follow_id = ""
@@ -647,6 +651,7 @@ func _start_battle(m: Dictionary) -> void:
 	_battle = script.new()
 	_battle.preset_setup = m.get("setup", {}).duplicate()
 	_battle.preset_setup["battle_size"] = settings.battle_size
+	_battle.preset_setup["difficulty"] = settings.difficulty()
 	_battle.embedded = true
 	if OS.get_cmdline_user_args().has("--battle-auto"):
 		_battle.auto = true                       # tests: the AI plays your character
@@ -655,6 +660,52 @@ func _start_battle(m: Dictionary) -> void:
 	process_mode = Node.PROCESS_MODE_DISABLED
 	settings.external_mouse = true
 	get_tree().root.add_child(_battle)
+
+
+## "在城中走走": the 3D streets of a town / castle / village (battle/scripts/walk.gd). What the player
+## chose there (talk to the lord, trade, recruit…) comes back as an ordinary menu option.
+func _start_walk(m: Dictionary) -> void:
+	if _battle != null:
+		return
+	if DisplayServer.get_name() == "headless" or OS.get_cmdline_user_args().has("--no3d"):
+		api.act("back")
+		return
+	var script: Script = load("res://battle/scripts/walk.gd")
+	_battle = script.new()
+	_battle.preset_setup = m.get("setup", {}).duplicate()
+	_battle.preset_setup["difficulty"] = settings.difficulty()
+	_battle.preset_setup["_server"] = api.base_url       # conversations in the street go straight to the server
+	_battle.embedded = true
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--walk-capture="):             # tests: screenshot the walk after N s, then leave it
+			var parts := arg.substr(15).split("@")
+			_battle._capture_path = parts[0]
+			_battle._capture_at = float(parts[1]) if parts.size() > 1 else 2.0
+	_battle.closed.connect(_on_walk_closed)
+	visible = false
+	process_mode = Node.PROCESS_MODE_DISABLED
+	settings.external_mouse = true
+	get_tree().root.add_child(_battle)
+
+
+func _on_walk_closed(result: Dictionary) -> void:
+	_battle = null
+	visible = true
+	process_mode = Node.PROCESS_MODE_INHERIT
+	settings.external_mouse = false
+	settings.apply_mouse()
+	var act := str(result.get("action", "back"))
+	if act == "_handoff":
+		api.get_state()                       # the walk's own conversation led somewhere the map handles
+		return
+	if act == "trade":
+		menu_panel.trade_next = true          # the market screen is the client's own: open it on return
+		act = "back"
+	var data := {}
+	for k in ["hero", "choice"]:
+		if result.has(k):
+			data[k] = result[k]
+	api.act(act, data)
 
 
 func _on_battle_closed(result: Dictionary) -> void:
@@ -951,6 +1002,11 @@ func _player_panel() -> String:
 		fiefs.append(_settle_link(sid))
 	if fiefs.size():
 		out += "封地：%s\n" % "、".join(fiefs)
+	var vills: Array[String] = []
+	for sid in player.get("villages", []):
+		vills.append(_settle_link(sid))
+	if vills.size():
+		out += "食邑：%s（每日交租）\n" % "、".join(vills)
 	if int(p.prisoners) > 0:
 		out += "俘虏 %d 人（到城里卖给赎金掮客）\n" % int(p.prisoners)
 	var cargo: Dictionary = player.get("cargo", {})

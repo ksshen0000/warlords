@@ -50,6 +50,16 @@ def handle_menu(w, sim) -> None:
     if t == "battle":
         P.act(w, "autoresolve", {})
         return
+    if t == "event":
+        # an ordinary player takes the first thing on offer that he can afford
+        o = next(o for o in m["options"] if o["enabled"])
+        P.act(w, "choose", {"choice": o["choice"]})
+        note(w, f"ev{w.day}", f"事件：{m['title']}·{o['label'][:24]}")
+        return
+    if t == "assault_ready":
+        P.act(w, "assault", {})                 # the bot never plays 3D: storm by auto-resolve
+        note(w, f"assault{w.day}", f"下令强攻：{m['title']}")
+        return
     if t == "request_fief":
         P.act(w, "request", {})
         note(w, f"req{w.day}", f"当面请封：{m['title']}")
@@ -200,15 +210,19 @@ def choose_goal(w) -> dict | None:
             and (w.player["renown"] >= B.player.vassal_renown
                  or (w.player["renown"] >= 25 and not w.player.get("contract") and T.healthy(p.troops) >= 10)):
         cands = [k for k in w.kingdoms.values() if k.alive and k.wars and k.id not in w.player["wars"]]
+        reach = 500
         if w.player["renown"] >= B.player.vassal_renown:
-            cands = [k for k in w.kingdoms.values() if k.alive and k.id not in w.player["wars"]]
-        if w.player.get("contract") in w.kingdoms and w.player["renown"] >= B.player.vassal_renown:
-            cands = [w.kingdoms[w.player["contract"]]]          # swear to the realm we already serve
+            # any ruler who'd take us (not at war with us, likes us well enough); the realm we serve first
+            cands = [k for k in w.kingdoms.values() if k.alive and k.id not in w.player["wars"]
+                     and k.ruler in w.heroes and w.heroes[k.ruler].rel("player") >= B.player.vassal_relation]
+            mine = [k for k in cands if k.id == w.player.get("contract")]
+            cands = mine or cands
+            reach = 1000
         if cands:
             k = min(cands, key=lambda k: math.dist(w.parties[w.heroes[k.ruler].party].pos, p.pos)
                     if w.heroes[k.ruler].party in w.parties else 9e9)
             r = w.heroes[k.ruler]
-            if r.party in w.parties and math.dist(w.parties[r.party].pos, p.pos) < 500:
+            if r.party in w.parties and math.dist(w.parties[r.party].pos, p.pos) < reach:
                 w.player.setdefault("_seek_since", w.day)
                 return {"kind": "party", "id": r.party}
     # sworn: wait for the marshal's summons (going alone against walls is suicide); only very strong bands go alone
@@ -250,7 +264,14 @@ def main() -> None:
     stuck = 0
     milestones = [(30, "renown30"), (60, "renown60"), (B.player.vassal_renown, "renownV")]
     spins, last_hour = 0, -1
+    status_day = -1
     while w.day < a.days:
+        p = P.party(w)                                # re-read: the party can be rebuilt after a defeat
+        if w.day % 30 == 0 and w.day != status_day:
+            status_day = w.day
+            note(w, f"st{w.day}", f"状态：金{p.gold:.0f} 兵{T.healthy(p.troops)}+伤{T.wounded(p.troops)} 名望{w.player['renown']:.0f}"
+                                  f" 日饷{T.upkeep(p.troops):.0f} {'封臣' if w.player.get('kingdom') else '义从' if w.player.get('contract') else '无主'}"
+                                  f" 食邑{len(P.villages_of(w))}")
         # guard: a bot that keeps re-entering the same town in the same hour must let time pass
         spins = spins + 1 if w.hour == last_hour else 0
         last_hour = w.hour

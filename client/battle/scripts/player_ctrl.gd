@@ -6,13 +6,14 @@ extends Node
 ##   RMB hold = block (direction = mouse movement, like the attack; shields block every direction)
 ##   WASD move (on horseback: W/S speed up / slow down, A/D turn) · Shift walk · wheel switch weapon
 ##   1 infantry 2 archers 3 cavalry 0 everyone · F1 hold F2 follow F3 charge F4 stand ground F5 retreat
-##   F6 advance F7 fall back F8 closer F9 spread · Tab leave / let the troops finish · Esc release mouse
+##   F6 advance F7 fall back F8 closer F9 spread · Backspace overview · Tab leave / let the troops finish · Esc release mouse
 
 var battle: Battle
 var cam: Camera3D
 var yaw := 0.0
 var pitch := -0.18
 var dist := 3.6
+var hold_still := false       # a conversation in the town walk: no walking, no mouse look, free cursor
 var mdir := Vector2.ZERO          # recent mouse motion (decays), picks attack / block direction
 var last_dir := Agent.Dir.RIGHT
 var selected: Array = ["inf", "arc", "cav"]
@@ -31,7 +32,7 @@ func setup(b: Battle) -> void:
 	cam.far = 900.0
 	b.add_child(cam)
 	cam.current = true
-	auto_block = bool(b.rules.sec("player").get("auto_block", false))
+	auto_block = bool(b.diff.get("auto_block", false)) or bool(b.rules.sec("player").get("auto_block", false))
 	if b.player:
 		yaw = b.player.heading
 	if DisplayServer.get_name() != "headless" and not b.auto:
@@ -40,7 +41,7 @@ func setup(b: Battle) -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if battle == null:
+	if battle == null or hold_still:
 		return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var r: Vector2 = e.relative
@@ -54,6 +55,8 @@ func _unhandled_input(e: InputEvent) -> void:
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 			return
 		var p := battle.player
+		if battle.peaceful:
+			return
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			_lmb = mb.pressed
 			if p and p.alive() and p.is_player:
@@ -95,6 +98,9 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_2: _select(["arc"])
 			KEY_3: _select(["cav"])
 			KEY_0, KEY_QUOTELEFT: _select(["inf", "arc", "cav"])
+			KEY_BACKSPACE:
+				if battle.hud and battle.hud.has_method("toggle_map"):
+					battle.hud.toggle_map()
 			KEY_F1: _order("hold")
 			KEY_F2: _order("follow")
 			KEY_F3: _order("charge")
@@ -110,6 +116,8 @@ func _unhandled_input(e: InputEvent) -> void:
 
 
 func _select(groups: Array) -> void:
+	if battle.peaceful:
+		return
 	selected = groups
 	var names := {"inf": "步兵", "arc": "射手", "cav": "骑兵"}
 	var t: Array[String] = []
@@ -119,18 +127,40 @@ func _select(groups: Array) -> void:
 
 
 func _order(kind: String) -> void:
-	if battle.over:
+	if battle.over or battle.peaceful:
 		return
 	battle.command(battle.player_side, selected, kind)
 
 
 ## Warband: the mouse movement just before clicking chooses the swing.
 func _attack_dir() -> int:
+	if battle.diff.get("auto_attack", false) and battle.player:
+		return _auto_attack_dir(battle.player)
 	if mdir.length() < 3.0:
 		return last_dir
 	if absf(mdir.x) > absf(mdir.y):
 		return Agent.Dir.RIGHT if mdir.x > 0 else Agent.Dir.LEFT
 	return Agent.Dir.UP if mdir.y < 0 else Agent.Dir.DOWN
+
+
+## Difficulty "automatic attack direction": strike where the enemy in front isn't guarding.
+func _auto_attack_dir(p: Agent) -> int:
+	var dirs: Array = p.allowed_dirs()
+	var best: Agent = null
+	var bd := 4.0
+	for e in battle.agents_near(p.global_position, 4.0):
+		if e.side == p.side or not e.alive():
+			continue
+		var to: Vector3 = e.global_position - p.global_position
+		var d := to.length()
+		if d < bd and to.normalized().dot(p.forward()) > 0.3:
+			bd = d
+			best = e
+	if best and best.state == Agent.BLOCK and best.shield.is_empty() and dirs.size() > 1:
+		dirs = dirs.filter(func(x): return x != best.block_dir)
+	if best and best.shield.size() > 0 and Agent.Dir.UP in dirs:
+		return Agent.Dir.UP                    # overhead over the shield rim
+	return dirs[randi() % dirs.size()]
 
 
 ## Blocking: guard the side you move the mouse to. A swing from the enemy's right comes in on
@@ -175,6 +205,9 @@ func _aim_point() -> Vector3:
 
 ## called by Battle every physics frame while the player is alive and in control
 func drive(p: Agent, dt: float) -> void:
+	if hold_still:
+		p.intent_move = Vector3.ZERO
+		return
 	mdir = mdir * pow(0.0005, dt)
 	var mv := Vector3.ZERO
 	var fwd := Vector3(-sin(yaw), 0, -cos(yaw))
@@ -241,3 +274,17 @@ func _place_camera(dt: float) -> void:
 		want.y = g
 	cam.global_position = want if dt == 0.0 else cam.global_position.lerp(want, clampf(dt * 18.0, 0.0, 1.0))
 	cam.look_at(cam.global_position + look, Vector3.UP)
+	if shake > 0.001:
+		# a jolt when you are hit (decays fast)
+		cam.global_position += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * shake * 0.08
+		cam.rotate_object_local(Vector3.FORWARD, randf_range(-1, 1) * shake * 0.03)
+		shake = maxf(0.0, shake - dt * 3.5)
+	if battle.has_method("adjust_camera"):
+		battle.adjust_camera(cam, dt)          # the town walk: keep the camera inside rooms, frame a conversation
+
+
+var shake := 0.0
+
+
+func jolt(amount: float) -> void:
+	shake = clampf(maxf(shake, amount), 0.0, 1.0)

@@ -1,0 +1,128 @@
+{
+ "town": {
+  "kind": "town",
+  "seed": 11,
+  "walls": 2,
+  "roof": "#3a4a5c"
+ },
+ "terrain": "plains",
+ "seed": 11,
+ "night": false,
+ "dismounted": true,
+ "player_side": 0,
+ "place": "洛阳",
+ "subtitle": "城 · 赵 · 守将屈赫昭",
+ "sides": [
+  {
+   "name": "你",
+   "color": "#3f6fb0",
+   "hero": {
+    "name": "你",
+    "player": true,
+    "troop": "zhou_cav3",
+    "loadout": {
+     "melee": [
+      "sword"
+     ],
+     "shield": "round",
+     "armor": 20
+    }
+   }
+  }
+ ],
+ "crowd": {
+  "troop": "villager",
+  "n": 18,
+  "color": "#8a7a5a",
+  "guards": "zhao_inf2",
+  "guard_n": 4,
+  "guard_color": "#e0a030"
+ },
+ "spots": [
+  {
+   "action": "talk",
+   "hero": "quhezhao",
+   "label": "拜见屈赫昭（赵，好感+0）",
+   "enabled": true,
+   "where": "hall",
+   "npc": "屈赫昭",
+   "role": "守将",
+   "troop": "zhao_cav4",
+   "color": "#e0a030",
+   "armed": true
+  },
+  {
+   "action": "quests",
+   "label": "向屈赫昭打听差事（2件）",
+   "enabled": true,
+   "where": "hall",
+   "npc": "屈赫昭",
+   "role": "守将",
+   "troop": "zhao_cav4",
+   "color": "#e0a030",
+   "armed": true
+  },
+  {
+   "action": "trade",
+   "label": "去市集交易",
+   "enabled": true,
+   "where": "market",
+   "npc": "市令",
+   "role": "市集",
+   "troop": "villager",
+   "color": "#9a7a4a"
+  },
+  {
+   "action": "recruit",
+   "label": "招募志愿兵：中原丁壮×2（共24金）",
+   "enabled": false,
+   "hint": "部队已满",
+   "where": "square",
+   "npc": "乡勇头目",
+   "role": "志愿兵",
+   "troop": "zhao_t1",
+   "color": "#e0a030"
+  },
+  {
+   "action": "arena",
+   "label": "上擂台比武（木兵器，可以下注）",
+   "enabled": true,
+   "where": "arena",
+   "npc": "擂台主",
+   "role": "擂台",
+   "troop": "villager",
+   "color": "#7a5a3a"
+  },
+  {
+   "action": "rest",
+   "label": "进城休整（伤员恢复更快）",
+   "enabled": true,
+   "where": "inn",
+   "npc": "店家",
+   "role": "客舍",
+   "troop": "villager",
+   "color": "#6a6a5a"
+  },
+  {
+   "action": "sell_prisoners",
+   "label": "把3名俘虏卖给赎金掮客",
+   "enabled": true,
+   "where": "inn",
+   "npc": "赎金掮客",
+   "role": "俘虏买卖",
+   "troop": "villager",
+   "color": "#5a4a5a"
+  }
+ ],
+ "volunteers": [
+  "zhao_t1",
+  "zhao_t1"
+ ],
+ "rooms": [
+  "hall",
+  "inn"
+ ],
+ "rumors": [
+  "听说前两天，凉向蜀宣战！"
+ ]
+}
