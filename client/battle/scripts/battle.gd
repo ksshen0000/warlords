@@ -972,6 +972,8 @@ func _apply(att: Agent, tgt: Agent, raw: float, dtype: String, part: String, poi
 		raw *= rules.num(C, "friendly_fire", 0.5)
 	if part == "horse":
 		var harm := rules.num("horse", "barded_armor", 28) if tgt.horse_kind == "barded" else 6.0
+		if tgt.horse_armor >= 0.0:
+			harm = tgt.horse_armor                  # the player's own horse (rules/items.toml)
 		var hd := _armor(raw, harm, dtype) * damage_scale(tgt)
 		tgt.hit_horse(hd, att)
 		_effect(point, Color("8a1a14"), 5)
@@ -980,7 +982,7 @@ func _apply(att: Agent, tgt: Agent, raw: float, dtype: String, part: String, poi
 		raw *= 1.25
 	if siege_def >= 0 and not att.using_ranged and att.global_position.y > tgt.global_position.y + 0.6:
 		raw *= 1.0 + rules.num("siege", "height_edge", 0.25)    # striking down from the wall
-	var dmg := _armor(raw, tgt.armor, dtype) * damage_scale(tgt)
+	var dmg := _armor(raw, tgt.head_armor if part == "head" else tgt.armor, dtype) * damage_scale(tgt)
 	if not att.using_ranged:
 		sound("thud" if dtype == "blunt" else "hit", point, clampf(-8.0 + dmg * 0.25, -8.0, 3.0))
 	stat("dmg_" + att.division, int(dmg))

@@ -1,5 +1,6 @@
 extends PanelContainer
-## The player's menu window (Mount & Blade style): settlements, encounters, trade, dialogue.
+## The player's menu window (Mount & Blade style): settlements, encounters, trade, dialogue,
+## and the equipment screen / the smith's shop (menus carrying "gear").
 
 signal action(id: String, data: Dictionary)
 signal say(hero: String, text: String)
@@ -14,6 +15,10 @@ var buttons: VBoxContainer
 var trade_box: VBoxContainer
 var trade_grid: GridContainer
 var trade_info: Label
+var content: VBoxContainer
+var gear_layer: CanvasLayer
+var gear_screen: Control
+const GearScreenScript := preload("res://scripts/gear_screen.gd")
 var chat_box: VBoxContainer
 var chat_log: RichTextLabel
 var chat_input: LineEdit
@@ -37,6 +42,7 @@ func _ready() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	add_child(v)
+	content = v
 	title_label = Label.new()
 	title_label.add_theme_font_size_override("font_size", 21)
 	title_label.add_theme_color_override("font_color", GOLD)
@@ -112,11 +118,14 @@ func open(m: Dictionary) -> void:
 	body.text = _esc(m.get("text", ""))
 	_build_buttons()
 	_build_trade()
+	_build_gear()
 	_build_chat()
 
 
 func close() -> void:
 	visible = false
+	if gear_screen:
+		gear_screen.visible = false
 	_sig = ""
 	menu = {}
 	trading = false
@@ -207,6 +216,33 @@ func _build_trade() -> void:
 				b.disabled = int(m.stock) < 4
 			b.pressed.connect(func(): action.emit(act, {"good": good, "qty": qty}))
 			trade_grid.add_child(b)
+
+
+# ------------------------------------------------------------ equipment / the smith
+## Menus carrying "gear" are shown full-screen, Warband-inventory style (gear_screen.gd), above everything;
+## this panel steps aside meanwhile. The screen's drags come back out through the usual action signal.
+func _build_gear() -> void:
+	var on: bool = menu.has("gear")
+	content.visible = not on
+	self_modulate.a = 0.0 if on else 1.0
+	mouse_filter = Control.MOUSE_FILTER_IGNORE if on else Control.MOUSE_FILTER_STOP
+	custom_minimum_size = Vector2(0 if on else 560, 0)
+	if on:
+		if gear_layer == null:
+			gear_layer = CanvasLayer.new()
+			gear_layer.layer = 20
+			get_tree().root.add_child(gear_layer)
+			gear_screen = GearScreenScript.new()
+			gear_layer.add_child(gear_screen)
+			gear_screen.request.connect(func(a, d): action.emit(a, d))
+		gear_screen.show_menu(menu)
+	elif gear_screen:
+		gear_screen.visible = false
+
+
+func _exit_tree() -> void:
+	if gear_layer:
+		gear_layer.queue_free()
 
 
 func _build_chat() -> void:

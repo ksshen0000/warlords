@@ -30,7 +30,11 @@ var roads: Array = []
 var fords: Array = []        # ferry crossings over the great river
 var terrain_rect: TextureRect
 var zoom := 1.0
-const MAX_ZOOM := 16.0       # closest zoom, in close_zoom() units (was 9)
+const MAX_ZOOM := 16.0       # closest zoom, in close_zoom() units
+## Screen mapping only (game distances unchanged): how big the land is drawn next to the icons. At every
+## "close" zoom (following your party, F, the default views) the terrain is MAP_SCALE times larger while
+## settlements and parties keep their pixel size — more room around them. The whole-map view is unaffected.
+const MAP_SCALE := 2.0
 var offset := Vector2.ZERO
 var fit_zoom := 1.0
 var sel_kind := ""
@@ -327,7 +331,7 @@ func _scale() -> float:
 ## Zoom levels are tuned for a 1200-unit-wide world; a bigger world (more km on the same screen)
 ## needs proportionally more zoom to show the same detail.
 func close_zoom(k: float) -> float:
-	return fit_zoom * k * maxf(1.0, world_size.x / 1200.0)
+	return fit_zoom * k * maxf(1.0, world_size.x / 1200.0) * MAP_SCALE
 
 
 # ----------------------------------------------------------- input
@@ -521,11 +525,57 @@ func _draw_lines(lines: Array, is_river: bool) -> void:
 		if not visible or poly.size() < 2:
 			continue
 		if is_river:
-			var wdt: float = float(l.width) * 0.7 * zoom
-			draw_polyline(poly, RIVER, max(1.2, wdt), true)
+			_draw_river(l, poly)
 		else:
 			var main: bool = l.kind == "road"
 			draw_polyline(poly, ROAD if main else TRACK, max(1.0, (1.6 if main else 1.0) * min(zoom, 2.5)), true)
+
+
+## Rivers share one look with the terrain shader's water (terrain.gdshader): the shallow-water blue with a
+## pale rim like its foam along the shore — the thin upper reaches and the open lower stretches of the great
+## rivers alike (the open stretch is drawn over its water cells, with gaps at the fords for the sandbars).
+## Points run from the source to the mouth; the width grows evenly along the way.
+const RIVER_CORE := Color(0.22, 0.42, 0.55)
+const RIVER_RIM := Color(0.50, 0.63, 0.68)
+
+
+func _draw_river(l: Dictionary, poly: PackedVector2Array) -> void:
+	var pts: Array = l.points
+	var w0 := float(l.width)
+	var w1 := float(l.get("width_end", l.width))
+	var gaps: Array = l.get("gaps", [])
+	var gap_r := float(l.get("gap_r", 0.0))
+	var total := 0.0
+	for i in range(1, poly.size()):
+		total += poly[i - 1].distance_to(poly[i])
+	if total <= 0.0:
+		return
+	# segments to draw: [a, b, width px]
+	var segs: Array = []
+	var run := 0.0
+	for i in range(1, poly.size()):
+		var a := poly[i - 1]
+		var b := poly[i]
+		run += a.distance_to(b)
+		if not gaps.is_empty():
+			var mid := (Vector2(pts[i - 1][0], pts[i - 1][1]) + Vector2(pts[i][0], pts[i][1])) * 0.5
+			var skip := false
+			for g in gaps:
+				if mid.distance_to(Vector2(g[0], g[1])) < gap_r:
+					skip = true
+					break
+			if skip:
+				continue
+		segs.append([a, b, maxf(1.2, lerpf(w0, w1, run / total) * 0.7 * zoom)])
+	var rim := maxf(1.0, 0.9 * minf(zoom, 3.0))         # the pale shore line on each bank
+	for pass_i in 2:
+		for sg in segs:
+			var w: float = sg[2] + (2.0 * rim if pass_i == 0 else 0.0)
+			var c := RIVER_RIM if pass_i == 0 else RIVER_CORE
+			draw_line(sg[0], sg[1], c, w, true)
+			if w > 3.0:
+				draw_circle(sg[1], w * 0.5, c)
+				draw_circle(sg[0], w * 0.5, c)
 
 
 func _draw_route() -> void:

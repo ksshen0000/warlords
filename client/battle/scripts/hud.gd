@@ -132,7 +132,7 @@ func _draw() -> void:
 	var y := vs.y - 70
 	_bar(Vector2(20, y), 200, p.hp / p.max_hp, Color("c0392b"), "生命 %d" % int(maxf(0, p.hp)))
 	if p.mounted:
-		_bar(Vector2(20, y + 20), 200, p.horse_hp / battle.rules.num("horse", "hp", 110), Color("a07a4a"), "坐骑 %d" % int(p.horse_hp))
+		_bar(Vector2(20, y + 20), 200, p.horse_hp / maxf(1.0, p.horse_max_hp), Color("a07a4a"), "坐骑 %d" % int(p.horse_hp))
 	var wname: String = (p.ranged.get("name", "") + "  箭 %d" % p.ammo) if p.using_ranged else str(p.weapon().get("name", ""))
 	if p.shield_up():
 		wname += " + " + str(p.shield.get("name", "盾"))

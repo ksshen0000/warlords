@@ -60,6 +60,8 @@ def setup(w: World, s: Settlement, options: list[dict]) -> dict:
             sp.update(where="hall", npc="家宰", role="你的封地", troop="villager", color="#6a5a48")
         elif oid in ("trade", "deliver"):
             sp.update(where="market", npc="市令", role="市集", troop="villager", color="#9a7a4a")
+        elif oid == "smith":
+            sp.update(where="market", npc="铁匠", role="兵器铺", troop="villager", color="#5a4a3a")
         elif oid == "sell_prisoners":
             sp.update(where="inn", npc="赎金掮客", role="俘虏买卖", troop="villager", color="#5a4a5a")
         elif oid == "recruit":

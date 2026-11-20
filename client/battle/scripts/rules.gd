@@ -68,8 +68,25 @@ func weapon(wid: String) -> Dictionary:
 	return d
 
 
+## A weapon / shield entry of a loadout: an id in battle.toml, or (the player's items, rules/items.toml)
+## {base: id, name, …overrides} — the base's numbers with the item's own on top.
+func _resolve(entry, table: String) -> Dictionary:
+	var base_id: String = entry if entry is String else str(entry.get("base", ""))
+	var b: Dictionary = cfg.get(table, {}).get(base_id, {})
+	if b.is_empty():
+		return {}
+	var d := b.duplicate()
+	if entry is Dictionary:
+		for k in entry:
+			if k != "base":
+				d[k] = entry[k]
+	d["id"] = base_id                       # the model / sounds go by the base weapon
+	return d
+
+
 ## Equipment of a troop: {melee: [weapon dicts], ranged: weapon dict or {}, shield: dict or {},
-## armor: int, horse: "" / "horse" / "barded"}
+## armor: int (body), head_armor: int, horse: "" / "horse" / "barded", horse_hp / horse_speed / horse_armor,
+## look: {head, body} (gear tier for the model; troops use their tier)}
 func loadout(tid: String, override: Dictionary = {}) -> Dictionary:
 	var lo: Dictionary = cfg.get("loadout", {})
 	var spec: Dictionary = {}
@@ -94,20 +111,22 @@ func loadout(tid: String, override: Dictionary = {}) -> Dictionary:
 				if dflt.has(k2):
 					spec = dflt[k2]
 					break
-	var out := {"melee": [], "ranged": {}, "shield": {}, "armor": int(spec.get("armor", 0)), "horse": str(spec.get("horse", ""))}
+	var armor := int(spec.get("armor", 0))
+	var out := {"melee": [], "ranged": {}, "shield": {}, "armor": armor, "head_armor": int(spec.get("head_armor", armor)),
+		"horse": str(spec.get("horse", "")), "look": spec.get("look", {})}
+	for k in ["horse_hp", "horse_speed", "horse_armor"]:
+		if spec.has(k):
+			out[k] = float(spec[k])
 	for wid in spec.get("melee", ["club"]):
-		var w := weapon(wid)
+		var w := _resolve(wid, "weapons")
 		if not w.is_empty():
 			out.melee.append(w)
 	if out.melee.is_empty():
 		out.melee.append(weapon("club"))
 	if spec.has("ranged"):
-		out.ranged = weapon(spec.ranged)
+		out.ranged = _resolve(spec.ranged, "weapons")
 	if spec.has("shield"):
-		var s: Dictionary = cfg.get("shields", {}).get(spec.shield, {})
-		if not s.is_empty():
-			out.shield = s.duplicate()
-			out.shield["id"] = spec.shield
+		out.shield = _resolve(spec.shield, "shields")
 	return out
 
 

@@ -54,6 +54,8 @@ class Rules:
         self.geography = read("geography")
         self.doctrine = read("doctrine").get("rule", [])
         self.ai = read("ai")
+        self.items = read("items")          # the player's equipment (gear.py)
+        self.battle = read("battle")        # 3D combat numbers: the server only reads them to describe items
         B.__init__(self.balance_raw, "balance.")
         self.local = {}
         local = RULES_DIR.parent / "local.toml"     # per-machine settings, git-ignored

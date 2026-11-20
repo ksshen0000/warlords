@@ -282,13 +282,10 @@ func trees_near(p: Vector3) -> Array:
 func _build_siege_works() -> void:
 	var sd: float = siege.sd
 	var h: float = siege.h
-	var stone := StandardMaterial3D.new()
-	stone.albedo_color = Color("77705f")
-	stone.roughness = 0.95
-	var stone_dark := StandardMaterial3D.new()
-	stone_dark.albedo_color = Color("5c574c")
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color("6b4a2a")
+	# grey brick (CC0 textures, see client/assets/textures/CREDITS.md)
+	var stone := TownLayout.tex_mat("brick", Color("8a8478"), 2.2, 1.0, 1.2)
+	var stone_dark := TownLayout.tex_mat("brick", Color("6e695f"), 2.2, 1.0, 1.2)
+	var wood := TownLayout.tex_mat("planks", Color("8a6a48"), 1.2)
 	# the wall: one long block (sunk a little into the ground)
 	var wall := MeshInstance3D.new()
 	var bm := BoxMesh.new()
@@ -368,10 +365,8 @@ func _build_siege_works() -> void:
 	# a few houses in the town behind (for show)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
-	var roof := StandardMaterial3D.new()
-	roof.albedo_color = Color("4a4f58")
-	var plaster := StandardMaterial3D.new()
-	plaster.albedo_color = Color("b9ad96")
+	var roof := TownLayout.roof_mat(Color("4a4f58"))
+	var plaster := TownLayout.tex_mat("plaster", Color("e0d6c2"), 3.0)
 	for k in 26:
 		var hx := rng.randf_range(-size * 0.45, size * 0.45)
 		var hu := rng.randf_range(W_BACK + STAIR_LEN + 42.0, size * 0.48)

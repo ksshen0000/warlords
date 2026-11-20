@@ -12,6 +12,7 @@ from . import movement as M
 from . import troops as T
 from .common import dist, nearest_settlement
 from .data import BACKGROUNDS, BLURBS, CLASS_NAMES, CULTURES, GOODS, KIND_NAMES, TITLES, TROOPS
+from . import gear as G
 from .economy import WORKSHOP
 from .model import BANDIT, PLAYER, Party, World, party_speed
 from .rules import B
@@ -86,6 +87,8 @@ def _finish_creation(w: World, kid: str, bid: str) -> None:
         p.cargo[g] = p.cargo.get(g, 0) + int(n)
     w.player.update(renown=float(b.get("renown", 0)), origin=kid, background=bid, pedigree=b.get("pedigree", "low"),
                     pending={"type": "settlement", "id": start.id})
+    w.player.pop("equip", None)
+    G.ensure(w)                                  # starting kit from the background (rules/world.toml equip)
     for h in w.heroes.values():
         if h.kingdom == kid and b.get("relation"):
             h.adjust_rel(PID, int(b["relation"]))
@@ -322,6 +325,8 @@ def menu(w: World) -> dict | None:
         return {"type": "notice", "title": pend["title"], "text": pend["text"], "options": [_opt("ok", "继续")]}
     if kind == "settlement":
         return _settlement_menu(w, p, w.settlements[pend["id"]])
+    if kind in G.GEAR_MENUS:
+        return G.menu(w, pend, p.gold)
     if kind == "walk":
         from . import walk as WK
         st = w.settlements[pend["id"]]
@@ -615,6 +620,7 @@ def _settlement_menu(w: World, p: Party, s) -> dict:
                            "carry": int(p.cargo.get(g, 0))} for g in GOODS}
         m["cargo_cap"] = cargo_cap(p)
         opts.append(_opt("trade", "去市集交易"))
+        opts.append(_opt("smith", "去兵器铺（买卖兵器、甲胄、马匹）"))
     here = [w.heroes[q.hero] for q in w.parties.values()
             if q.alive and q.inside == s.id and q.hero and not w.hostile(p, q)]
     for h in here[:4]:
@@ -728,8 +734,16 @@ def act(w: World, action: str, data: dict) -> dict:
     from . import warfare as WF
     pend = w.player.get("pending")
     p = party(w)
+    if action == "equipment":
+        # the equipment screen (I): from the map, or over a settlement menu
+        if (pend and pend["type"] != "settlement") or captive(w):
+            return {"ok": False, "message": "现在不能整理装备"}
+        G.open_menu(w, "equip", pend)
+        return {"ok": True}
     if not pend:
         return {"ok": False, "message": "当前没有打开的菜单"}
+    if pend["type"] in G.GEAR_MENUS:
+        return G.act(w, pend, action, data, p)
     m = menu(w)
     opt = next((o for o in (m or {}).get("options", []) if o["id"] == action
                 and (o.get("hero") is None or o.get("hero") == data.get("hero"))
@@ -952,6 +966,9 @@ def act(w: World, action: str, data: dict) -> dict:
             return {"ok": True, "message": f"卖出{have}份{GOODS[g][0]}，得{gain:.0f}金"}
         if action == "trade":
             return {"ok": True}
+        if action == "smith":
+            G.open_menu(w, "smith", pend, s.id)
+            return {"ok": True}
         if action == "talk":
             return _open_talk(w, data["hero"], pend)
         if action == "besiege":
@@ -1113,6 +1130,9 @@ def on_victory(w: World, enemy_losses: int, losers: list[Party]) -> None:
     gain = enemy_losses * B.player.renown_per_victory_kill
     gain += sum(5 for q in losers if q.kind == "lord")
     w.player["renown"] = round(w.player["renown"] + gain, 1)
+    got = G.loot(w, enemy_losses, losers)
+    if got:
+        w.log("loot", "战后打扫战场，你挑了些能用的：" + "、".join(G.name(i) for i in got) + "（按 I 打开装备）", player=True)
     for q in losers:
         if q.kind == "bandit":
             # locals are grateful

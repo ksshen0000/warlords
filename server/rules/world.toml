@@ -394,7 +394,7 @@ persona = "年轻的射雕手，可汗的养子。崇拜英雄，渴望南下见
 # start：capital 都城 / town 任一城 / village 村落；relation：对出身国将军的初始好感；
 # cultures：只有这些出身可选（省略 = 都可选）；cargo：随身货物 [货物, 数量]
 [backgrounds.refugee]
-battle_loadout = { melee = ["spear", "knife"], shield = "rattan", armor = 8 }   # 亲自上阵时的装备（3D 战斗）
+equip = ["spear", "knife", "rattan", "hood", "leather"]   # 开局装备（rules/items.toml 的物品，自动放进对应的格）
 name = "流民帅"
 desc = "家乡毁于战火，你领着一群流亡的乡亲讨生活。人多、钱少、兵弱，但个个能吃苦。"
 gold = 400
@@ -405,7 +405,7 @@ pedigree = "low"
 start = "village"
 
 [backgrounds.lowborn]
-battle_loadout = { melee = ["sword"], shield = "round", ranged = "bow", armor = 18 }
+equip = ["sword", "round", "bow", "leather_cap", "liangdang"]
 name = "寒门武人"
 desc = "你出身寒微，在边军里摸爬滚打多年，如今带着一队老兄弟出来闯荡。"
 gold = 1500
@@ -416,7 +416,7 @@ pedigree = "low"
 start = "town"
 
 [backgrounds.gentry]
-battle_loadout = { melee = ["sword", "spear"], shield = "round", ranged = "bow", horse = "horse", armor = 26 }
+equip = ["sword", "spear", "round", "bow", "helm", "tongxiu", "warhorse"]
 name = "高门子弟"
 desc = "你是世家大族的子弟，自幼读书习武。家族给了你钱和一队精干的部曲，也给了你姓氏带来的人脉。"
 gold = 3000
@@ -428,7 +428,7 @@ start = "capital"
 cultures = ["zhou", "yan", "zhao", "liang", "shu"]
 
 [backgrounds.tribal]
-battle_loadout = { melee = ["sword"], ranged = "horsebow", horse = "horse", armor = 14 }
+equip = ["sword", "horsebow", "leather_cap", "leather", "hequ"]
 name = "部族勇士"
 desc = "你是部落里最好的骑手之一，带着一群年轻的伙伴离开草场，去南方的城池碰碰运气。"
 gold = 1000
@@ -440,7 +440,7 @@ start = "town"
 cultures = ["yan", "zhao", "liang", "rou"]
 
 [backgrounds.merchant]
-battle_loadout = { melee = ["sword"], shield = "round", horse = "horse", armor = 14 }
+equip = ["sword", "round", "leather_cap", "leather", "warhorse"]
 name = "商贾之家"
 desc = "你家世代经商，这次你带着本钱和一车货物、雇了几个护卫，打算在乱世里做一笔大买卖。"
 gold = 5000

@@ -694,9 +694,8 @@ def apply_arena_result(w: World, setup: dict, result: dict) -> None:
 
 def _hero_entry(w: World, p: Party) -> dict:
     if p.kind == "player":
-        from .data import BACKGROUNDS
-        bg = BACKGROUNDS.get(w.player.get("background") or "", {})
-        lo = dict(bg.get("battle_loadout", {})) or {"melee": ["sword"], "shield": "round", "horse": "horse", "armor": 20}
+        from .gear import loadout
+        lo = loadout(w)
         return {"name": "你", "player": True, "troop": f"{w.player.get('origin') or 'zhou'}_cav3", "loadout": lo}
     if p.hero:
         h = w.heroes[p.hero]

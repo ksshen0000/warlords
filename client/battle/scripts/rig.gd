@@ -34,7 +34,8 @@ var label: Label3D
 var _mats := {}
 var weapon_len := 0.7
 var grip2 := 0.0                   # two-handed weapons: where the left hand holds the shaft (m along the weapon; 0 = one hand)
-var _body_mat: StandardMaterial3D
+var _flash_on: Array = []          # the meshes that flash red when hit (an overlay: the skin is shared)
+static var _flash_mat: StandardMaterial3D
 var _mounted := false
 # smoothed values (idle / block / stun poses blend; attacks are shown exactly)
 var _s := {}
@@ -79,6 +80,26 @@ func _cyl(parent: Node3D, r_top: float, r_bot: float, h: float, pos: Vector3, c:
 	return mi
 
 
+## A skinned bone: a pivot with a pixel-skinned cuboid along its local -Z (AgentSkin part).
+func _sbone(parent: Node3D, part: String, length: float, thick: float, m: Material) -> Node3D:
+	var n := Node3D.new()
+	parent.add_child(n)
+	var mi := MeshInstance3D.new()
+	mi.mesh = AgentSkin.mesh(part, Vector3(thick, length, thick), true)
+	mi.material_override = m
+	n.add_child(mi)
+	return n
+
+
+func _sbox(parent: Node3D, part: String, size: Vector3, pos: Vector3, m: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = AgentSkin.mesh(part, size)
+	mi.material_override = m
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
 ## A bone: a pivot whose mesh runs along its local -Z for `length`.
 func _bone(parent: Node3D, length: float, thick: Vector2, c: Color) -> Node3D:
 	var n := Node3D.new()
@@ -96,48 +117,37 @@ func build(a) -> void:
 	if _mounted:
 		_build_horse(a)
 		rider.position = Vector3(0, a.RIDER_LIFT, 0)
+	# blocky, pixel-skinned body (AgentSkin): the skin shows rank and gear — the troop's tier, or the
+	# tier of the player's own helmet / body armour — in the side's colour
+	var body_t: int = int(a.look.get("body", tier))
+	var head_t: int = int(a.look.get("head", tier))
+	var cult: String = str(a.troop.get("culture", ""))
+	var skin_m := AgentSkin.material({"coat": tunic.to_html(false), "culture": cult, "body": body_t, "head": head_t,
+		"var": int(a.rng_seed) % 4})
 	# legs: thigh + shin (+ foot)
 	for side in [-1, 1]:
-		var thigh := _bone(rider, THIGH, Vector2(0.15, 0.16), TROUSERS)
-		var shin := _bone(rider, SHIN, Vector2(0.13, 0.14), TROUSERS)
-		_box(shin, Vector3(0.14, 0.1, 0.1), Vector3(0, 0, -SHIN), Color("2a221c"))           # boot
-		var foot := _box(shin, Vector3(0.13, 0.08, 0.2), Vector3(0, 0, -SHIN), Color("2a221c"))
+		var thigh := _sbone(rider, "thigh", THIGH, 0.16, skin_m)
+		var shin := _sbone(rider, "shin", SHIN, 0.15, skin_m)
+		var foot := _box(shin, Vector3(0.15, 0.08, 0.22), Vector3(0, 0, -SHIN), Color("2a221c"))
 		foot.set_meta("foot", true)
 		legs.append([thigh, shin, foot])
 	# hips, chest, head
 	pelvis = Node3D.new()
 	rider.add_child(pelvis)
-	_box(pelvis, Vector3(0.38, 0.18, 0.24), Vector3(0, 0.02, 0), tunic.darkened(0.25))
+	_sbox(pelvis, "pelvis", Vector3(0.38, 0.18, 0.24), Vector3(0, 0.02, 0), skin_m)
 	spine = Node3D.new()
 	pelvis.add_child(spine)
-	_body_mat = mat(tunic)
-	var torso := _box(spine, Vector3(0.44, 0.52, 0.26), Vector3(0, 0.3, 0), tunic)
-	torso.material_override = _body_mat
-	if tier >= 3:
-		_box(spine, Vector3(0.47, 0.36, 0.29), Vector3(0, 0.36, 0), Color("6f6f6a").lerp(tunic, 0.2), true)
-	if tier >= 4:
-		_box(spine, Vector3(0.62, 0.1, 0.32), Vector3(0, 0.56, 0), Color("8a8a84"), true)
-	var head := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.13
-	sm.height = 0.27
-	sm.radial_segments = 10
-	sm.rings = 6
-	head.mesh = sm
-	head.position = Vector3(0, 0.72, 0)
-	head.material_override = mat(SKIN)
-	spine.add_child(head)
-	if tier >= 2:
-		_cyl(spine, 0.06 if tier >= 3 else 0.12, 0.145, 0.16 if tier >= 3 else 0.08, Vector3(0, 0.82, 0), Color("6d6d68"), true)
-	elif a.troop.get("culture", "") in ["bandit", "neutral"]:
-		_cyl(spine, 0.13, 0.14, 0.06, Vector3(0, 0.8, 0), Color("7a3a2a"))
-	else:
-		_cyl(spine, 0.08, 0.13, 0.08, Vector3(0, 0.8, 0), tunic.darkened(0.3))   # cloth cap
-	# arms: upper + forearm (+ hand)
+	var torso := _sbox(spine, "torso", Vector3(0.44, 0.52, 0.26), Vector3(0, 0.3, 0), skin_m)
+	_flash_on = [torso]
+	if body_t >= 2:
+		_sbox(spine, "armor", Vector3(0.48, 0.56, 0.3), Vector3(0, 0.3, 0), skin_m)     # the armour layer
+	var head := _sbox(spine, "head", Vector3(0.3, 0.3, 0.3), Vector3(0, 0.73, 0), skin_m)
+	_sbox(spine, "helm", Vector3(0.34, 0.34, 0.34), Vector3(0, 0.75, 0), skin_m)        # helmet / headgear layer
+	_flash_on.append(head)
+	# arms: upper + forearm (the hand is painted on its end)
 	for arr in [arm_r, arm_l]:
-		var up := _bone(rider, UPPER_ARM, Vector2(0.11, 0.11), tunic.darkened(0.1))
-		var fo := _bone(rider, FOREARM, Vector2(0.1, 0.1), tunic.darkened(0.15))
-		_box(fo, Vector3(0.1, 0.1, 0.1), Vector3(0, 0, -FOREARM), SKIN)
+		var up := _sbone(rider, "uarm", UPPER_ARM, 0.12, skin_m)
+		var fo := _sbone(rider, "farm", FOREARM, 0.11, skin_m)
 		arr.append(up)
 		arr.append(fo)
 	# shield on the left forearm
@@ -227,6 +237,8 @@ func set_weapon(w: Dictionary) -> void:
 	grip2 = {"two_hand": -0.13, "polearm": 0.42}.get(kind, 0.0)
 	# weapon model points along local -Z, grip at the origin
 	match kind:
+		"unarmed":
+			pass                                   # townsfolk: nothing in the hand
 		"polearm", "lance":
 			_box(weapon, Vector3(0.045, 0.045, L + 0.5), Vector3(0, 0, -L * 0.5 + 0.25), Color("6b4a2a"))
 			if wid == "ji":
@@ -428,9 +440,17 @@ func show_fall(amount: float, dir: Vector3) -> void:
 
 
 func flash(c: Color) -> void:
-	_body_mat.emission_enabled = true
-	_body_mat.emission = c
-	_body_mat.emission_energy_multiplier = 0.7
+	if _flash_mat == null:
+		_flash_mat = StandardMaterial3D.new()
+		_flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_flash_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_flash_mat.albedo_color = Color(c.r, c.g, c.b, 0.55)
+	for mi in _flash_on:
+		if is_instance_valid(mi):
+			mi.material_overlay = _flash_mat
 	get_tree().create_timer(0.12).timeout.connect(func():
 		if is_instance_valid(self):
-			_body_mat.emission_enabled = false)
+			for mi in _flash_on:
+				if is_instance_valid(mi):
+					mi.material_overlay = null)

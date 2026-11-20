@@ -302,6 +302,61 @@ func spot(where: String, i: int) -> Vector3:
 
 
 # ------------------------------------------------------------------ visuals
+# Surface textures (client/assets/textures, CC0 from ambientCG — see CREDITS.md): look -> [texture, metres
+# per tile]. Mapped in world space (triplanar), so a brick is the same size on a hut and on the city wall;
+# the LOOK colour tints it.
+const TEX := {
+	"house": ["plaster", 3.0], "inn": ["plaster", 3.0], "hall": ["plaster", 3.0], "prison": ["plaster", 3.0],
+	"iwall": ["plaster", 3.0], "cottage": ["earth", 2.5],
+	"wall": ["brick", 2.2], "tower": ["brick", 2.2], "well": ["brick", 1.6],
+	"stall": ["planks", 1.6], "pillar": ["planks", 1.6], "dais": ["planks", 1.6], "seat": ["planks", 1.2],
+	"table": ["planks", 1.2], "bench": ["planks", 1.2], "counter": ["planks", 1.2], "shelf": ["planks", 1.2],
+}
+static var _tex_cache := {}
+static var _mat_cache := {}
+
+
+## A textured material (cached): tex = folder in assets/textures, tint multiplies the colour map.
+static func tex_mat(tex: String, tint: Color, tile: float, rough := 1.0, bump := 0.8) -> StandardMaterial3D:
+	var key := "%s|%s|%.2f|%.2f|%.2f" % [tex, tint.to_html(), tile, rough, bump]
+	if _mat_cache.has(key):
+		return _mat_cache[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = tint
+	m.roughness = rough
+	var dir := "res://assets/textures/%s/" % tex
+	var al = _tex(dir + "albedo.jpg")
+	if al:
+		m.albedo_texture = al
+		var nm = _tex(dir + "normal.jpg")
+		if nm:
+			m.normal_enabled = true
+			m.normal_texture = nm
+			m.normal_scale = bump
+		var rm = _tex(dir + "rough.jpg")
+		if rm:
+			m.roughness_texture = rm
+			m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GRAYSCALE
+		m.uv1_triplanar = true
+		m.uv1_world_triplanar = true
+		m.uv1_triplanar_sharpness = 4.0
+		m.uv1_scale = Vector3.ONE / tile
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_mat_cache[key] = m
+	return m
+
+
+static func _tex(path: String):
+	if not _tex_cache.has(path):
+		_tex_cache[path] = load(path) if ResourceLoader.exists(path) else null
+	return _tex_cache[path]
+
+
+## The roof tiles in a colour (the culture's roof colour; the texture itself is grey).
+static func roof_mat(c: Color) -> StandardMaterial3D:
+	return tex_mat("roof_tiles", c.lightened(0.12), 2.4, 0.85, 1.6)
+
+
 const LOOK := {
 	# look: [wall colour, roof colour or null]
 	"house": [Color("8f846f"), Color("3f444c")],
@@ -327,10 +382,16 @@ const LOOK := {
 func build_visuals(parent: Node3D, ground: Callable, culture_roof: Color) -> void:
 	var mats := {}
 	for k in LOOK:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = LOOK[k][0]
-		m.roughness = 0.95
-		mats[k] = m
+		var col: Color = LOOK[k][0]
+		if TEX.has(k):
+			# the textures carry their own shade: lighten the flat colour so it tints rather than darkens
+			var lift: float = {"plaster": 0.3, "brick": 0.12}.get(TEX[k][0], 0.25)
+			mats[k] = tex_mat(TEX[k][0], col.lightened(lift), TEX[k][1], 1.0, 1.2 if TEX[k][0] == "brick" else 0.8)
+		else:
+			var m := StandardMaterial3D.new()
+			m.albedo_color = col
+			m.roughness = 0.95
+			mats[k] = m
 	var roof_mats := {}
 	for b in blocks:
 		var look: String = b[5]
@@ -351,10 +412,7 @@ func build_visuals(parent: Node3D, ground: Callable, culture_roof: Color) -> voi
 			var rc: Color = culture_roof if look in ["house", "hall", "inn"] else roof_col
 			var key := rc.to_html()
 			if not roof_mats.has(key):
-				var rm := StandardMaterial3D.new()
-				rm.albedo_color = rc
-				rm.roughness = 0.8
-				roof_mats[key] = rm
+				roof_mats[key] = roof_mat(rc)
 			var roof := MeshInstance3D.new()
 			var pm := PrismMesh.new()
 			var along_x := w >= d
@@ -378,8 +436,7 @@ func build_visuals(parent: Node3D, ground: Callable, culture_roof: Color) -> voi
 
 func _door(parent: Node3D, b: Array, g: float) -> void:
 	var big: bool = b[5] in ["hall", "inn"]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color("2a2017")
+	var m := tex_mat("planks", Color("5a4430"), 1.0)
 	var cx: float = (b[0] + b[2]) * 0.5
 	var cz: float = (b[1] + b[3]) * 0.5
 	# a building someone stands in front of (the hall, the inn, the prison) has its door facing that spot
@@ -515,8 +572,7 @@ func _props(parent: Node3D, ground: Callable) -> void:
 
 
 func _interior(parent: Node3D) -> void:
-	var floor_m := StandardMaterial3D.new()
-	floor_m.albedo_color = Color("4a3a2a") if ceiling < 5.0 else Color("6a6458")
+	var floor_m := tex_mat("planks", Color("8a7058"), 1.8) if ceiling < 5.0 else tex_mat("brick", Color("b8b2a6"), 1.4)
 	var fl := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = rect.size + Vector2(2, 2)
@@ -524,8 +580,7 @@ func _interior(parent: Node3D) -> void:
 	fl.material_override = floor_m
 	fl.position = Vector3(rect.get_center().x, 0.02, rect.get_center().y)
 	parent.add_child(fl)
-	var ceil_m := StandardMaterial3D.new()
-	ceil_m.albedo_color = Color("3a2a1e")
+	var ceil_m := tex_mat("planks", Color("6a5038"), 1.8).duplicate() as StandardMaterial3D
 	ceil_m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var ce := MeshInstance3D.new()
 	var cm := PlaneMesh.new()

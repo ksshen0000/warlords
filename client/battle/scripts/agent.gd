@@ -25,7 +25,9 @@ var rng_seed := 0
 # stats & equipment
 var max_hp := 100.0
 var hp := 100.0
-var armor := 0
+var armor := 0                       # body
+var head_armor := 0
+var look: Dictionary = {}            # {head, body}: gear tier shown on the model (the player's items)
 var melee: Array = []
 var melee_idx := 0
 var ranged: Dictionary = {}
@@ -34,6 +36,9 @@ var shield: Dictionary = {}
 var horse_kind := ""
 var mounted := false
 var horse_hp := 0.0
+var horse_max_hp := 0.0
+var horse_speed := 1.0               # the horse's speed factor (the player's own mount)
+var horse_armor := -1.0              # < 0: by kind (rules [horse])
 var using_ranged := false
 var crossbow_loaded := true
 
@@ -90,6 +95,10 @@ func setup(b: Node, r: BattleRules, tid: String, sd: int, col: Color, override: 
 		max_hp += 30
 	hp = max_hp
 	armor = int(lo.armor)
+	head_armor = int(lo.head_armor)
+	look = lo.get("look", {})
+	horse_speed = float(lo.get("horse_speed", 1.0))
+	horse_armor = float(lo.get("horse_armor", -1.0))
 	melee = lo.melee
 	ranged = lo.ranged
 	ammo = int(ranged.get("ammo", 0))
@@ -98,7 +107,8 @@ func setup(b: Node, r: BattleRules, tid: String, sd: int, col: Color, override: 
 	if b.setup.get("dismounted", false):
 		horse_kind = ""                 # hideout raids are fought on foot
 	mounted = horse_kind != ""
-	horse_hp = r.num("horse", "hp", 110) if mounted else 0.0
+	horse_max_hp = float(lo.get("horse_hp", r.num("horse", "hp", 110)))
+	horse_hp = horse_max_hp if mounted else 0.0
 	_check_mounted_kit()
 	melee_idx = _first_usable(0)
 	using_ranged = can_use_ranged()
@@ -417,7 +427,7 @@ func _move(dt: float) -> void:
 	var H := "human"
 	var down := state == DOWN
 	if mounted:
-		var top := rules.num("horse", "speed", 10.5)
+		var top := rules.num("horse", "speed", 10.5) * horse_speed
 		var tgt_speed := 0.0
 		var turn_rate := rules.num("horse", "turn", 2.2) * (1.35 - 0.6 * clampf(speed / top, 0.0, 1.0))
 		if steer_direct:
@@ -688,6 +698,12 @@ func pose() -> Dictionary:
 		lreach = 0.45
 	if wdir == Vector3.ZERO:
 		wdir = arm if state != IDLE or long_weapon else Vector3(0.1, 0.55, -0.85)   # idle: blade up and forward
+	if weapon().get("kind", "") == "unarmed" and state in [IDLE, RECOVER] and not shooting:
+		arm = Vector3(0.18, -1.0, 0.05)          # empty-handed townsfolk: arms hang at the sides
+		larm = Vector3(-0.18, -1.0, 0.05)
+		wdir = arm
+		reach = 0.55
+		lreach = 0.55
 	if mounted:
 		crouch = 0.0
 		step = 0.0

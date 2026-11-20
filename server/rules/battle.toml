@@ -130,6 +130,15 @@ spacing_max = 3.0
 # hands：持握的手数（默认单手；弓弩一律算双手）。双手兵器、弓弩拿在手上时，盾背在背上，不能举盾格挡
 # mount = false：马上不能用（换武器时跳过；骑兵若没有能用的近战兵器，自动配一把短刀）
 # mount_reload = false：马上不能上弦（弩）
+[weapons.fists]               # 空手（城里的百姓、店家）：模型手里不画兵器
+name = "空手"
+kind = "unarmed"
+damage = 8
+thrust = 0
+dtype = "blunt"
+reach = 0.95
+speed = 1.2
+
 [weapons.club]
 name = "木棒"
 kind = "one_hand"

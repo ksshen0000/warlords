@@ -22,7 +22,7 @@ RW, RH = W // RC, H // RC   # 480 x 320 render grid
 NC = 8                      # navigation cell size
 NW, NH = W // NC, H // NC   # 240 x 160 nav grid
 INF = float("inf")
-CACHE_VERSION = 11  # bump whenever generation (geography, sites, kingdoms) changes
+CACHE_VERSION = 13  # bump whenever generation (geography, sites, kingdoms) changes
 
 _N8 = [(-1, 0, 1.0), (1, 0, 1.0), (0, -1, 1.0), (0, 1, 1.0),
        (-1, -1, 1.4142), (1, -1, 1.4142), (-1, 1, 1.4142), (1, 1, 1.4142)]
@@ -554,7 +554,12 @@ def _carve_rivers(t: Terrain) -> None:
             for c in _cells_near_line(narrow, RC * 0.6):
                 if t.height[c] >= sea:
                     t.river[c] = 1
-            t.rivers.append({"points": narrow, "width": 4.0 if r.get("great") else 2.6, "name": r["name"]})
+            # drawn as a line that widens downstream; a great river's line ends as wide as the open water it
+            # becomes (client draws width × 0.7), so there is no jump from a thread to a lake at wide_from
+            open_w = 2.0 * float(r.get("half_width", 2.0)) * RC / 0.7
+            end = open_w if (r.get("great") and wide) else (4.0 if r.get("great") else 3.2)
+            t.rivers.append({"points": narrow, "width": 1.6 if r.get("great") else 1.2, "width_end": round(end, 2),
+                             "name": r["name"]})
         if not wide:
             continue
         half = float(r.get("half_width", 2.0)) * RC
@@ -564,6 +569,7 @@ def _carve_rivers(t: Terrain) -> None:
                 water.add(c)
                 t.biome[c] = D.WATER
                 t.height[c] = sea - 0.012
+        ford_start = len(t.fords)
         for fx, fy in (geo(*f) for f in r.get("fords", [])):
             # snap to the river, then lay a sandbar / ferry landing across it
             c0 = min(water, key=lambda c: math.hypot((c % RW + 0.5) * RC - fx, (c // RW + 0.5) * RC - fy), default=None)
@@ -576,6 +582,11 @@ def _carve_rivers(t: Terrain) -> None:
                     t.height[c] = sea + 0.004
                     t.river[c] = 1
             t.fords.append([round(ox, 1), round(oy, 1)])
+        # the open stretch is drawn with the same line as upstream (one look for the whole river), over the
+        # water cells; the client leaves gaps at the fords so the sandbars and ferries show
+        ow = round(2.0 * half / 0.7, 2)
+        t.rivers.append({"points": wide, "width": ow, "width_end": ow, "name": r["name"], "open": True,
+                         "gaps": t.fords[ford_start:], "gap_r": round(half + RC * 1.6, 1)})
 
 
 def _slow_fords(t: Terrain) -> None:

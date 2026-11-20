@@ -182,7 +182,7 @@ func _build_ui() -> void:
 	root.add_child(map_holder)
 	map = MapViewScript.new()
 	map.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	map.hint = "左键 行军 · 按住空格 等待 · 1 暂停 2 正常 3 快进 · P 部队 N 百科 K 朝议 L 日志 · 按住 Alt 显示名字 · F 回到自己 · Esc 菜单"
+	map.hint = "左键 行军 · 按住空格 等待 · 1 暂停 2 正常 3 快进 · P 部队 I 装备 N 百科 K 朝议 L 日志 · 按住 Alt 显示名字 · F 回到自己 · Esc 菜单"
 	map.selection_changed.connect(func(_k, _i):
 		if _k != "" and _k != "player":
 			tabs.current_tab = 1
@@ -229,6 +229,12 @@ func _build_ui() -> void:
 	gear.tooltip_text = "显示模式、分辨率、界面缩放、鼠标锁定（F11 全屏，F10 锁/解鼠标）"
 	gear.focus_mode = Control.FOCUS_NONE
 	gear.pressed.connect(func(): settings.open())
+	var kit := Button.new()
+	kit.text = "装备"
+	kit.tooltip_text = "你本人的兵器、甲胄、坐骑（I）"
+	kit.focus_mode = Control.FOCUS_NONE
+	kit.pressed.connect(_open_gear)
+	head.add_child(kit)
 	head.add_child(gear)
 	side.add_child(head)
 	status_label = _label("连接中…", 13, MUTED)
@@ -392,6 +398,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				api.act("leave")
 			elif _menu_open() and _menu_has("ok"):
 				api.act("ok")
+			elif _menu_open() and menu_panel.menu.has("gear"):
+				api.act("back")
 			else:
 				settings.open()
 		KEY_1:
@@ -405,8 +413,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_speed(3)
 		KEY_5:
 			_set_speed(4)
-		KEY_C, KEY_P, KEY_I:
+		KEY_C, KEY_P:
 			tabs.current_tab = 0
+		KEY_I:
+			_open_gear()
 		KEY_N:
 			tabs.current_tab = 1 if map.sel_kind != "" else 2
 		KEY_K:
@@ -428,6 +438,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			handled = false
 	if handled:
 		get_viewport().set_input_as_handled()
+
+
+## The equipment screen (I): a server menu like the others; time stops while it is open.
+func _open_gear() -> void:
+	if _menu_open() and menu_panel.menu.has("gear"):
+		api.act("back")
+	elif not _menu_open() or str(menu_panel.menu.get("type", "")) == "settlement":
+		api.act("equipment")
 
 
 func _menu_has(id: String) -> bool:

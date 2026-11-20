@@ -1,0 +1,306 @@
+# ============================================================
+# 装备（玩家本人的装备栏：仿骑砍的武器四格 + 头 + 身 + 马）。
+# 兵器、盾的战斗数值在 battle.toml 的 [weapons.*] [shields.*]：这里的物品用 base 指向它，
+# 再按需覆盖几项（damage / thrust / speed / reach / ammo / draw / size / mount_reload…），
+# 于是同一种兵器可以有不同成色（如「百炼环首刀」= 环首刀 + 伤害）。
+# 兵种的配装仍在 battle.toml [loadout.*]，不受本表影响。
+#
+# type：melee 近战 / ranged 弓弩 / shield 盾 / head 头盔 / body 身甲 / horse 坐骑
+# price 金；tier 档次（1–4，决定哪些城的兵器铺有货、战后能缴获什么）
+# cultures：这些文化的城里更常见（省略 = 各地都有）；armor：头盔/身甲的护甲值
+# 坐骑：kind = horse / barded（具装），hp 马的血量，speed 速度倍率，armor 马铠
+# ============================================================
+
+[equipment]
+weapon_slots = 4              # 武器格：近战、弓弩、盾共用；同时最多一面盾、一张弓弩
+sell_ratio = 0.45             # 卖给兵器铺的价钱 = 原价 × 此值
+shop_size = 14                # 一家兵器铺的货色种数
+restock_days = 7              # 每隔几天进一次新货
+shop_tier_base = 2            # 兵器铺最高档次 = base + 繁荣 ÷ per（封顶 4）
+shop_tier_per = 35
+culture_weight = 3.0          # 本地文化的物品更常见
+foreign_weight = 0.35         # 别处特产（cultures 不含本地）少见
+loot_rolls_per = 12           # 战胜后：每击倒这么多敌人多一次缴获机会（至少一次，最多 loot_rolls_max）
+loot_rolls_max = 4
+loot_chance = 0.45            # 每次机会真的捡到东西的概率
+loot_horse_weight = 0.3       # 缴获到马的相对概率（马难带回来）
+
+[slot_names]
+w1 = "武器一"
+w2 = "武器二"
+w3 = "武器三"
+w4 = "武器四"
+head = "头"
+body = "身"
+horse = "坐骑"
+
+# ------------------------------------------------------------ 近战
+[items.club]
+type = "melee"
+base = "club"
+name = "木棒"
+price = 10
+tier = 1
+
+[items.knife]
+type = "melee"
+base = "knife"
+name = "短刀"
+price = 45
+tier = 1
+
+[items.sword]
+type = "melee"
+base = "sword"
+name = "环首刀"
+price = 260
+tier = 2
+
+[items.sword_fine]
+type = "melee"
+base = "sword"
+name = "百炼环首刀"
+damage = 32
+thrust = 23
+speed = 1.05
+price = 1100
+tier = 4
+cultures = ["zhou", "shu"]
+
+[items.mace]
+type = "melee"
+base = "mace"
+name = "骨朵"
+price = 220
+tier = 2
+cultures = ["yan", "zhao", "rou"]
+
+[items.axe]
+type = "melee"
+base = "axe"
+name = "长柄大斧"
+price = 380
+tier = 3
+cultures = ["liang", "shu"]
+
+[items.spear]
+type = "melee"
+base = "spear"
+name = "长矛"
+price = 110
+tier = 1
+
+[items.ji]
+type = "melee"
+base = "ji"
+name = "长戟"
+price = 420
+tier = 3
+cultures = ["zhou", "zhao"]
+
+[items.lance]
+type = "melee"
+base = "lance"
+name = "马槊"
+price = 900
+tier = 3
+cultures = ["yan", "zhao", "liang", "rou"]
+
+[items.lance_fine]
+type = "melee"
+base = "lance"
+name = "丈八马槊"
+thrust = 38
+couch = 78
+reach = 2.75
+price = 2200
+tier = 4
+cultures = ["yan", "liang"]
+
+# ------------------------------------------------------------ 弓弩
+[items.bow]
+type = "ranged"
+base = "bow"
+name = "木弓"
+price = 180
+tier = 1
+
+[items.horsebow]
+type = "ranged"
+base = "horsebow"
+name = "角弓"
+price = 480
+tier = 2
+cultures = ["rou", "yan", "zhao"]
+
+[items.strongbow]
+type = "ranged"
+base = "strongbow"
+name = "强弓"
+price = 650
+tier = 3
+
+[items.armbow]
+type = "ranged"
+base = "crossbow"
+name = "臂张弩"
+damage = 32
+draw = 1.7
+ammo = 20
+mount_reload = true           # 手臂就能拉开，马上也能上弦（慢）
+price = 520
+tier = 2
+cultures = ["zhou", "shu", "liang"]
+
+[items.crossbow]
+type = "ranged"
+base = "crossbow"
+name = "蹶张弩"
+price = 800
+tier = 3
+cultures = ["zhou", "shu", "liang"]
+
+# ------------------------------------------------------------ 盾
+[items.rattan]
+type = "shield"
+base = "rattan"
+name = "藤牌"
+price = 60
+tier = 1
+cultures = ["shu", "zhou"]
+
+[items.round]
+type = "shield"
+base = "round"
+name = "圆盾"
+price = 90
+tier = 1
+
+[items.large]
+type = "shield"
+base = "large"
+name = "大橹"
+price = 170
+tier = 2
+
+# ------------------------------------------------------------ 头盔
+[items.hood]
+type = "head"
+name = "布帻"
+armor = 2
+price = 10
+tier = 1
+
+[items.leather_cap]
+type = "head"
+name = "皮弁"
+armor = 8
+price = 90
+tier = 1
+
+[items.helm]
+type = "head"
+name = "兜鍪"
+armor = 18
+price = 340
+tier = 2
+
+[items.helm_neck]
+type = "head"
+name = "顿项兜鍪"
+armor = 26
+price = 750
+tier = 3
+
+[items.helm_fine]
+type = "head"
+name = "铁胄"
+armor = 32
+price = 1300
+tier = 4
+cultures = ["yan", "zhou"]
+
+# ------------------------------------------------------------ 身甲
+[items.robe]
+type = "body"
+name = "布衣"
+armor = 2
+price = 15
+tier = 1
+
+[items.leather]
+type = "body"
+name = "皮甲"
+armor = 10
+price = 160
+tier = 1
+
+[items.liangdang]
+type = "body"
+name = "裲裆铠"
+armor = 20
+price = 520
+tier = 2
+
+[items.lamellar]
+type = "body"
+name = "札甲"
+armor = 26
+price = 900
+tier = 3
+cultures = ["yan", "zhao", "liang", "rou"]
+
+[items.tongxiu]
+type = "body"
+name = "筒袖铠"
+armor = 30
+price = 1300
+tier = 3
+cultures = ["zhou", "shu", "zhao"]
+
+[items.mingguang]
+type = "body"
+name = "明光铠"
+armor = 38
+price = 2600
+tier = 4
+
+# ------------------------------------------------------------ 坐骑
+[items.nag]
+type = "horse"
+name = "驽马"
+kind = "horse"
+hp = 90
+speed = 0.88
+price = 280
+tier = 1
+
+[items.warhorse]
+type = "horse"
+name = "战马"
+kind = "horse"
+hp = 110
+speed = 1.0
+price = 900
+tier = 2
+
+[items.hequ]
+type = "horse"
+name = "河曲骏马"
+kind = "horse"
+hp = 115
+speed = 1.1
+price = 1900
+tier = 3
+cultures = ["liang", "rou", "zhao"]
+
+[items.barded]
+type = "horse"
+name = "具装甲马"
+kind = "barded"
+hp = 135
+speed = 0.92
+armor = 28
+price = 3600
+tier = 4
+cultures = ["yan", "zhao", "liang"]

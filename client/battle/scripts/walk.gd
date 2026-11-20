@@ -22,7 +22,7 @@ const PlayerMenuScript := preload("res://scripts/player_menu.gd")
 const ApiScript := preload("res://scripts/api.gd")
 const TALK_RANGE := 2.7
 ## menu options carried out right here in the street (the rest go back to the map)
-const IN_SCENE := ["talk", "quests", "recruit", "sell_prisoners", "deliver", "captive", "trade", "manage"]
+const IN_SCENE := ["talk", "quests", "recruit", "sell_prisoners", "deliver", "captive", "trade", "manage", "smith"]
 
 var lay: TownLayout
 var room := ""                    # "" = the streets; "hall" / "inn" = inside
@@ -159,7 +159,7 @@ func _deploy() -> void:
 		var role := str(sp.get("role", ""))
 		var a := _spawn_npc(str(sp.get("troop", "villager")), pos, Color(str(sp.get("color", "#8a7a5a"))),
 			"%s · %s" % [sp.get("npc", ""), role] if role != "" else str(sp.get("npc", "")),
-			{"melee": ["sword"], "armor": 20} if sp.get("armed", false) else {"melee": ["knife"], "armor": 0})
+			{"melee": ["sword"], "armor": 20} if sp.get("armed", false) else UNARMED)
 		npcs.append({"agent": a, "spots": lst, "home": pos, "yaw": _face_room(pos) if room != "" else _face_street(pos), "key": key})
 	var crowd: Dictionary = setup.get("crowd", {})
 	var kcol := Color(str(crowd.get("guard_color", "#7a7a7a")))
@@ -216,7 +216,11 @@ func _key(sp: Dictionary) -> String:
 	return "%s|%s" % [sp.get("npc", ""), sp.get("where", "")]
 
 
-func _spawn_npc(tid: String, p: Vector3, col: Color, label: String, override: Dictionary = {"melee": ["knife"], "armor": 0}) -> Agent:
+## Townsfolk, shopkeepers, clerks: empty-handed (guards and lords get their arms).
+const UNARMED := {"melee": ["fists"], "armor": 0}
+
+
+func _spawn_npc(tid: String, p: Vector3, col: Color, label: String, override: Dictionary = UNARMED) -> Agent:
 	var a := Agent.new()
 	add_child(a)
 	a.rng_seed = agents.size()
@@ -587,7 +591,7 @@ func _on_api(_kind: String, data: Dictionary) -> void:
 				if msg != "":
 					_toast(msg, 4.0)
 				_act("walk", {})                     # done: back into the street
-		"talk", "quest", "notice", "captive", "fief", "request_fief":
+		"talk", "quest", "notice", "captive", "fief", "request_fief", "equip", "smith":
 			_open_panel(m)
 			if msg != "":
 				_toast(msg, 4.0)
@@ -783,6 +787,7 @@ func _build_ui() -> void:
 	_panel.anchor_top = 0.08
 	_panel.offset_left = -600
 	_panel.offset_right = -24
+	_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN      # the equipment screen is wider: grow leftwards
 	root.add_child(_panel)
 	_panel.action.connect(func(id, data):
 		if _busy or _api == null:
