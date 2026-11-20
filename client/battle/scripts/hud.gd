@@ -134,8 +134,12 @@ func _draw() -> void:
 	if p.mounted:
 		_bar(Vector2(20, y + 20), 200, p.horse_hp / battle.rules.num("horse", "hp", 110), Color("a07a4a"), "坐骑 %d" % int(p.horse_hp))
 	var wname: String = (p.ranged.get("name", "") + "  箭 %d" % p.ammo) if p.using_ranged else str(p.weapon().get("name", ""))
-	if not p.shield.is_empty() and not p.using_ranged:
+	if p.shield_up():
 		wname += " + " + str(p.shield.get("name", "盾"))
+	elif not p.shield.is_empty():
+		wname += "（%s负于背）" % str(p.shield.get("name", "盾"))
+	if p.using_ranged and p.ranged.get("kind", "") == "crossbow" and not p.crossbow_loaded and not p.can_reload():
+		wname += "  马上无法上弦"
 	_t(Vector2(20, y + 48), wname + "   （滚轮换武器）", 15, CREAM)
 	# crosshair / reticle
 	if p.using_ranged:

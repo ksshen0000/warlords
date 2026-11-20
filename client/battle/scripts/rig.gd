@@ -26,6 +26,7 @@ var arm_l: Array[Node3D] = []
 var weapon: Node3D
 var ranged_node: Node3D
 var shield_node: Node3D
+var shield_on_arm := true          # false: slung on the back (bow / crossbow / two-handed weapon in hand)
 var legs: Array = []               # per side: [thigh, shin]
 var horse_legs: Array = []         # per leg: [hip, upper, lower]
 var horse_neck: Node3D
@@ -145,6 +146,7 @@ func build(a) -> void:
 		arm_l[1].add_child(shield_node)
 		shield_node.position = Vector3(0, 0, -FOREARM * 0.6)
 		var r: float = float(a.shield.get("size", 0.55))
+		shield_node.set_meta("r", r)
 		var disc := _cyl(shield_node, r, r, 0.05, Vector3.ZERO,
 			Color("b08a4a") if a.shield.get("id", "") == "rattan" else tunic.darkened(0.25))
 		disc.rotation = Vector3(deg_to_rad(90), 0, 0)
@@ -319,21 +321,40 @@ func show_pose(a, pose: Dictionary, walk_phase: float, speed: float, dt: float) 
 	_chain(arm_r, sh_r, hand_r, UPPER_ARM, FOREARM, Vector3(0.6, -0.7, 0.4))
 	var hand_l := sh_l + larm * float(ps.lreach)
 	var shooting_now: bool = pose.get("shooting", false)
-	if grip2 != 0.0 and shield_node == null and not shooting_now and a.state not in [Agent.DOWN, Agent.DEAD] \
+	if shield_node and a.state not in [Agent.DOWN, Agent.DEAD]:
+		_place_shield(a.shield_up())
+	if grip2 != 0.0 and (shield_node == null or not shield_on_arm) and not shooting_now and a.state not in [Agent.DOWN, Agent.DEAD] \
 			and hand_r.distance_to(sh_l) < UPPER_ARM + FOREARM + 0.25:
 		hand_l = hand_r + wdir * grip2            # both hands on the haft
 	_chain(arm_l, sh_l, hand_l, UPPER_ARM, FOREARM, Vector3(-0.6, -0.7, 0.4))
 	weapon.position = hand_r
 	_look(weapon, hand_r, hand_r + wdir)
 	var shooting: bool = pose.get("shooting", false)
-	weapon.visible = not shooting
+	var holding_ranged: bool = shooting or (a.using_ranged and a.state not in [Agent.DOWN, Agent.DEAD])
+	weapon.visible = not holding_ranged
 	if ranged_node:
-		ranged_node.visible = shooting
-		if shooting:
+		ranged_node.visible = holding_ranged
+		if holding_ranged:
 			_look(ranged_node, hand_l, hand_l + larm)
 	_legs(a, ps, walk_phase, speed, bob)
 	if horse:
 		_horse_gait(walk_phase, speed)
+
+
+## Shield on the left forearm, or slung across the back (still catches arrows from behind).
+func _place_shield(on_arm: bool) -> void:
+	if on_arm == shield_on_arm:
+		return
+	shield_on_arm = on_arm
+	shield_node.get_parent().remove_child(shield_node)
+	if on_arm:
+		arm_l[1].add_child(shield_node)
+		shield_node.transform = Transform3D(Basis(), Vector3(0, 0, -FOREARM * 0.6))
+	else:
+		spine.add_child(shield_node)
+		# a big shield is drawn smaller on the back so it doesn't hide the man (the hit test doesn't use the mesh)
+		var r: float = float(shield_node.get_meta("r", 0.55))
+		shield_node.transform = Transform3D(Basis(Vector3.FORWARD, 0.25).scaled(Vector3.ONE * minf(1.0, 0.4 / r)), Vector3(0, 0.3, 0.2))
 
 
 func _legs(a, ps: Dictionary, walk_phase: float, speed: float, bob: float) -> void:

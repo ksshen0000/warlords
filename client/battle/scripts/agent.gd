@@ -99,12 +99,26 @@ func setup(b: Node, r: BattleRules, tid: String, sd: int, col: Color, override: 
 		horse_kind = ""                 # hideout raids are fought on foot
 	mounted = horse_kind != ""
 	horse_hp = r.num("horse", "hp", 110) if mounted else 0.0
-	using_ranged = not ranged.is_empty()
+	_check_mounted_kit()
+	melee_idx = _first_usable(0)
+	using_ranged = can_use_ranged()
 	division = "cav" if mounted else ("arc" if not ranged.is_empty() else "inf")
 	_apply_shape()
 	rig = AgentRig.new()
 	add_child(rig)
 	rig.build(self)
+
+
+## A rider whose melee weapons are all foot-only (long axe…) still carries a sidearm.
+func _check_mounted_kit() -> void:
+	if not mounted:
+		return
+	for w in melee:
+		if usable(w):
+			return
+	var k := rules.weapon("knife")
+	if not k.is_empty():
+		melee.append(k)
 
 
 func _apply_shape() -> void:
@@ -127,6 +141,47 @@ func active() -> bool:
 
 func weapon() -> Dictionary:
 	return melee[melee_idx] if melee_idx < melee.size() else {}
+
+
+## Can this item be used right now (some are foot-only: long axe, great shield, strong bow…)?
+func usable(item: Dictionary) -> bool:
+	return not (mounted and item.get("mount", true) == false)
+
+
+func hands() -> int:
+	if using_ranged:
+		return int(ranged.get("hands", 2))
+	return int(weapon().get("hands", 1))
+
+
+## Shield on the left arm (blocks, catches arrows in front). Otherwise it is slung on the back:
+## a bow, crossbow or two-handed weapon needs the left hand, and a great shield is no use on a horse.
+func shield_up() -> bool:
+	return not shield.is_empty() and hands() < 2 and usable(shield) and state != RELOAD
+
+
+func shield_on_back() -> bool:
+	return not shield.is_empty() and not shield_up()
+
+
+## Spanning a crossbow needs a foot in the stirrup on the ground: not on horseback (Warband's heavy crossbow).
+func can_reload() -> bool:
+	return not (mounted and ranged.get("mount_reload", true) == false)
+
+
+## The bow / crossbow can be taken up: has ammo, works from here, and a crossbow is spanned or can be.
+func can_use_ranged() -> bool:
+	if ranged.is_empty() or ammo <= 0 or not usable(ranged):
+		return false
+	return ranged.get("kind", "") != "crossbow" or crossbow_loaded or can_reload()
+
+
+func _first_usable(from: int) -> int:
+	for k in melee.size():
+		var i := (from + k) % melee.size()
+		if usable(melee[i]):
+			return i
+	return 0
 
 
 func reach() -> float:
@@ -218,8 +273,8 @@ func release_attack() -> void:
 
 
 func start_block(dir: int) -> void:
-	if using_ranged and shield.is_empty():
-		return
+	if using_ranged:
+		return                  # bow / crossbow in hand: no guard
 	if state == IDLE or state == READY or (state == BLOCK and dir != block_dir):
 		if state != BLOCK:
 			_set_state(BLOCK, 0.0)
@@ -235,6 +290,8 @@ func begin_aim() -> void:
 	if not using_ranged or ammo <= 0 or not (state == IDLE or state == BLOCK):
 		return
 	if ranged.kind == "crossbow" and not crossbow_loaded:
+		if is_player and not can_reload():
+			battle.message("马上无法给弩上弦", Color("e0b070"))
 		return
 	_set_state(AIM, 0.0)
 
@@ -284,15 +341,23 @@ func switch_weapon() -> void:
 	## mouse wheel: cycle bow/crossbow -> melee weapons
 	if state in [READY, STRIKE, AIM, STUN, DOWN, DEAD]:
 		return
+	var nxt := -1                      # next usable melee weapon after the current one
+	if not using_ranged:
+		for i in range(melee_idx + 1, melee.size()):
+			if usable(melee[i]):
+				nxt = i
+				break
 	if using_ranged:
 		using_ranged = false
-		melee_idx = 0
-	elif melee_idx + 1 < melee.size():
-		melee_idx += 1
-	elif not ranged.is_empty() and ammo > 0:
+		melee_idx = _first_usable(0)
+	elif nxt >= 0:
+		melee_idx = nxt
+	elif can_use_ranged():
 		using_ranged = true
 	else:
-		melee_idx = 0
+		if is_player and not ranged.is_empty() and ammo > 0 and not can_use_ranged():
+			battle.message("马上用不了" + str(ranged.get("name", "")) if not usable(ranged) else "马上无法给弩上弦", Color("e0b070"))
+		melee_idx = _first_usable(0)
 	rig.set_weapon(weapon())
 	_set_state(RECOVER, 0.3)
 
@@ -301,7 +366,7 @@ func use_melee(idx := -1) -> void:
 	if using_ranged or (idx >= 0 and idx != melee_idx):
 		using_ranged = false
 		if idx >= 0:
-			melee_idx = clampi(idx, 0, melee.size() - 1)
+			melee_idx = _first_usable(clampi(idx, 0, melee.size() - 1))
 		rig.set_weapon(weapon())
 
 
@@ -335,7 +400,7 @@ func step(dt: float) -> void:
 				crossbow_loaded = true
 				_set_state(IDLE, 0.0)
 		IDLE:
-			if using_ranged and ranged.get("kind", "") == "crossbow" and not crossbow_loaded and ammo > 0:
+			if using_ranged and ranged.get("kind", "") == "crossbow" and not crossbow_loaded and ammo > 0 and can_reload():
 				_set_state(RELOAD, 0.0)
 	if state == DEAD:
 		rig_dt += dt                            # Battle keeps posing the body while it topples over
@@ -577,7 +642,7 @@ func pose() -> Dictionary:
 				Dir.DOWN:
 					wdir = Vector3(0.0, -0.9, -0.5)
 					lean = 0.1
-			if not shield.is_empty():
+			if shield_up():
 				larm = Vector3(-0.05, 0.25, -1.0)
 				lreach = 0.42
 		AIM, RELOAD:
@@ -617,7 +682,7 @@ func pose() -> Dictionary:
 		wdir = Vector3(0.0, 0.25, -1.0) if state != BLOCK else wdir
 		larm = Vector3(-0.05, -0.15, -1.0)      # both hands on the shaft
 		lreach = 0.55
-	if not shield.is_empty() and state != BLOCK and not shooting and state not in [DOWN, DEAD]:
+	if shield_up() and state != BLOCK and not shooting and state not in [DOWN, DEAD]:
 		# shield carried at the side, ready to come up
 		larm = Vector3(-0.5, -0.45, -0.6) if state in [IDLE, RECOVER] else Vector3(-0.45, 0.0, -0.85)
 		lreach = 0.45

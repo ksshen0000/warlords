@@ -33,7 +33,7 @@ static func _think(a: Agent, b) -> void:
 	elif t == "retreat":
 		a.ai["target"] = null
 		return
-	var ranged_ok: bool = not a.ranged.is_empty() and a.ammo > 0
+	var ranged_ok: bool = a.can_use_ranged()
 	var best = null
 	var best_s := INF
 	var crowd := int(b.rules.num("ai", "crowd", 3))
@@ -68,7 +68,7 @@ static func _think(a: Agent, b) -> void:
 		var close: float = b.rules.num("ai", "archer_min_range", 9)
 		if a.mounted:
 			close = 6.0
-		if a.ammo > 0 and d > close:
+		if a.can_use_ranged() and d > close:
 			if not a.using_ranged and a.state == Agent.IDLE:
 				a.using_ranged = true
 		elif a.using_ranged and a.state in [Agent.IDLE, Agent.RELOAD]:
@@ -190,7 +190,7 @@ static func _melee(a: Agent, b, tgt: Agent) -> void:
 			dirs = [Agent.Dir.DOWN] if a.can_thrust() else [Agent.Dir.UP]
 		var dir: int = dirs[randi() % dirs.size()]
 		# a little cunning: don't attack straight into a raised guard
-		if tgt.state == Agent.BLOCK and tgt.shield.is_empty() and dirs.size() > 1 and dir == tgt.block_dir:
+		if tgt.state == Agent.BLOCK and not tgt.shield_up() and dirs.size() > 1 and dir == tgt.block_dir:
 			dir = dirs[(dirs.find(dir) + 1) % dirs.size()]
 		a.start_attack(dir)
 		a.ai["hold"] = randf_range(0.0, 0.25)
@@ -213,7 +213,7 @@ static func _ally_ahead(a: Agent, b, tgt_dist: float):
 
 ## Raise the guard against an incoming attack (after a reaction delay; better troops block more).
 static func _defend(a: Agent, b) -> void:
-	if a.using_ranged and a.shield.is_empty():
+	if a.using_ranged:
 		return
 	if a.state == Agent.STRIKE or a.busy() and a.state != Agent.RECOVER:
 		return
@@ -248,7 +248,7 @@ static func _defend(a: Agent, b) -> void:
 		a.ai["block_key"] = key
 		var p: float = b.rules.num("ai", "block_base", 0.35) + b.rules.num("ai", "block_per_tier", 0.12) * a.tier() \
 			+ b.ai_skill("block")
-		if not a.shield.is_empty():
+		if a.shield_up():
 			p += 0.25
 		if a.is_player:
 			p = 0.0

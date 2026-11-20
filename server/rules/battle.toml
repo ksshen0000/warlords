@@ -49,6 +49,8 @@ speed_bonus_ref = 6.0         # 攻击方向上的相对速度（米/秒）达�
 speed_bonus_max = 1.2         # 速度加成上限（骑兵冲锋的威力就来自这里）
 block_angle = 75              # 兵器格挡：只能挡住正面这个半角内的攻击，而且方向要对
 shield_angle = 100            # 盾牌：正面这个半角内的攻击（任何方向）和箭都能挡
+back_shield_angle = 55        # 盾背在背上时（手里是弓弩或双手兵器）：正后方这个半角内射来的箭
+back_shield_chance = 0.6      #   有这么大概率被背上的盾挡住（不挡头，也不挡近战）
 block_stun = 0.4              # 攻击被挡住后，攻击方的硬直
 hit_stun = 0.45               # 挨打后的硬直（会打断自己的攻击）
 knockdown_damage = 34         # 单次伤害超过这个会被打倒在地
@@ -125,6 +127,9 @@ spacing_max = 3.0
 # kind：one_hand 单手 / two_hand 双手 / polearm 长兵 / lance 骑枪 / bow 弓 / crossbow 弩
 # damage 挥砍伤害，thrust 刺击伤害（0 = 不能刺），dtype 挥砍的伤害类型（刺击一律 pierce）
 # reach 攻击距离（从身体中心算），speed 速度倍率
+# hands：持握的手数（默认单手；弓弩一律算双手）。双手兵器、弓弩拿在手上时，盾背在背上，不能举盾格挡
+# mount = false：马上不能用（换武器时跳过；骑兵若没有能用的近战兵器，自动配一把短刀）
+# mount_reload = false：马上不能上弦（弩）
 [weapons.club]
 name = "木棒"
 kind = "one_hand"
@@ -164,6 +169,8 @@ speed = 0.95
 [weapons.axe]
 name = "长柄大斧"
 kind = "two_hand"
+hands = 2
+mount = false                 # 太长太重，马上抡不开
 damage = 42
 thrust = 0
 dtype = "cut"
@@ -183,6 +190,7 @@ thrust_only = true            # 长矛只能刺（以及上举下砸）
 [weapons.ji]
 name = "长戟"
 kind = "polearm"
+hands = 2                     # 双手持握，拿着时盾只能背着
 damage = 34
 thrust = 30
 dtype = "cut"
@@ -211,6 +219,7 @@ ammo = 24
 [weapons.strongbow]
 name = "强弓"
 kind = "bow"
+mount = false                 # 步弓长、拉力大，马上开不了
 damage = 30
 speed = 62
 draw = 1.1
@@ -227,6 +236,7 @@ ammo = 26
 [weapons.crossbow]
 name = "弩"
 kind = "crossbow"
+mount_reload = false          # 蹶张上弦要脚踩弩臂：马上只能射出事先上好的那一发
 damage = 42
 speed = 70
 draw = 2.6                    # 上弦时间
@@ -242,6 +252,7 @@ size = 0.6
 
 [shields.large]
 name = "大橹"
+mount = false                 # 步兵大盾，骑马时只能背着
 size = 0.8
 
 # ------------------------------------------------------------ 兵种配装

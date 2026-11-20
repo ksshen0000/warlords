@@ -156,9 +156,9 @@ func _auto_attack_dir(p: Agent) -> int:
 		if d < bd and to.normalized().dot(p.forward()) > 0.3:
 			bd = d
 			best = e
-	if best and best.state == Agent.BLOCK and best.shield.is_empty() and dirs.size() > 1:
+	if best and best.state == Agent.BLOCK and not best.shield_up() and dirs.size() > 1:
 		dirs = dirs.filter(func(x): return x != best.block_dir)
-	if best and best.shield.size() > 0 and Agent.Dir.UP in dirs:
+	if best and best.shield_up() and Agent.Dir.UP in dirs:
 		return Agent.Dir.UP                    # overhead over the shield rim
 	return dirs[randi() % dirs.size()]
 

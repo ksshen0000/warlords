@@ -915,7 +915,7 @@ func _blocked(att: Agent, tgt: Agent) -> bool:
 	var to_att := (att.global_position - tgt.global_position)
 	to_att.y = 0
 	var ang := rad_to_deg(tgt.forward().angle_to(to_att.normalized()))
-	if not tgt.shield.is_empty():
+	if tgt.shield_up():
 		return ang <= rules.num("combat", "shield_angle", 100)
 	return ang <= rules.num("combat", "block_angle", 75) and tgt.block_dir == att.attack_dir
 
@@ -937,7 +937,7 @@ func melee_hit(att: Agent, tgt: Agent, point: Vector3, part: String, thrust: boo
 		att.state_t = 0.0
 		att.state_len = rules.num(C, "block_stun", 0.4)
 		_effect(point, Color("ffd27a"), 6)
-		sound("shield" if not tgt.shield.is_empty() else "clash", point)
+		sound("shield" if tgt.shield_up() else "clash", point)
 		if att == player or tgt == player:
 			message("格挡！" if tgt == player else "被挡住了", Color("cfd6dc"))
 		return
@@ -1219,11 +1219,17 @@ func _place_arrow(ar: Dictionary) -> void:
 
 
 func _shield_stops(tgt: Agent, v: Vector3, part: String) -> bool:
-	if tgt.shield.is_empty() or part == "horse" or tgt.attacking() or tgt.state == Agent.AIM:
+	if tgt.shield.is_empty() or part == "horse":
 		return false
 	var from := -v
 	from.y = 0
 	var ang := rad_to_deg(tgt.forward().angle_to(from.normalized()))
+	if tgt.shield_on_back():
+		# slung on the back: covers the back against arrows from behind (not the head)
+		return part == "body" and ang >= 180.0 - rules.num("combat", "back_shield_angle", 55) \
+			and randf() < rules.num("combat", "back_shield_chance", 0.6)
+	if tgt.attacking() or tgt.state == Agent.AIM:
+		return false
 	if ang > rules.num("combat", "shield_angle", 100):
 		return false
 	# a raised shield always stops it; otherwise the shield on the arm catches about half
