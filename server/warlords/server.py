@@ -13,6 +13,9 @@ Endpoints (all JSON):
     POST /reset   {"seed": 3, "tier": 3}        new world
     POST /config  {"tier": 2}                   change how much the AI is involved
     POST /reload                                re-read rules/balance.toml, doctrine.toml, ai.toml
+    GET  /saves                                 the save slots (auto, 1-5) with a summary each
+    POST /save    {"slot": "1"}                 save the campaign
+    POST /load    {"slot": "1"}                 load a campaign (like /reset, a new world for the client)
 """
 from __future__ import annotations
 
@@ -23,6 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import player, rules
+from . import save as SV
 from .ai import AIRouter
 from .brains import make_llm
 from .data import refresh_balance
@@ -49,10 +53,34 @@ class Game:
         if old:
             old.shutdown()
         self.seed = seed
-        self.world = default_world(seed)
+        self._attach(default_world(seed), tier)
+
+    def _attach(self, world, tier: int) -> None:
+        self.seed = world.seed
+        self.world = world
         self.ai = AIRouter(self.world, tier, self.llm, wait=False)
         self.sim = Simulation(self.world, self.ai)
         self._map_cache = None
+        self.autosaved_day = world.day
+
+    def load(self, slot: str) -> None:
+        world = SV.load(slot)                       # raises before anything is replaced
+        tier = self.ai.tier
+        self.ai.shutdown()
+        self._attach(world, tier)
+
+    AUTOSAVE_DAYS = 3
+
+    def autosave(self) -> None:
+        """Every few game days, while no menu is open (Warband saves when you leave a town / camp)."""
+        w = self.world
+        if w.day - self.autosaved_day < self.AUTOSAVE_DAYS or (w.player or {}).get("pending") or not w.player.get("background"):
+            return
+        self.autosaved_day = w.day
+        try:
+            SV.save(w, "auto")
+        except OSError as e:
+            print(f"[save] 自动存档失败：{e}", flush=True)
 
     def map(self) -> bytes:
         if self._map_cache is None:
@@ -99,6 +127,8 @@ def make_handler(game: Game):
                     return self._send_raw(200, game.map())
                 if url.path == "/state":
                     return self._send(200, game.snapshot())
+                if url.path == "/saves":
+                    return self._send(200, {"saves": SV.listing(), "dir": SV.save_dir()})
                 if url.path == "/events":
                     since = int(parse_qs(url.query).get("since", ["0"])[0])
                     ev = game.world.events
@@ -114,6 +144,30 @@ def make_handler(game: Game):
                 result = None
                 if url.path == "/step":
                     game.sim.step(max(1, min(24 * 7, int(data.get("hours", 1)))))
+                    game.autosave()
+                elif url.path == "/save":
+                    slot = str(data.get("slot", ""))
+                    if not SV.valid_slot(slot) or slot == "auto":
+                        return self._send(400, {"error": "没有这个存档位"})
+                    if not w.player.get("background"):
+                        return self._send(400, {"error": "还没有创建角色，无法存档"})
+                    try:
+                        SV.save(w, slot)
+                    except OSError as e:
+                        return self._send(500, {"error": f"存档失败：{e}"})
+                    result = {"ok": True, "message": f"已存档到{SV.SLOT_NAMES.get(slot, '存档 ' + slot)}（第 {w.day} 天）"}
+                elif url.path == "/load":
+                    slot = str(data.get("slot", ""))
+                    if not SV.valid_slot(slot):
+                        return self._send(400, {"error": "没有这个存档位"})
+                    try:
+                        game.load(slot)
+                    except Exception as e:
+                        return self._send(500, {"error": f"读档失败：{e}"})
+                    snap = game.snapshot()
+                    snap["events"] = game.world.events[-300:]        # the chronicle so far
+                    snap["result"] = {"ok": True, "message": f"已读取：第 {game.world.day} 天"}
+                    return self._send(200, snap)
                 elif url.path == "/player/move":
                     result = player.move(w, data)
                 elif url.path == "/player/act":

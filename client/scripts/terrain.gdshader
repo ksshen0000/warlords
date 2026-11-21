@@ -8,7 +8,7 @@ shader_type canvas_item;
 uniform sampler2D heights : filter_linear, repeat_disable;
 uniform sampler2D biomes : filter_nearest, repeat_disable;
 uniform vec2 grid = vec2(300.0, 200.0);
-uniform float zoom = 1.0;
+
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
@@ -35,7 +35,7 @@ vec3 land_color(int b, vec2 c, float elev) {
 	else if (b == 4) { col = mix(vec3(0.42, 0.62, 0.32), vec3(0.50, 0.68, 0.36), n); }
 	else if (b == 5) {
 		float canopy = smoothstep(0.35, 0.75, noise(c * 3.2) * 0.6 + fine * 0.4);
-		col = mix(vec3(0.17, 0.34, 0.18), vec3(0.26, 0.45, 0.22), canopy);
+		col = mix(vec3(0.16, 0.32, 0.23), vec3(0.28, 0.44, 0.28), canopy);
 	}
 	else if (b == 6) { col = mix(vec3(0.55, 0.52, 0.36), vec3(0.47, 0.50, 0.33), n); }
 	else if (b == 7) {
@@ -66,13 +66,21 @@ void fragment() {
 	vec2 uv = UV;
 	vec2 c = uv * grid;
 	float h = H(uv);
+	float close_detail = 1.0 - smoothstep(0.13, 0.46, length(fwidth(c)));
 	vec3 col;
 	if (h < 99.5) {
 		float depth = clamp(h / 99.0, 0.0, 1.0);
-		col = mix(vec3(0.09, 0.20, 0.33), vec3(0.22, 0.42, 0.55), depth * depth);
-		col += (noise(c * 1.5 + TIME * 0.05) - 0.5) * 0.03;
-		float foam = smoothstep(92.0, 99.0, h + noise(c * 4.0) * 4.0);
-		col = mix(col, vec3(0.75, 0.82, 0.80), foam * 0.55);
+		vec3 open_sea = vec3(21.0, 47.0, 62.0) / 255.0;
+		col = mix(open_sea, vec3(0.27, 0.49, 0.49), depth * depth);
+		float drift = noise(c * vec2(0.5, 1.8) + vec2(TIME * 0.035, -TIME * 0.06));
+		float stipple = smoothstep(0.67, 0.87, drift) * close_detail;
+		col += vec3(0.075, 0.095, 0.08) * stipple * (0.32 + depth * 0.68);
+		float shore = smoothstep(84.0, 99.5, h);
+		float foam = smoothstep(97.0, 99.5, h + noise(c * 3.8) * 1.7);
+		col = mix(col, vec3(0.49, 0.65, 0.56), shore * 0.26);
+		col = mix(col, vec3(0.77, 0.82, 0.69), foam * 0.52);
+		vec2 border = min(c, grid - c);
+		col = mix(open_sea, col, smoothstep(0.0, 2.3, min(border.x, border.y)));
 	} else {
 		vec2 jitter = (vec2(fbm(c * 0.8), fbm(c * 0.8 + 31.7)) - 0.5) * 1.8;
 		int b = int(texture(biomes, (c + jitter) / grid).r * 255.0 + 0.5);
@@ -84,7 +92,11 @@ void fragment() {
 		float dy = H(uv + vec2(0.0, px.y)) - H(uv - vec2(0.0, px.y));
 		vec3 nrm = normalize(vec3(-dx * 0.09, -dy * 0.09, 1.0));
 		float light = dot(nrm, normalize(vec3(-0.55, -0.65, 0.55)));
-		col *= 0.62 + 0.5 * clamp(light, 0.0, 1.2);
+		col *= 0.65 + 0.47 * clamp(light, 0.0, 1.2);
+		if (b == 6 || b == 7) {
+			float contour = 1.0 - smoothstep(0.035, 0.12, abs(fract(h / 11.0) - 0.5));
+			col *= 1.0 - contour * close_detail * 0.10;
+		}
 		// soft dark rim along the coast
 		col *= mix(0.86, 1.0, smoothstep(100.0, 106.0, h));
 	}

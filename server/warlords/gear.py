@@ -68,6 +68,8 @@ def describe(iid: str) -> str:
     c = _combat(it)
     if t == "shield":
         return f"盾面 {float(c.get('size', 0.55)):.2f}" + (" · 马上只能背着" if c.get("mount") is False else "")
+    if t == "ranged" and c.get("kind") == "throw":
+        return f"投掷 · 伤害 {c.get('damage', 0)} · {c.get('ammo', 0)} 件 · 射程 {c.get('range', 25)} 米 · 单手，可持盾"
     if t == "ranged":
         kind = "弩" if c.get("kind") == "crossbow" else "弓"
         s = f"{kind} · 伤害 {c.get('damage', 0)} · {'上弦' if kind == '弩' else '拉弓'} {float(c.get('draw', 0.9)):.1f}秒 · 箭 {c.get('ammo', 0)}"
@@ -105,9 +107,30 @@ def ensure(w: World) -> None:
             _put_on(w, iid)
 
 
-def _put_on(w: World, iid: str, slot: str | None = None) -> str:
+def equip_of(w: World, who: str = "player") -> dict:
+    """The slots of you or of a companion (companions.py); everyone shares the one bag."""
+    if who in ("", "player"):
+        return w.player["equip"]
+    comp = (w.player.get("companions") or {}).get(who)
+    if comp is None:
+        raise KeyError(who)
+    comp.setdefault("equip", {s: None for s in SLOTS})
+    return comp["equip"]
+
+
+def buy_price(w: World, iid: str) -> int:
+    from .character import personal
+    return int(int(item(iid).get("price", 0)) * max(0.5, 1.0 - personal(w, "trade")))      # 交易
+
+
+def sell_for(w: World, iid: str) -> int:
+    from .character import personal
+    return int(sell_price(iid) * (1.0 + personal(w, "trade")))
+
+
+def _put_on(w: World, iid: str, slot: str | None = None, who: str = "player") -> str:
     """Put an item into a slot (an error message, or "" on success). Whatever it replaces goes to the bag."""
-    eq = w.player["equip"]
+    eq = equip_of(w, who)
     t = item(iid).get("type")
     if t is None:
         return "没有这件东西"
@@ -147,10 +170,10 @@ def slot_name(slot: str) -> str:
 
 
 # ----------------------------------------------------------------- battle
-def loadout(w: World) -> dict:
-    """The 3D battle loadout of the player's character from what is equipped (client: rules.gd loadout())."""
+def loadout(w: World, who: str = "player") -> dict:
+    """The 3D battle loadout of you or a companion from what is equipped (client: rules.gd loadout())."""
     ensure(w)
-    eq = w.player["equip"]
+    eq = equip_of(w, who)
     out: dict = {"melee": [], "armor": 0, "head_armor": 0}
     look = {}
     for s in WEAPON_SLOTS:
@@ -278,13 +301,18 @@ def open_menu(w: World, kind: str, back, sid: str | None = None) -> None:
 
 def menu(w: World, pend: dict, gold: float) -> dict:
     ensure(w)
-    eq = w.player["equip"]
+    who = pend.get("who", "player")
+    try:
+        eq = equip_of(w, who)
+    except KeyError:
+        who = pend["who"] = "player"
+        eq = equip_of(w, who)
     s = w.settlements.get(pend.get("id", "")) if pend["type"] == "smith" else None
 
     def row(iid, n=1):
         it = item(iid)
         return {"id": iid, "name": name(iid), "n": n, "type": it.get("type"), "type_name": TYPE_NAMES.get(it.get("type"), ""),
-                "desc": describe(iid), "price": int(it.get("price", 0)), "sell": sell_price(iid), "tier": int(it.get("tier", 1)),
+                "desc": describe(iid), "price": buy_price(w, iid), "sell": sell_for(w, iid), "tier": int(it.get("tier", 1)),
                 "base": it.get("base", ""), "kind": it.get("kind", "")}      # base / kind: which icon to draw
 
     slots = []
@@ -293,16 +321,20 @@ def menu(w: World, pend: dict, gold: float) -> dict:
         slots.append({"slot": sl, "label": slot_name(sl), "item": row(iid) if iid and item(iid) else None})
     order = {t: i for i, t in enumerate(TYPE_NAMES)}
     bag = sorted((row(i, n) for i, n in w.player["bag"].items() if item(i)), key=lambda r: (order.get(r["type"], 9), -r["price"]))
-    lo = loadout(w)
+    lo = loadout(w, who)
     mounted = bool(lo.get("horse"))
+    from .character import people
+    comp = (w.player.get("companions") or {}).get(who) if who != "player" else None
     summary = (f"头部护甲 {lo['head_armor']} · 身体护甲 {lo['armor']}"
                + (f" · 坐骑 {name(eq['horse'])}" if mounted else " · 步行")
                + f" · 金 {int(gold)}")
-    m = {"type": pend["type"], "title": "装备" if s is None else f"{s.name}的兵器铺",
+    whose = f" · {comp['name']}" if comp else ""
+    m = {"type": pend["type"], "title": ("装备" if s is None else f"{s.name}的兵器铺") + whose,
          "text": summary, "options": [{"id": "back", "label": "返回", "enabled": True}],
          "gear": {"slots": slots, "bag": bag, "gold": int(gold), "msg": pend.get("msg", ""), "msg_ok": pend.get("msg_ok", True),
                   # the character preview: the same loadout the 3D battle gets
-                  "loadout": lo, "troop": f"{w.player.get('origin') or 'zhou'}_cav3",
+                  "loadout": lo, "troop": comp.get("troop", "zhou_cav3") if comp else f"{w.player.get('origin') or 'zhou'}_cav3",
+                  "who": who, "people": people(w),
                   "color": _color(w), "head_armor": lo["head_armor"], "body_armor": lo["armor"],
                   "horse": name(eq["horse"]) if mounted else ""}}
     if s is not None:
@@ -337,7 +369,19 @@ def act(w: World, pend: dict, action: str, data: dict, p) -> dict:
 
 def _act(w: World, pend: dict, action: str, data: dict, p) -> dict:
     ensure(w)
-    eq = w.player["equip"]
+    who = pend.get("who", "player")
+    if action == "who":
+        try:
+            equip_of(w, str(data.get("who", "player")))
+        except KeyError:
+            return {"ok": False, "message": "没有这个人"}
+        pend["who"] = str(data.get("who", "player"))
+        return {"ok": True, "message": ""}
+    try:
+        eq = equip_of(w, who)
+    except KeyError:
+        pend["who"] = who = "player"
+        eq = equip_of(w, who)
     iid = str(data.get("item", ""))
     slot = data.get("slot")
     if action == "back":
@@ -349,7 +393,7 @@ def _act(w: World, pend: dict, action: str, data: dict, p) -> dict:
         if slot is not None and slot not in SLOTS:
             return {"ok": False, "message": "没有这个装备格"}
         _bag_add(w, iid, -1)
-        err = _put_on(w, iid, slot)
+        err = _put_on(w, iid, slot, who)
         if err:
             _bag_add(w, iid, 1)
             return {"ok": False, "message": err}
@@ -377,7 +421,7 @@ def _act(w: World, pend: dict, action: str, data: dict, p) -> dict:
         if action == "gear_buy":
             if shop(w, s).get(iid, 0) <= 0:
                 return {"ok": False, "message": "铺子里没有这件货"}
-            price = int(item(iid)["price"])
+            price = buy_price(w, iid)
             if p.gold < price:
                 return {"ok": False, "message": f"钱不够（要{price}金）"}
             if slot is not None:
@@ -388,7 +432,7 @@ def _act(w: World, pend: dict, action: str, data: dict, p) -> dict:
             _bag_add(w, iid, 1)
             if slot is not None:
                 _bag_add(w, iid, -1)
-                err = _put_on(w, iid, slot)
+                err = _put_on(w, iid, slot, who)
                 if err:
                     _bag_add(w, iid, 1)
                     return {"ok": True, "message": f"花{price}金买下{name(iid)}，放进了包裹（{err}）"}
@@ -403,7 +447,7 @@ def _act(w: World, pend: dict, action: str, data: dict, p) -> dict:
             return {"ok": False, "message": "包里没有这件东西"}
         else:
             _bag_add(w, iid, -1)
-        gain = sell_price(iid)
+        gain = sell_for(w, iid)
         _ledger(w, s, iid, 1)
         p.gold += gain
         return {"ok": True, "message": f"卖掉{name(iid)}，得{gain}金"}

@@ -355,6 +355,9 @@ def party_speed(w: World, p: Party) -> float:
             if q and q is not p and q.army == p.army:
                 sp = min(sp, m.base_speed * _size_speed(q.troops))
         sp *= 0.95
+    if p.kind == "player":
+        from .character import party as _party_skill
+        sp *= 1.0 + _party_skill(w, "pathfinding")      # 寻路
     return sp
 
 

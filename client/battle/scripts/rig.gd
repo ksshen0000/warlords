@@ -16,6 +16,9 @@ const THIGH := 0.455
 const SHIN := 0.455
 const HORSE_UPPER := 0.5
 const HORSE_LOWER := 0.47
+const Art := preload("res://battle/scripts/art_mesh.gd")
+const Equipment := preload("res://battle/scripts/equipment_art.gd")
+const HorseSkin := preload("res://battle/scripts/horse_skin.gd")
 
 var rider: Node3D
 var horse: Node3D
@@ -31,51 +34,40 @@ var legs: Array = []               # per side: [thigh, shin]
 var horse_legs: Array = []         # per leg: [hip, upper, lower]
 var horse_neck: Node3D
 var label: Label3D
-var _mats := {}
+static var _mats := {}             # shared materials for feet and fallback body parts
+static var _boxes := {}
 var weapon_len := 0.7
 var grip2 := 0.0                   # two-handed weapons: where the left hand holds the shaft (m along the weapon; 0 = one hand)
 var _flash_on: Array = []          # the meshes that flash red when hit (an overlay: the skin is shared)
 static var _flash_mat: StandardMaterial3D
 var _mounted := false
+# gait references: full run / full gallop speed from the rules (so slowing the battle keeps the animation)
+var _run_ref := 4.4
+var _gallop_ref := 10.5
 # smoothed values (idle / block / stun poses blend; attacks are shown exactly)
 var _s := {}
 
 
-func mat(c: Color, metal := false) -> StandardMaterial3D:
-	var key := c.to_html() + str(metal)
-	if _mats.has(key):
-		return _mats[key]
+func _mat(c: Color) -> StandardMaterial3D:
+	if _mats.has(c):
+		return _mats[c]
 	var m := StandardMaterial3D.new()
 	m.albedo_color = c
-	m.roughness = 0.45 if metal else 0.85
-	m.metallic = 0.5 if metal else 0.0
-	_mats[key] = m
+	m.roughness = 0.85
+	_mats[c] = m
 	return m
 
 
-func _box(parent: Node3D, sz: Vector3, pos: Vector3, c: Color, metal := false) -> MeshInstance3D:
+func _box(parent: Node3D, sz: Vector3, pos: Vector3, c: Color) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	var b := BoxMesh.new()
-	b.size = sz
-	mi.mesh = b
+	if not _boxes.has(sz):
+		var b := BoxMesh.new()
+		b.size = sz
+		_boxes[sz] = b
+	mi.mesh = _boxes[sz]
 	mi.position = pos
-	mi.material_override = mat(c, metal)
+	mi.material_override = _mat(c)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	parent.add_child(mi)
-	return mi
-
-
-func _cyl(parent: Node3D, r_top: float, r_bot: float, h: float, pos: Vector3, c: Color, metal := false) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var m := CylinderMesh.new()
-	m.top_radius = r_top
-	m.bottom_radius = r_bot
-	m.height = h
-	m.radial_segments = 8
-	m.rings = 1
-	mi.mesh = m
-	mi.position = pos
-	mi.material_override = mat(c, metal)
 	parent.add_child(mi)
 	return mi
 
@@ -112,6 +104,9 @@ func build(a) -> void:
 	var tunic: Color = a.color
 	var tier: int = int(a.troop.get("tier", 1))
 	_mounted = a.mounted
+	if a.rules and a.rules.movement:
+		_run_ref = maxf(1.0, a.rules.movement.foot_run)
+		_gallop_ref = maxf(2.0, a.rules.movement.horse_speed)
 	rider = Node3D.new()
 	add_child(rider)
 	if _mounted:
@@ -157,22 +152,12 @@ func build(a) -> void:
 		shield_node.position = Vector3(0, 0, -FOREARM * 0.6)
 		var r: float = float(a.shield.get("size", 0.55))
 		shield_node.set_meta("r", r)
-		var disc := _cyl(shield_node, r, r, 0.05, Vector3.ZERO,
-			Color("b08a4a") if a.shield.get("id", "") == "rattan" else tunic.darkened(0.25))
-		disc.rotation = Vector3(deg_to_rad(90), 0, 0)
-		_cyl(shield_node, 0.08, 0.08, 0.07, Vector3(0, 0, -0.03), Color("8a8a84"), true).rotation = Vector3(deg_to_rad(90), 0, 0)
+		Art.add(shield_node, Equipment.shield(a.shield.get("id", ""), r, tunic))
 	# ranged weapon (bow / crossbow) carried in the left hand while shooting
 	if not a.ranged.is_empty():
 		ranged_node = Node3D.new()
 		rider.add_child(ranged_node)
-		if a.ranged.kind == "crossbow":
-			_box(ranged_node, Vector3(0.07, 0.07, 0.7), Vector3(0, 0, -0.2), Color("6b4a2a"))
-			_box(ranged_node, Vector3(0.75, 0.04, 0.05), Vector3(0, 0, -0.5), Color("4a3a2a"))
-		else:
-			for k in 5:
-				var t := (k - 2) / 2.0
-				var seg := _box(ranged_node, Vector3(0.035, 0.32, 0.035), Vector3(0, t * 0.3, -0.06 * (1.0 - t * t)), Color("5b3a1e"))
-				seg.rotation.x = -t * 0.45
+		Art.add(ranged_node, Equipment.ranged(a.ranged.kind, str(a.ranged.get("id", ""))))
 		ranged_node.visible = false
 	weapon = Node3D.new()
 	rider.add_child(weapon)
@@ -190,26 +175,38 @@ func build(a) -> void:
 		rider.add_child(label)
 
 
+## A riderless horse (Battle.loose_horses): just the horse, posed with pose_horse().
+func build_horse_only(a) -> void:
+	_mounted = true
+	if a.rules and a.rules.movement:
+		_gallop_ref = maxf(2.0, a.rules.movement.horse_speed)
+	_build_horse(a)
+
+
+func pose_horse(walk_phase: float, speed: float) -> void:
+	if horse:
+		_horse_gait(walk_phase, speed)
+
+
 func _build_horse(a) -> void:
 	horse = Node3D.new()
 	add_child(horse)
 	var barded: bool = a.horse_kind == "barded"
-	var coat: Color = [Color("6b4a2e"), Color("3d2c22"), Color("8c6a48"), Color("2b2622"), Color("b9b1a2")][a.rng_seed % 5]
-	var body_c: Color = a.color.darkened(0.15) if barded else coat
-	_box(horse, Vector3(0.5, 0.62, 1.7), Vector3(0, 1.25, 0), body_c, barded)
+	var skin_m := HorseSkin.material(a.rng_seed % 5, a.color, barded)
+	_horse_part(horse, "body", Vector3(0.5, 0.62, 1.7), Vector3(0, 1.25, 0), skin_m)
 	# neck and head nod together around the withers
 	horse_neck = Node3D.new()
 	horse_neck.position = Vector3(0, 1.45, -0.65)
 	horse.add_child(horse_neck)
-	var neck := _box(horse_neck, Vector3(0.3, 0.75, 0.32), Vector3(0, 0.2, -0.2), coat)
+	var neck := _horse_part(horse_neck, "neck", Vector3(0.3, 0.75, 0.32), Vector3(0, 0.2, -0.2), skin_m)
 	neck.rotation.x = deg_to_rad(-35)
-	var head := _box(horse_neck, Vector3(0.24, 0.26, 0.6), Vector3(0, 0.53, -0.53), coat)
+	var head := _horse_part(horse_neck, "head", Vector3(0.24, 0.26, 0.42), Vector3(0, 0.53, -0.53), skin_m)
 	head.rotation.x = deg_to_rad(25)
 	if barded:
-		_box(horse_neck, Vector3(0.34, 0.5, 0.36), Vector3(0, 0.2, -0.2), body_c, true).rotation.x = deg_to_rad(-35)
-	var tail := _box(horse, Vector3(0.1, 0.55, 0.1), Vector3(0, 1.2, 0.95), Color("1e1a17"))
+		_horse_part(horse_neck, "armor", Vector3(0.34, 0.5, 0.36), Vector3(0, 0.2, -0.2), skin_m).rotation.x = deg_to_rad(-35)
+	var tail := _horse_part(horse, "tail", Vector3(0.1, 0.55, 0.1), Vector3(0, 1.2, 0.95), skin_m)
 	tail.rotation.x = deg_to_rad(25)
-	_box(horse, Vector3(0.52, 0.06, 0.6), Vector3(0, 1.58, 0.05), Color("5a2e22"))   # saddle cloth
+	_horse_part(horse, "saddle", Vector3(0.54, 0.11, 0.62), Vector3(0, 1.571, 0.05), skin_m)
 	# legs: front left, front right, hind left, hind right — upper leg + cannon with a knee / hock
 	for p in [Vector3(-0.17, 0.97, -0.65), Vector3(0.17, 0.97, -0.65), Vector3(-0.17, 0.97, 0.65), Vector3(0.17, 0.97, 0.65)]:
 		var hip := Node3D.new()
@@ -217,54 +214,45 @@ func _build_horse(a) -> void:
 		horse.add_child(hip)
 		var upper := Node3D.new()
 		hip.add_child(upper)
-		_box(upper, Vector3(0.14, HORSE_UPPER, 0.17), Vector3(0, -HORSE_UPPER * 0.5, 0), coat)
+		_horse_part(upper, "upper", Vector3(0.14, HORSE_UPPER, 0.17), Vector3(0, -HORSE_UPPER * 0.5, 0), skin_m)
 		var lower := Node3D.new()
 		lower.position = Vector3(0, -HORSE_UPPER, 0)
 		upper.add_child(lower)
-		_box(lower, Vector3(0.1, HORSE_LOWER, 0.11), Vector3(0, -HORSE_LOWER * 0.5, 0), coat)
+		_horse_part(lower, "lower", Vector3(0.1, HORSE_LOWER, 0.11), Vector3(0, -HORSE_LOWER * 0.5, 0), skin_m)
 		_box(lower, Vector3(0.13, 0.08, 0.15), Vector3(0, -HORSE_LOWER + 0.03, 0), Color("1e1a17"))   # hoof
 		horse_legs.append([hip, upper, lower])
 
 
+func _horse_part(parent: Node3D, part: String, size: Vector3, pos: Vector3, m: Material) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.mesh = HorseSkin.mesh(part, size)
+	node.material_override = m
+	node.position = pos
+	parent.add_child(node)
+	return node
+
+
 func set_weapon(w: Dictionary) -> void:
-	for c in weapon.get_children():
-		c.queue_free()
+	for child in weapon.get_children():
+		weapon.remove_child(child)
+		child.queue_free()
 	var kind: String = w.get("kind", "one_hand")
 	var reach: float = float(w.get("reach", 1.4))
 	weapon_len = maxf(0.35, reach - 0.75)
-	var wid: String = w.get("id", "")
-	var L := weapon_len
 	grip2 = {"two_hand": -0.13, "polearm": 0.42}.get(kind, 0.0)
 	# weapon model points along local -Z, grip at the origin
-	match kind:
-		"unarmed":
-			pass                                   # townsfolk: nothing in the hand
-		"polearm", "lance":
-			_box(weapon, Vector3(0.045, 0.045, L + 0.5), Vector3(0, 0, -L * 0.5 + 0.25), Color("6b4a2a"))
-			if wid == "ji":
-				_box(weapon, Vector3(0.03, 0.22, 0.28), Vector3(0, 0.08, -L + 0.12), Color("b8bcc0"), true)
-			_box(weapon, Vector3(0.06, 0.03, 0.3), Vector3(0, 0, -L - 0.08), Color("c8ccd0"), true)
-		"two_hand":
-			_box(weapon, Vector3(0.05, 0.05, L + 0.3), Vector3(0, 0, -L * 0.5 + 0.15), Color("6b4a2a"))
-			_box(weapon, Vector3(0.04, 0.32, 0.26), Vector3(0, 0.12, -L + 0.1), Color("b8bcc0"), true)
-		_:
-			if w.get("dtype", "") == "blunt":
-				_box(weapon, Vector3(0.05, 0.05, L), Vector3(0, 0, -L * 0.5), Color("6b4a2a"))
-				_box(weapon, Vector3(0.13, 0.13, 0.18), Vector3(0, 0, -L + 0.06), Color("8a8a84") if wid == "mace" else Color("5a3e24"), wid == "mace")
-			else:
-				_box(weapon, Vector3(0.05, 0.05, 0.16), Vector3(0, 0, 0.0), Color("3a2a1e"))
-				_box(weapon, Vector3(0.16, 0.04, 0.04), Vector3(0, 0, -0.09), Color("8a7a50"), true)
-				_box(weapon, Vector3(0.045, 0.012, L - 0.1), Vector3(0, 0, -L * 0.5 - 0.05), Color("d0d4d8"), true)
+	if kind != "unarmed":
+		Art.add(weapon, Equipment.melee(w, weapon_len))
 
 
 # ------------------------------------------------------------------ maths
 static func _look(n: Node3D, from: Vector3, to: Vector3, up_hint := Vector3.UP) -> void:
-	n.position = from
 	var d := to - from
 	if d.length_squared() < 0.000001:
+		n.position = from
 		return
 	var up := up_hint if absf(d.normalized().dot(up_hint.normalized())) < 0.97 else Vector3.FORWARD
-	n.basis = Basis.looking_at(d, up)
+	n.transform = Transform3D(Basis.looking_at(d, up), from)
 
 
 ## Two-bone IK: where the middle joint (elbow / knee) goes so the chain reaches from `a` towards `t`,
@@ -301,26 +289,25 @@ func _blend(key: String, target, k: float):
 
 
 # ------------------------------------------------------------------ pose
-## Apply a pose from Agent.pose().
-func show_pose(a, pose: Dictionary, walk_phase: float, speed: float, dt: float) -> void:
+## Apply and smooth the fresh pose returned by Agent.pose().
+func show_pose(a, ps: Dictionary, walk_phase: float, speed: float, dt: float) -> void:
 	# attacks are shown exactly (they are what hits); idle / guard / stagger blend in smoothly
 	var exact: bool = a.state in [Agent.READY, Agent.STRIKE, Agent.RECOVER, Agent.AIM]
 	var k := 1.0 if exact else 1.0 - exp(-dt * 14.0)
-	var arm: Vector3 = _blend("arm", (pose.arm as Vector3).normalized(), k)
-	var wdir: Vector3 = _blend("w", (pose.weapon as Vector3).normalized(), k)
-	var larm: Vector3 = _blend("larm", (pose.larm as Vector3).normalized(), k)
-	var ps := pose.duplicate()
+	var arm: Vector3 = _blend("arm", (ps.arm as Vector3).normalized(), k)
+	var wdir: Vector3 = _blend("w", (ps.weapon as Vector3).normalized(), k)
+	var larm: Vector3 = _blend("larm", (ps.larm as Vector3).normalized(), k)
 	for key in ["twist", "lean", "crouch", "step", "reach", "lreach"]:
-		ps[key] = _blend(key, float(pose[key]), k)
-	ps["off"] = _blend("off", pose.off, k)
+		ps[key] = _blend(key, float(ps[key]), k)
+	ps["off"] = _blend("off", ps.off, k)
 	# gait: run lean and a bob of the hips, from the actual speed
-	var run := clampf(speed / 4.4, 0.0, 1.0)
+	var run := clampf(speed / _run_ref, 0.0, 1.0)
 	var bob := 0.0
 	if not _mounted:
 		ps["lean"] = float(ps.lean) + 0.14 * run * (0.0 if exact else 1.0)
 		bob = -absf(sin(walk_phase)) * 0.045 * run
 	else:
-		var gallop := clampf(speed / 8.0, 0.0, 1.0)
+		var gallop := clampf(speed / (_gallop_ref * 0.76), 0.0, 1.0)
 		ps["lean"] = float(ps.lean) + 0.12 * gallop
 	var lift: float = a.RIDER_LIFT if _mounted else 0.0
 	# chest
@@ -332,25 +319,32 @@ func show_pose(a, pose: Dictionary, walk_phase: float, speed: float, dt: float) 
 	var hand_r := sh_r + arm * float(ps.reach)
 	_chain(arm_r, sh_r, hand_r, UPPER_ARM, FOREARM, Vector3(0.6, -0.7, 0.4))
 	var hand_l := sh_l + larm * float(ps.lreach)
-	var shooting_now: bool = pose.get("shooting", false)
+	var shooting_now: bool = ps.get("shooting", false)
 	if shield_node and a.state not in [Agent.DOWN, Agent.DEAD]:
 		_place_shield(a.shield_up())
 	if grip2 != 0.0 and (shield_node == null or not shield_on_arm) and not shooting_now and a.state not in [Agent.DOWN, Agent.DEAD] \
 			and hand_r.distance_to(sh_l) < UPPER_ARM + FOREARM + 0.25:
 		hand_l = hand_r + wdir * grip2            # both hands on the haft
 	_chain(arm_l, sh_l, hand_l, UPPER_ARM, FOREARM, Vector3(-0.6, -0.7, 0.4))
-	weapon.position = hand_r
 	_look(weapon, hand_r, hand_r + wdir)
-	var shooting: bool = pose.get("shooting", false)
-	var holding_ranged: bool = shooting or (a.using_ranged and a.state not in [Agent.DOWN, Agent.DEAD])
+	var holding_ranged: bool = shooting_now or (a.using_ranged and a.state not in [Agent.DOWN, Agent.DEAD])
 	weapon.visible = not holding_ranged
 	if ranged_node:
 		ranged_node.visible = holding_ranged
-		if holding_ranged:
+		if holding_ranged and a.is_thrower():
+			_look(ranged_node, hand_r, hand_r + wdir)      # javelin / throwing axe: in the right hand
+		elif holding_ranged:
 			_look(ranged_node, hand_l, hand_l + larm)
 	_legs(a, ps, walk_phase, speed, bob)
 	if horse:
 		_horse_gait(walk_phase, speed)
+
+
+## The shield splintered (Agent.damage_shield): gone from the arm and the back.
+func drop_shield() -> void:
+	if shield_node:
+		shield_node.queue_free()
+		shield_node = null
 
 
 ## Shield on the left forearm, or slung across the back (still catches arrows from behind).
@@ -394,6 +388,11 @@ func _legs(a, ps: Dictionary, walk_phase: float, speed: float, bob: float) -> vo
 		var base := Vector3(0.13 * s, 0.0, (-0.17 if k == 0 else 0.16) * stance)
 		var foot := base + move * amp * sin(ph)
 		foot.y = lift_amp * maxf(0.0, cos(ph))
+		if a.jumping:
+			foot += Vector3(0, 0.18, -0.13 if k == 0 else 0.12)
+		elif k == 0 and a.state == Agent.KICK:
+			var kick: float = clampf(a.state_t / maxf(a.state_len, 0.01), 0.0, 1.0)
+			foot = Vector3(-0.12, 0.22 + 0.36 * kick, -0.12 - 0.58 * kick)
 		_chain(legs[k], hip, foot, THIGH, SHIN, Vector3(0.15 * s, 0, -1))
 		# keep the foot flat, toes forward, whatever the shin is doing
 		var foot_mesh: Node3D = legs[k][2]
@@ -403,9 +402,9 @@ func _legs(a, ps: Dictionary, walk_phase: float, speed: float, bob: float) -> vo
 
 
 func _horse_gait(walk_phase: float, speed: float) -> void:
-	var hamp := clampf(speed / 6.0, 0.0, 1.0)
+	var hamp := clampf(speed / (_gallop_ref * 0.57), 0.0, 1.0)
 	# trot: diagonal pairs together; gallop: a rolling four-beat with the fore pair leading
-	var gallop := speed > 6.0
+	var gallop := speed > _gallop_ref * 0.57
 	var offs: Array = [0.0, 0.35, PI, PI + 0.35] if gallop else [0.0, PI, PI, 0.0]
 	var ph := walk_phase * (0.7 if gallop else 1.0)
 	var swing := 0.55 * hamp if gallop else 0.4 * hamp

@@ -52,8 +52,14 @@ func _ready() -> void:
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 10)
 	margin.add_child(outer)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
+	outer.add_child(top)
 	_title_label = _label("", 22, GOLD)
-	outer.add_child(_title_label)
+	top.add_child(_title_label)
+	_people_row = HBoxContainer.new()                 # whose gear: you and the companions in the party
+	_people_row.add_theme_constant_override("separation", 6)
+	top.add_child(_people_row)
 	var cols := HBoxContainer.new()
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cols.add_theme_constant_override("separation", 16)
@@ -84,7 +90,6 @@ func _ready() -> void:
 	mid_row.add_child(svc)
 	_vp = SubViewport.new()
 	_vp.own_world_3d = true
-	_vp.transparent_bg = true
 	_vp.msaa_3d = Viewport.MSAA_4X
 	svc.add_child(_vp)
 	_build_stage()
@@ -133,7 +138,27 @@ func show_menu(m: Dictionary) -> void:
 
 
 # ------------------------------------------------------------------ contents
+var _people_row: HBoxContainer
+
+
+func _fill_people() -> void:
+	for c in _people_row.get_children():
+		c.queue_free()
+	var people: Array = g.get("people", [])
+	if people.size() <= 1:
+		return
+	for p in people:
+		var b := Button.new()
+		b.text = str(p.name)
+		b.focus_mode = Control.FOCUS_NONE
+		b.disabled = str(p.id) == str(g.get("who", "player"))
+		var pid: String = str(p.id)
+		b.pressed.connect(func(): request.emit("who", {"who": pid}))
+		_people_row.add_child(b)
+
+
 func _fill() -> void:
+	_fill_people()
 	var smith: bool = g.has("shop")
 	# bag: one square per item (Warband has no stacks), padded with empty squares
 	for c in _bag_grid.get_children():
@@ -259,28 +284,50 @@ func _build_stage() -> void:
 	_vp.add_child(cam)
 	var sun := DirectionalLight3D.new()
 	sun.rotation = Vector3(deg_to_rad(-40), deg_to_rad(-35), 0)
-	sun.light_energy = 1.15
+	sun.light_color = Color("ffddb1")
+	sun.light_energy = 1.08
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 12.0
 	_vp.add_child(sun)
+	var rim := DirectionalLight3D.new()
+	rim.rotation_degrees = Vector3(-26, 147, 0)
+	rim.light_color = Color("accbdf")
+	rim.light_energy = 0.78
+	_vp.add_child(rim)
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
-	e.background_mode = Environment.BG_CLEAR_COLOR
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = Color("171f23")
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color("8a8f96")
-	e.ambient_light_energy = 0.9
+	e.ambient_light_color = Color("a2a8a9")
+	e.ambient_light_energy = 0.75
 	env.environment = e
 	_vp.add_child(env)
 	# a round of floor to stand on
 	var floor := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
-	cm.top_radius = 1.3
-	cm.bottom_radius = 1.3
+	cm.top_radius = 1.22
+	cm.bottom_radius = 1.22
 	cm.height = 0.04
 	floor.mesh = cm
 	var fm := StandardMaterial3D.new()
-	fm.albedo_color = Color("2b2f2c")
+	fm.albedo_color = Color("4f534d")
+	fm.roughness = 0.95
 	floor.material_override = fm
 	floor.position.y = -0.02
 	_vp.add_child(floor)
+	var rim_mesh := CylinderMesh.new()
+	rim_mesh.top_radius = 1.27
+	rim_mesh.bottom_radius = 1.27
+	rim_mesh.height = 0.08
+	var rim_floor := MeshInstance3D.new()
+	rim_floor.mesh = rim_mesh
+	var rim_material := StandardMaterial3D.new()
+	rim_material.albedo_color = Color("797661")
+	rim_material.roughness = 0.84
+	rim_floor.material_override = rim_material
+	rim_floor.position.y = -0.078
+	_vp.add_child(rim_floor)
 	_model_root = Node3D.new()
 	_vp.add_child(_model_root)
 

@@ -61,6 +61,18 @@ func reload_rules() -> void:
 	_enqueue("reload", "/reload", HTTPClient.METHOD_POST, {})
 
 
+func list_saves() -> void:
+	_enqueue("saves", "/saves", HTTPClient.METHOD_GET, {})
+
+
+func save_game(slot: String) -> void:
+	_enqueue("save", "/save", HTTPClient.METHOD_POST, {"slot": slot})
+
+
+func load_game(slot: String) -> void:
+	_enqueue("load", "/load", HTTPClient.METHOD_POST, {"slot": slot})
+
+
 func move(target: Dictionary) -> void:
 	_enqueue("move", "/player/move", HTTPClient.METHOD_POST, target)
 

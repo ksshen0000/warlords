@@ -1,0 +1,159 @@
+# ============================================================
+# 角色成长（仿骑砍式：属性、技能、武器熟练度、等级）。你本人和同伴共用这一套。
+# 技能等级不能超过对应属性 ÷ skill_cap_div；队伍技能（party = true）取队伍里最高的那个人。
+# 改这里的数值后「重载规则」即可生效；新加的技能需要开新局或读档时自动补 0 级。
+# ============================================================
+
+[level]
+xp_base = 300                 # 升到 n+1 级所需的累计经验 = xp_base × n^xp_exp
+xp_exp = 1.9
+max_level = 40
+attr_points = 1               # 每升一级得到的属性点
+skill_points = 1              # 每升一级得到的技能点
+start_attr_points = 2         # 开局可自由分配的点数
+start_skill_points = 3
+skill_cap_div = 3             # 技能上限 = 属性 ÷ 该值
+max_skill = 10
+
+[xp]
+battle_per_enemy_power = 3.0  # 打胜仗：你这边分到的敌方损失战力 × 该值（亲自上阵再 ×1.5）
+in_person = 1.5
+loss_share = 0.25             # 打败仗也有一点经验
+quest_per_gold = 0.6          # 完成差事：赏金 × 该值
+arena_win = 120               # 擂台赢一场
+companion_share = 0.8         # 同伴分到的经验比例
+
+[prof]
+names = { one_hand = "单手", two_hand = "双手", polearm = "长兵", bow = "弓", crossbow = "弩" }
+start = 40
+max = 300
+per_hit = 2.2                 # 3D 战斗里每次命中加的熟练度（越高涨得越慢）
+damage_per_100 = 0.12         # 每 100 点熟练度：伤害 +12%（以 100 为基准）
+speed_per_100 = 0.06          # 每 100 点熟练度：出手 +6%
+
+[attributes]
+names = { str = "力量", agi = "敏捷", int = "智力", cha = "魅力" }
+start = { str = 6, agi = 6, int = 5, cha = 5 }
+
+# 技能：attr 对应属性，party = 队伍技能，per_level 每级效果（含义见 desc）
+[skills.ironflesh]
+name = "铁骨"
+attr = "str"
+per_level = 4
+desc = "3D 战斗中生命 +{v}"
+
+[skills.power_strike]
+name = "强击"
+attr = "str"
+per_level = 0.08
+desc = "近战伤害 +{p}"
+
+[skills.power_draw]
+name = "强弓"
+attr = "str"
+per_level = 0.12
+desc = "弓的伤害 +{p}（弩不受影响）"
+
+[skills.shield]
+name = "盾术"
+attr = "agi"
+per_level = 0.06
+desc = "举盾挡箭、背盾挡箭的几率 +{p}"
+
+[skills.athletics]
+name = "跑动"
+attr = "agi"
+per_level = 0.03
+desc = "步行速度 +{p}"
+
+[skills.riding]
+name = "骑术"
+attr = "agi"
+per_level = 0.03
+desc = "马速 +{p}"
+
+[skills.horse_archery]
+name = "骑射"
+attr = "agi"
+per_level = 0.1
+desc = "马上射箭的散布 -{p}"
+
+[skills.tactics]
+name = "战术"
+attr = "int"
+party = true
+per_level = 0.5
+desc = "统帅战术 +{v}（自动结算战力、亲自上阵时的在场名额）"
+
+[skills.pathfinding]
+name = "寻路"
+attr = "int"
+party = true
+per_level = 0.03
+desc = "行军速度 +{p}"
+
+[skills.spotting]
+name = "侦察"
+attr = "int"
+party = true
+per_level = 0.06
+desc = "视野 +{p}"
+
+[skills.surgery]
+name = "医术"
+attr = "int"
+party = true
+per_level = 0.04
+desc = "我方阵亡者有 {p} 的机会只是重伤"
+
+[skills.wound_treatment]
+name = "疗伤"
+attr = "int"
+party = true
+per_level = 0.2
+desc = "伤员康复速度 +{p}"
+
+[skills.trainer]
+name = "训练"
+attr = "int"
+per_level = 0.6
+desc = "每名健康士兵每天额外 +{v} 经验"
+
+[skills.trade]
+name = "交易"
+attr = "cha"
+per_level = 0.03
+desc = "买东西便宜、卖东西贵 {p}"
+
+[skills.leadership]
+name = "统御"
+attr = "cha"
+per_level = 4
+desc = "部队上限 +{v}，军饷 -{wage}"
+wage_per_level = 0.04
+
+# 家世：开局属性加成与起始技能（rules/world.toml 的 backgrounds 同名）
+[backgrounds.refugee]
+attr = { str = 1, cha = 1 }
+skills = { athletics = 1, leadership = 1, wound_treatment = 1 }
+prof = { polearm = 70 }
+
+[backgrounds.lowborn]
+attr = { str = 1, agi = 1 }
+skills = { power_strike = 1, shield = 1, trainer = 1, ironflesh = 1 }
+prof = { one_hand = 80, bow = 60 }
+
+[backgrounds.gentry]
+attr = { int = 1, cha = 1 }
+skills = { riding = 1, tactics = 1, leadership = 1, spotting = 1 }
+prof = { one_hand = 70, polearm = 60, bow = 50 }
+
+[backgrounds.tribal]
+attr = { agi = 2 }
+skills = { riding = 2, horse_archery = 1, power_draw = 1 }
+prof = { bow = 90, one_hand = 50 }
+
+[backgrounds.merchant]
+attr = { int = 1, cha = 1 }
+skills = { trade = 2, pathfinding = 1, leadership = 1 }
+prof = { one_hand = 50 }

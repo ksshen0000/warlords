@@ -22,7 +22,7 @@ const PlayerMenuScript := preload("res://scripts/player_menu.gd")
 const ApiScript := preload("res://scripts/api.gd")
 const TALK_RANGE := 2.7
 ## menu options carried out right here in the street (the rest go back to the map)
-const IN_SCENE := ["talk", "quests", "recruit", "sell_prisoners", "deliver", "captive", "trade", "manage", "smith"]
+const IN_SCENE := ["talk", "quests", "recruit", "sell_prisoners", "deliver", "captive", "trade", "manage", "smith", "companion"]
 
 var lay: TownLayout
 var room := ""                    # "" = the streets; "hall" / "inn" = inside
@@ -591,7 +591,7 @@ func _on_api(_kind: String, data: Dictionary) -> void:
 				if msg != "":
 					_toast(msg, 4.0)
 				_act("walk", {})                     # done: back into the street
-		"talk", "quest", "notice", "captive", "fief", "request_fief", "equip", "smith":
+		"talk", "quest", "notice", "captive", "fief", "request_fief", "equip", "smith", "companion":
 			_open_panel(m)
 			if msg != "":
 				_toast(msg, 4.0)

@@ -1,0 +1,152 @@
+# ============================================================
+# 同伴（仿骑砍式：酒肆里能招募的具名人物，原创角色）。
+# 招募后随队作战、分享经验、各自成长和换装；队伍技能取队里最高的人。
+# likes / dislikes：玩家这些举动会让他高兴 / 不满（见 [morale] 的事件）；rival：同队时彼此看不顺眼。
+# attr / skills / prof 叠加在 character.toml 的起始值上；equip 是 items.toml 的物品。
+# ============================================================
+
+[rules]
+start_morale = 60
+leave_below = 15              # 士气低于此值就离队
+return_days = 30              # 离队后多少天出现在别的酒肆
+move_days = 12                # 没招募的同伴隔多少天换一家酒肆
+wound_days = 3                # 战场上被打倒后养伤几天（期间不上阵、不提供队伍技能）
+drift = 1.0                   # 士气每天向 start_morale 回归的量
+rival_per_day = 0.6           # 宿敌同队时每天的士气损失
+unpaid = 8                    # 发不出薪水时每人士气 -8
+
+[morale]                      # 事件 -> 士气变化（按喜恶）
+raid = 12                     # 劫掠村庄
+execute = 15                  # 斩杀俘虏的将军
+release = 6                   # 释放俘虏的将军
+victory = 3                   # 打胜仗
+defeat = 6                    # 打败仗、被俘
+loot = 2                      # 喜欢发财的人：战后缴获
+
+[companions.tan]
+name = "檀道余"
+culture = "zhou"
+troop = "zhou_cav3"
+title = "落魄将门之后"
+story = "祖上随周室南渡，做过一任刺史。到他这一代家道中落，只剩一身弓马和几卷兵书。他想在乱世里重振门楣，又看不惯为非作歹的人。"
+hire = 450
+wage = 9
+attr = { str = 1, int = 2, cha = 1 }
+skills = { tactics = 2, leadership = 1, riding = 1, power_strike = 1 }
+prof = { one_hand = 110, bow = 80 }
+equip = ["sword", "round", "bow", "helm", "liangdang", "nag"]
+likes = ["release", "victory"]
+dislikes = ["raid", "execute"]
+rival = "hulu"
+
+[companions.hulu]
+name = "斛律阿钵"
+culture = "rou"
+troop = "rou_cav3"
+title = "漠北牧马人"
+story = "草场遭了白灾，羊马死了大半，部落散了，他就骑着仅剩的两匹马南下讨生活。马背上射箭百发百中，讲话直来直去，最瞧不起扭扭捏捏的南方人。"
+hire = 380
+wage = 8
+attr = { agi = 3 }
+skills = { riding = 3, horse_archery = 2, power_draw = 1, spotting = 2 }
+prof = { bow = 140, one_hand = 70 }
+equip = ["horsebow", "sword", "leather_cap", "leather", "hequ"]
+likes = ["victory", "raid"]
+dislikes = ["defeat"]
+rival = "tan"
+
+[companions.wang]
+name = "王灵素"
+culture = "shu"
+troop = "shu_t1"
+title = "巴蜀游方医者"
+story = "师从青城山的老道，学了一手针药功夫，听说北方疫病流行，便背着药囊出了蜀道。不善刀兵，但战后的伤兵在这人手下能活回大半。"
+hire = 300
+wage = 7
+attr = { int = 3, str = -1 }
+skills = { surgery = 3, wound_treatment = 2, pathfinding = 1 }
+prof = { one_hand = 50 }
+equip = ["knife", "robe", "hood"]
+likes = ["release"]
+dislikes = ["execute", "raid"]
+rival = "heruo"
+
+[companions.heruo]
+name = "贺若崇"
+culture = "zhao"
+troop = "zhao_inf3"
+title = "河北逃兵"
+story = "原是赵国边军的伍长，一场败仗后被上司拿来顶罪，干脆扛着长斧跑了。力大如牛，脾气也大，最恨欠饷。"
+hire = 260
+wage = 7
+attr = { str = 3 }
+skills = { ironflesh = 3, power_strike = 2, athletics = 1, trainer = 1 }
+prof = { two_hand = 130, polearm = 90 }
+equip = ["axe", "helm", "leather"]
+likes = ["victory", "loot"]
+dislikes = ["defeat"]
+rival = "wang"
+
+[companions.zhi]
+name = "支法远"
+culture = "liang"
+troop = "liang_t1"
+title = "河西胡商"
+story = "家里三代走凉州到建康的商路，骆驼死在了半道上，货也被劫了。识得各地物价和小路，算盘打得比谁都精。"
+hire = 320
+wage = 8
+attr = { int = 2, cha = 2 }
+skills = { trade = 3, pathfinding = 2, spotting = 1 }
+prof = { one_hand = 60 }
+equip = ["sword", "leather", "leather_cap", "nag"]
+likes = ["loot", "victory"]
+dislikes = ["defeat"]
+rival = "du"
+
+[companions.murong]
+name = "慕容翊"
+culture = "yan"
+troop = "yan_cav4"
+title = "辽东贵胄"
+story = "燕国宗室的远支，在一场宫变里站错了队，只带着一副甲、一杆槊逃出龙城。自视甚高，冲锋时却总在最前面。"
+hire = 700
+wage = 12
+attr = { str = 2, agi = 1, cha = 1 }
+skills = { riding = 2, power_strike = 2, tactics = 1, ironflesh = 1 }
+prof = { polearm = 140, one_hand = 90 }
+equip = ["lance", "sword", "helm_neck", "lamellar", "warhorse"]
+likes = ["victory", "execute"]
+dislikes = ["defeat", "release"]
+rival = ""
+
+[companions.chen]
+name = "陈小乙"
+culture = "zhou"
+troop = "zhou_t1"
+title = "江左渔家少年"
+story = "在长江边打鱼长大，水性好、眼睛尖，一张小弓能射中水里的鱼。家里的船被官军征了去，就想跟着谁出去闯一闯。"
+hire = 150
+wage = 4
+attr = { agi = 2 }
+skills = { athletics = 2, spotting = 2, power_draw = 1 }
+prof = { bow = 110 }
+equip = ["bow", "knife", "robe"]
+likes = ["victory", "release"]
+dislikes = ["execute"]
+rival = ""
+
+[companions.du]
+name = "杜元礼"
+culture = "zhao"
+troop = "zhao_t1"
+title = "河北寒门书生"
+story = "读了满肚子书，门第太低，郡里察举轮不到他。觉得与其在乡里教蒙童，不如到军中谋一条出路。会带兵操练，也会替人写文书。"
+hire = 280
+wage = 6
+attr = { int = 3, cha = 1, str = -1 }
+skills = { trainer = 2, leadership = 2, tactics = 1, wound_treatment = 1 }
+prof = { one_hand = 60 }
+equip = ["sword", "robe", "hood"]
+likes = ["release"]
+dislikes = ["raid", "execute"]
+rival = "zhi"

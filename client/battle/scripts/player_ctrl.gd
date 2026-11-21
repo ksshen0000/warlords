@@ -13,6 +13,7 @@ var cam: Camera3D
 var yaw := 0.0
 var pitch := -0.18
 var dist := 3.6
+var first_person := false
 var hold_still := false       # a conversation in the town walk: no walking, no mouse look, free cursor
 var mdir := Vector2.ZERO          # recent mouse motion (decays), picks attack / block direction
 var last_dir := Agent.Dir.RIGHT
@@ -42,6 +43,18 @@ func setup(b: Battle) -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if battle == null or hold_still:
+		return
+	if battle.phase_pending:
+		if e is InputEventKey and e.pressed and not e.echo:
+			if e.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+				_lmb = false
+				_rmb = false
+				battle.continue_phase()
+				if battle.player and battle.player.is_player:
+					yaw = battle.player.heading
+					_place_camera(0.0)
+			elif e.keycode == KEY_TAB:
+				battle.request_retreat()
 		return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var r: Vector2 = e.relative
@@ -94,14 +107,32 @@ func _unhandled_input(e: InputEvent) -> void:
 					battle.auto_finish()
 				else:
 					battle.request_retreat()
-			KEY_1: _select(["inf"])
-			KEY_2: _select(["arc"])
-			KEY_3: _select(["cav"])
+			KEY_1: _select(["inf"], e.shift_pressed)
+			KEY_2: _select(["arc"], e.shift_pressed)
+			KEY_3: _select(["cav"], e.shift_pressed)
 			KEY_0, KEY_QUOTELEFT: _select(["inf", "arc", "cav"])
+			KEY_H: _order("fire" if e.shift_pressed else "hold_fire")
+			KEY_R:
+				if _has_control():
+					first_person = not first_person
+					_place_camera(0.0)
+			KEY_E:
+				if _has_control():
+					battle.player.start_kick()
+			KEY_F:
+				if _has_control() and battle.has_method("interact"):
+					battle.interact(battle.player)       # dismount / mount a riderless horse / pick a weapon up
+			KEY_SPACE:
+				if _has_control():
+					battle.player.start_jump()
 			KEY_BACKSPACE:
 				if battle.hud and battle.hud.has_method("toggle_map"):
 					battle.hud.toggle_map()
-			KEY_F1: _order("hold")
+			KEY_F1:
+				if e.shift_pressed:
+					_hold_at_aim()
+				else:
+					_order("hold")
 			KEY_F2: _order("follow")
 			KEY_F3: _order("charge")
 			KEY_F4: _order("stand")
@@ -115,13 +146,21 @@ func _unhandled_input(e: InputEvent) -> void:
 					battle.close()
 
 
-func _select(groups: Array) -> void:
+func _has_control() -> bool:
+	return not battle.peaceful and not battle.over and battle.player != null and battle.player.is_player and battle.player.alive()
+
+
+func _select(groups: Array, add := false) -> void:
 	if battle.peaceful:
 		return
-	selected = groups
+	if not add:
+		selected = []
+	for g in groups:
+		if g not in selected:
+			selected.append(g)
 	var names := {"inf": "步兵", "arc": "射手", "cav": "骑兵"}
 	var t: Array[String] = []
-	for g in groups:
+	for g in selected:
 		t.append(names[g])
 	battle.message("选中：%s（F1 驻守 F2 跟我来 F3 冲锋 F4 站住 F5 撤退 F6 前进 F7 后退 F8 靠拢 F9 散开）" % "、".join(t), Color("cfd6dc"))
 
@@ -130,6 +169,24 @@ func _order(kind: String) -> void:
 	if battle.over or battle.peaceful:
 		return
 	battle.command(battle.player_side, selected, kind)
+
+
+func _hold_at_aim() -> void:
+	if not _has_control():
+		return
+	var from := cam.global_position
+	var dir := -cam.global_basis.z
+	var edge := battle.field.size * 0.5 - 1.0
+	for step in 250:
+		var p := from + dir * float(step + 1)
+		if absf(p.x) > edge or absf(p.z) > edge:
+			break
+		var ground := battle.field.height_at(p.x, p.z)
+		if p.y <= ground:
+			p.y = ground
+			battle.command(battle.player_side, selected, "hold", p)
+			return
+	battle.message("把准星对准战场地面，再指定驻守点", Color("e0b070"))
 
 
 ## Warband: the mouse movement just before clicking chooses the swing.
@@ -191,8 +248,9 @@ func _aim_point() -> Vector3:
 	var dir := -cam.global_basis.z
 	# the point under the crosshair: march along the view ray until it meets the ground or a soldier
 	var p := from + dir * 250.0
+	var start := 0.1 if first_person else 2.0
 	for k in 250:
-		var q := from + dir * float(k + 2)
+		var q := from + dir * (start + k)
 		if q.y < battle.field.height_at(q.x, q.z):
 			p = q
 			break
@@ -261,6 +319,9 @@ func _place_camera(dt: float) -> void:
 			_down_handled = true
 	if focus == null:
 		return
+	var eyes := first_person and p == focus and p.is_player and p.alive() and not battle.over
+	if p and p.rig:
+		p.rig.visible = not eyes
 	if focus != p or not p.is_player:
 		# spectating / AI-controlled: swing the camera round behind the soldier we follow
 		yaw = lerp_angle(yaw, focus.heading, clampf(dt * 1.5, 0.0, 1.0))
@@ -269,10 +330,12 @@ func _place_camera(dt: float) -> void:
 	var look := Vector3(-sin(yaw) * cos(pitch), sin(pitch), -cos(yaw) * cos(pitch))
 	var side := Vector3(cos(yaw), 0, -sin(yaw)) * 0.45
 	var want := pivot - look * d + side
+	if eyes:
+		want = pivot + Vector3(0, 0.04, 0)
 	var g := battle.field.height_at(want.x, want.z) + 0.4
 	if want.y < g:
 		want.y = g
-	cam.global_position = want if dt == 0.0 else cam.global_position.lerp(want, clampf(dt * 18.0, 0.0, 1.0))
+	cam.global_position = want if eyes or dt == 0.0 else cam.global_position.lerp(want, clampf(dt * 18.0, 0.0, 1.0))
 	cam.look_at(cam.global_position + look, Vector3.UP)
 	if shake > 0.001:
 		# a jolt when you are hit (decays fast)

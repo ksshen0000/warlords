@@ -312,9 +312,22 @@ def compose(length: float) -> Track:
     return tr
 
 
+def cues_from_cut(path: str) -> None:
+    """Section starts from cut.json: a segment with "cue": name starts that section of the score
+    (title, map, field, cav, melee, over, siege, ladder, wall, resolve, end), so the music follows the edit."""
+    import json
+    t = 0.0
+    for seg in json.load(open(path))["segments"]:
+        if seg.get("cue"):
+            CUTS[seg["cue"]] = t
+        t += float(seg["dur"]) if "title" in seg else float(seg["to"]) - float(seg["from"])
+
+
 def main() -> None:
     out = sys.argv[1]
     length = float(sys.argv[2]) if len(sys.argv) > 2 else 86.0
+    if len(sys.argv) > 3:
+        cues_from_cut(sys.argv[3])
     tr = compose(length)
     st = np.stack([tr.L, tr.R], axis=1)
     st = np.tanh(st / np.max(np.abs(st)) * 1.4) / np.tanh(1.4)       # gentle saturation, then peak at -1 dBFS

@@ -6,7 +6,7 @@ extends RefCounted
 ## charges through (couched lance or a side swing), rides on, and wheels around.
 
 
-static func update(a: Agent, b, dt: float) -> void:
+static func update(a: Agent, b: Battle, dt: float) -> void:
 	if not a.alive():
 		return
 	if b.time >= float(a.ai.get("next", 0.0)):
@@ -16,48 +16,59 @@ static func update(a: Agent, b, dt: float) -> void:
 
 
 # ------------------------------------------------------------------ decisions (a few times a second)
-static func _think(a: Agent, b) -> void:
+static func _think(a: Agent, b: Battle) -> void:
 	if a.routed:
 		a.ai["target"] = null
 		return
 	var order: Dictionary = b.order_of(a)
 	var t: String = order.get("type", "charge")
-	var cur = a.ai.get("target")
+	var hold_fire: bool = order.get("hold_fire", false)
+	var cur: Agent = a.ai.get("target")
 	if cur != null and (not is_instance_valid(cur) or not cur.alive()):
 		cur = null
 	var engage := 9999.0
 	var anchor: Vector3 = a.global_position
 	if t in ["hold", "stand", "follow"]:
 		anchor = b.slot_of(a)
-		engage = 7.0 if a.division == "inf" else (30.0 if a.division == "cav" else (0.0 if a.ammo > 0 else 5.0))
+		engage = 7.0 if a.division == "inf" else (30.0 if a.division == "cav" else (0.0 if a.ammo > 0 and not hold_fire else 5.0))
 	elif t == "retreat":
 		a.ai["target"] = null
 		return
-	var ranged_ok: bool = a.can_use_ranged()
-	var best = null
+	var ranged_ok: bool = not hold_fire and a.can_use_ranged()
+	var best: Agent = null
 	var best_s := INF
 	var crowd := int(b.rules.num("ai", "crowd", 3))
-	for e in b.alive_by_side[1 - a.side]:          # enemies only (rebuilt every frame)
+	var limit := maxf(engage, a.ranged_reach(b.rules.num("ai", "archer_range", 85))) if ranged_ok else engage
+	var same_level_only := b.siege_def >= 0 and not ranged_ok and t in ["hold", "stand"]
+	var anchor_level := b.field.level(anchor) if same_level_only else 0
+	var favour_level := b.siege_def >= 0 and not (ranged_ok and a.using_ranged)
+	var avoid_melee := ranged_ok and a.using_ranged
+	var origin := a.position
+	for e: Agent in b.alive_by_side[1 - a.side]:   # enemies only (rebuilt every tick)
 		if e.state == Agent.DOWN:
 			continue
-		var d: float = e.position.distance_to(a.position)
-		var from_anchor: float = e.position.distance_to(anchor)
-		var limit := engage
-		if ranged_ok:
-			limit = maxf(engage, b.rules.num("ai", "archer_range", 85))
-		if from_anchor > limit and d > limit:
-			continue
-		if b.siege_def >= 0 and not ranged_ok and t in ["hold", "stand"] and b.field.level(e.position) != b.field.level(anchor):
+		if same_level_only and e.siege_level != anchor_level:
 			continue          # posted on the wall: don't go down the ladder after him
-		var s := d + (6.0 if int(b.attackers_on.get(e.get_instance_id(), 0)) >= crowd and e != cur else 0.0)
-		if b.siege_def >= 0 and not (ranged_ok and a.using_ranged) and b.field.level(e.position) != b.field.level(a.position):
+		var pos := e.position
+		var d := pos.distance_to(origin)
+		var is_current := e == cur
+		if d - (3.0 if is_current else 0.0) >= best_s:
+			continue
+		if d > limit and pos.distance_squared_to(anchor) > limit * limit:
+			continue
+		var s := d + (6.0 if not is_current and int(b.attackers_on.get(e.get_instance_id(), 0)) >= crowd else 0.0)
+		if favour_level and e.siege_level != a.siege_level:
 			s += 18.0          # siege: rather fight the man on my own level than the one up on the wall
-		if ranged_ok and a.using_ranged and d > 12.0 and b.engaged_with_ally(e, a.side):
-			s += 40.0          # don't shoot into a melee where our own men are fighting
 		if e.routed:
 			s += 25.0
-		if e == cur:
+		if is_current:
 			s -= 3.0          # stick with the current opponent
+		# The remaining penalty can only increase the score. Avoid neighbourhood
+		# queries for candidates that already cannot beat the best target.
+		if s >= best_s:
+			continue
+		if avoid_melee and d > 12.0 and b.engaged_with_ally(e, a.side):
+			s += 40.0          # don't shoot into a melee where our own men are fighting
 		if s < best_s:
 			best_s = s
 			best = e
@@ -68,7 +79,9 @@ static func _think(a: Agent, b) -> void:
 		var close: float = b.rules.num("ai", "archer_min_range", 9)
 		if a.mounted:
 			close = 6.0
-		if a.can_use_ranged() and d > close:
+		if a.is_thrower():
+			close = 6.0
+		if ranged_ok and d > close and d <= a.ranged_reach(INF):
 			if not a.using_ranged and a.state == Agent.IDLE:
 				a.using_ranged = true
 		elif a.using_ranged and a.state in [Agent.IDLE, Agent.RELOAD]:
@@ -77,13 +90,20 @@ static func _think(a: Agent, b) -> void:
 
 
 # ------------------------------------------------------------------ every frame
-static func _act(a: Agent, b, dt: float) -> void:
+static func _act(a: Agent, b: Battle, dt: float) -> void:
 	var tgt = a.ai.get("target")
 	if tgt != null and (not is_instance_valid(tgt) or not tgt.alive()):
 		tgt = null
 		a.ai["target"] = null
 	a.intent_run = true
-	if a.routed or b.order_of(a).get("type", "") == "retreat":
+	var order: Dictionary = b.order_of(a)
+	if a.using_ranged and order.get("hold_fire", false):
+		if a.state in [Agent.AIM, Agent.RELOAD]:
+			a._set_state(Agent.IDLE, 0.0)
+		a.use_melee(0)
+		a.ai["next"] = 0.0    # reconsider the current target with melee range
+		tgt = null
+	if a.routed or order.get("type", "") == "retreat":
 		var edge: Vector3 = b.retreat_point(a)
 		_steer(a, b, edge, 1.0)
 		if a.state == Agent.BLOCK:
@@ -101,7 +121,7 @@ static func _act(a: Agent, b, dt: float) -> void:
 		_melee(a, b, tgt)
 
 
-static func _idle_move(a: Agent, b) -> void:
+static func _idle_move(a: Agent, b: Battle) -> void:
 	var order: Dictionary = b.order_of(a)
 	if a.state == Agent.READY:
 		a.release_attack()
@@ -121,7 +141,7 @@ static func _idle_move(a: Agent, b) -> void:
 		_steer(a, b, c, 1.0)
 
 
-static func _steer(a: Agent, b, dest: Vector3, mag: float) -> void:
+static func _steer(a: Agent, b: Battle, dest: Vector3, mag: float) -> void:
 	if b.siege_def >= 0:
 		dest = b.field.waypoint(a.global_position, dest)     # by way of the ladders and stairs
 	var d := dest - a.global_position
@@ -145,7 +165,7 @@ static func _face(a: Agent, p: Vector3) -> void:
 
 
 # ------------------------------------------------------------------ melee on foot
-static func _melee(a: Agent, b, tgt: Agent) -> void:
+static func _melee(a: Agent, b: Battle, tgt: Agent) -> void:
 	var d := Vector2(tgt.global_position.x - a.global_position.x, tgt.global_position.z - a.global_position.z).length()
 	var r := a.reach() + (0.25 if not tgt.mounted else 0.6)
 	if b.siege_def >= 0 and absf(tgt.global_position.y - a.global_position.y) > 1.6:
@@ -199,20 +219,25 @@ static func _melee(a: Agent, b, tgt: Agent) -> void:
 		a.ai["cd"] = now + b.rules.num("ai", "attack_cooldown", 0.35) + b.ai_skill("attack_cooldown") + randf_range(0.0, 0.5)
 
 
-static func _ally_ahead(a: Agent, b, tgt_dist: float):
-	for o in b.agents_near(a.global_position, minf(tgt_dist, 3.0)):
+static func _ally_ahead(a: Agent, b: Battle, tgt_dist: float) -> Agent:
+	var origin := a.global_position
+	var forward := a.forward()
+	var limit := minf(tgt_dist - 0.2, a.reach() + 0.3)
+	if limit <= 0.0:
+		return null
+	for o: Agent in b.agents_near(origin, minf(limit, 3.0)):
 		if o == a or o.side != a.side or not o.alive() or o.state == Agent.DOWN:
 			continue
-		var off: Vector3 = o.global_position - a.global_position
+		var off := o.global_position - origin
 		off.y = 0.0
 		var l := off.length()
-		if l < tgt_dist - 0.2 and l < a.reach() + 0.3 and off.normalized().dot(a.forward()) > 0.75:
+		if l < limit and off.normalized().dot(forward) > 0.75:
 			return o
 	return null
 
 
 ## Raise the guard against an incoming attack (after a reaction delay; better troops block more).
-static func _defend(a: Agent, b) -> void:
+static func _defend(a: Agent, b: Battle) -> void:
 	if a.using_ranged:
 		return
 	if a.state == Agent.STRIKE or a.busy() and a.state != Agent.RECOVER:
@@ -226,13 +251,15 @@ static func _defend(a: Agent, b) -> void:
 			return
 	var threat: Agent = null
 	var td := INF
-	for e in b.agents_near(a.global_position, 3.6):
+	var origin := a.global_position
+	for e: Agent in b.agents_near(origin, 3.6):
 		if e.side == a.side or not e.attacking() or e.state == Agent.DEAD:
 			continue
-		var d: float = e.global_position.distance_to(a.global_position)
+		var offset := origin - e.global_position
+		var d := offset.length()
 		if d > e.reach() + 1.0 or d >= td:
 			continue
-		var to_me: Vector3 = (a.global_position - e.global_position).normalized()
+		var to_me := offset.normalized()
 		if to_me.dot(e.forward()) < 0.5:
 			continue
 		threat = e
@@ -266,7 +293,7 @@ static func _defend(a: Agent, b) -> void:
 
 
 # ------------------------------------------------------------------ cavalry
-static func _cavalry(a: Agent, b, tgt: Agent) -> void:
+static func _cavalry(a: Agent, b: Battle, tgt: Agent) -> void:
 	var to := tgt.global_position - a.global_position
 	to.y = 0
 	var d := to.length()
@@ -299,9 +326,9 @@ static func _cavalry(a: Agent, b, tgt: Agent) -> void:
 
 
 # ------------------------------------------------------------------ archers
-static func _shoot(a: Agent, b, tgt: Agent, dt: float) -> void:
+static func _shoot(a: Agent, b: Battle, tgt: Agent, dt: float) -> void:
 	var d := a.global_position.distance_to(tgt.global_position)
-	var rng: float = b.rules.num("ai", "archer_range", 85)
+	var rng: float = a.ranged_reach(b.rules.num("ai", "archer_range", 85))
 	var order: Dictionary = b.order_of(a)
 	if a.mounted:
 		# horse archers keep a band of distance and ride around

@@ -12,6 +12,8 @@ from . import movement as M
 from . import troops as T
 from .common import dist, nearest_settlement
 from .data import BACKGROUNDS, BLURBS, CLASS_NAMES, CULTURES, GOODS, KIND_NAMES, TITLES, TROOPS
+from . import character as CH
+from . import companions as CO
 from . import gear as G
 from .economy import WORKSHOP
 from .model import BANDIT, PLAYER, Party, World, party_speed
@@ -89,6 +91,9 @@ def _finish_creation(w: World, kid: str, bid: str) -> None:
                     pending={"type": "settlement", "id": start.id})
     w.player.pop("equip", None)
     G.ensure(w)                                  # starting kit from the background (rules/world.toml equip)
+    w.player.pop("char", None)
+    CH.ensure(w)                                 # level 1, attributes / skills from the background (character.toml)
+    CO.ensure(w)                                 # the companions wait in the taverns (companions.toml)
     for h in w.heroes.values():
         if h.kingdom == kid and b.get("relation"):
             h.adjust_rel(PID, int(b["relation"]))
@@ -109,6 +114,7 @@ def vision(w: World) -> float:
     cls = T.class_counts(p.troops)
     total = max(1, sum(cls.values()))
     r = v.base + v.cavalry_bonus * cls["cav"] / total + min(v.renown_bonus_max, w.player["renown"] / 10)
+    r *= 1.0 + CH.party(w, "spotting")
     h = w.hour % 24
     if h >= v.night_start or h < v.night_end:
         r *= v.night_factor
@@ -118,7 +124,8 @@ def vision(w: World) -> float:
 
 
 def limit(w: World) -> int:
-    return B.player.party_limit_base + int(w.player["renown"]) // 4 + 10 * len(w.fiefs_of(PID))
+    return (B.player.party_limit_base + int(w.player["renown"]) // 4 + 10 * len(w.fiefs_of(PID))
+            + int(CH.personal(w, "leadership")))
 
 
 def cargo_cap(p: Party) -> int:
@@ -327,6 +334,12 @@ def menu(w: World) -> dict | None:
         return _settlement_menu(w, p, w.settlements[pend["id"]])
     if kind in G.GEAR_MENUS:
         return G.menu(w, pend, p.gold)
+    if kind == "character":
+        return CH.menu(w, pend)
+    if kind == "companion":
+        return CO.menu(w, pend)
+    if kind == "training":
+        return _training_menu(p, pend)
     if kind == "walk":
         from . import walk as WK
         st = w.settlements[pend["id"]]
@@ -385,13 +398,21 @@ def menu(w: World) -> dict | None:
                         "随军攻下城池，你就是攻城功臣，朝议分封时有你一份。"}
     if kind == "assault_ready":
         return _assault_menu(w, p, w.settlements[pend["settlement"]])
+    if kind == "defense_ready":
+        from . import warfare as WF
+        s = w.settlements[pend["settlement"]]
+        attackers = sum(T.healthy(q.troops) for q in WF.siege_camp(w, s))
+        return {"type": kind, "title": f"守卫{s.name}",
+                "text": f"城外 {attackers} 人已把云梯架上城墙。你可以带部下登墙迎敌。",
+                "options": [_opt("defend3d", "亲自登墙守城"), _opt("defend_auto", "让部下守城（自动结算）")]}
     if kind == "battle":
         st = pend["setup"]
         if st.get("siege_town"):
-            return {"type": "battle", "title": f"强攻{st['place']}", "setup": st,
+            verb = "强攻" if st.get("player_attacks", True) else "守卫"
+            return {"type": "battle", "title": f"{verb}{st['place']}", "setup": st,
                     "text": f"{st['sides'][0]['name']}（{sum(st['sides'][0]['troops'].values())}人） 登城强攻 "
                             f"{st['sides'][1]['name']}（{sum(st['sides'][1]['troops'].values())}人）",
-                    "options": [_opt("autoresolve", "改为让部下强攻（自动结算）")]}
+                    "options": [_opt("autoresolve", "改为让部下作战（自动结算）")]}
         if st.get("arena"):
             return {"type": "battle", "title": f"{st['place']}擂台", "setup": st,
                     "text": f"你 对阵 {st['sides'][1]['hero']['name']}", "options": [_opt("autoresolve", "不亲自看了（直接定胜负）")]}
@@ -522,6 +543,7 @@ def _captive_act(w: World, p: Party, h, action: str) -> dict:
             w.heroes[k.ruler].adjust_rel(PID, 3)
         w.log("player", f"你释放了{h.name}", player=True, hero=h.id)
         POL.release_hero(w, h, "被玩家释放")
+        CO.react(w, "release")
         return {"ok": True}
     if action == "execute":
         if side(w) == PLAYER:
@@ -529,6 +551,7 @@ def _captive_act(w: World, p: Party, h, action: str) -> dict:
         w.player["renown"] = max(0.0, round(w.player["renown"] + B.capture.execute_renown, 1))
         w.player["dread"] = w.player.get("dread", 0) + B.capture.execute_dread
         POL.execute_hero(w, h, "player")
+        CO.react(w, "execute")
         return {"ok": True}
     return {"ok": False, "message": "未知操作"}
 
@@ -636,6 +659,9 @@ def _settlement_menu(w: World, p: Party, s) -> dict:
         for h in captives(w)[:4]:
             opts.append(_opt("captive", f"提审被你关押的{h.name}（{kingdom_name(w, h.kingdom)}）", hero=h.id))
     if s.kind == "town":
+        for c in CO.at(w, s.id):
+            opts.append(_opt("companion", f"到酒肆见{c['name']}（{c['title']}）", choice=c["id"]))
+    if s.kind == "town":
         cd = max(0, int(w.player.get("arena_cd", {}).get(s.id, 0)) - w.day)
         opts.append(_opt("arena", "上擂台比武（木兵器，可以下注）", cd == 0 and not w.player.get("following"),
                          f"擂台{cd}天后再开" if cd else "随军途中"))
@@ -740,10 +766,25 @@ def act(w: World, action: str, data: dict) -> dict:
             return {"ok": False, "message": "现在不能整理装备"}
         G.open_menu(w, "equip", pend)
         return {"ok": True}
+    if action == "character":
+        # the character sheet (C): from the map, or over a settlement menu
+        if (pend and pend["type"] != "settlement") or captive(w) or not w.player.get("char"):
+            return {"ok": False, "message": "现在不能查看角色"}
+        w.player["pending"] = {"type": "character", "who": str(data.get("who", "player")), "back": pend}
+        return {"ok": True}
+    if action == "training":
+        if p is None or captive(w) or (pend and pend["type"] != "settlement"):
+            return {"ok": False, "message": "现在不能整训部队"}
+        w.player["pending"] = {"type": "training", "back": pend}
+        return {"ok": True}
     if not pend:
         return {"ok": False, "message": "当前没有打开的菜单"}
     if pend["type"] in G.GEAR_MENUS:
         return G.act(w, pend, action, data, p)
+    if pend["type"] == "character":
+        return CH.act(w, pend, action, data)
+    if pend["type"] == "companion":
+        return CO.act(w, pend, action, data)
     m = menu(w)
     opt = next((o for o in (m or {}).get("options", []) if o["id"] == action
                 and (o.get("hero") is None or o.get("hero") == data.get("hero"))
@@ -751,6 +792,27 @@ def act(w: World, action: str, data: dict) -> dict:
     if action not in ("buy", "sell") and (opt is None or not opt["enabled"]):
         return {"ok": False, "message": "现在不能这么做"}
     kind = pend["type"]
+    if kind == "training":
+        if action == "back":
+            if pend.pop("troop", None) is None:
+                w.player["pending"] = pend["back"]
+            return {"ok": True}
+        if action == "training_select":
+            pend["troop"] = data["choice"]
+            return {"ok": True}
+        if action == "promote":
+            source = pend["troop"]
+            target, count = data["choice"].split(":")
+            n = int(count)
+            unit = TROOPS[source]
+            p.troops[source][0] -= n
+            T.add(p.troops, target, n)
+            p.xp[source] -= n * unit["xp"]
+            p.gold -= n * unit["upgrade_cost"]
+            T.prune(p.troops)
+            if _promotable(p, source) == 0:
+                pend.pop("troop")
+            return {"ok": True, "message": f"{n} 名{unit['name']}晋升为{TROOPS[target]['name']}"}
     if kind == "walk":
         # back from the streets: carry out what the player chose there as a settlement-menu option
         w.player["pending"] = {"type": "settlement", "id": pend["id"]}
@@ -831,6 +893,17 @@ def act(w: World, action: str, data: dict) -> dict:
             _next_captive(w)
         elif action == "wait":
             s.siege["wait_until"] = w.hour + 24
+        return {"ok": True}
+    if kind == "defense_ready":
+        s = w.settlements[pend["settlement"]]
+        camp = WF.siege_camp(w, s)
+        w.player["pending"] = None
+        if not camp or p.inside != s.id or side(w) != s.faction:
+            return {"ok": False, "message": "现在没有可以参加的守城战"}
+        if action == "defend3d":
+            w.player["pending"] = {"type": "battle", "setup": WF.siege_setup(w, s, camp)}
+        elif action == "defend_auto":
+            WF.assault(w, s, camp)
         return {"ok": True}
     if kind == "captive":
         r = _captive_act(w, p, w.heroes[pend["hero"]], action)
@@ -952,7 +1025,9 @@ def act(w: World, action: str, data: dict) -> dict:
                 return {"ok": False, "message": "未知货物"}
             if action == "buy":
                 room = cargo_cap(p) - sum(p.cargo.values())
-                got, spent = E.buy(w, s, g, min(n, room), p.gold)
+                t = CH.personal(w, "trade")             # 交易: cheaper buying, dearer selling
+                got, spent = E.buy(w, s, g, min(n, room), p.gold / max(0.5, 1.0 - t))
+                spent *= max(0.5, 1.0 - t)
                 p.gold -= spent
                 if got:
                     p.cargo[g] = p.cargo.get(g, 0) + got
@@ -960,7 +1035,7 @@ def act(w: World, action: str, data: dict) -> dict:
             have = min(n, p.cargo.get(g, 0))
             if not have:
                 return {"ok": False, "message": "你没有这种货物"}
-            gain = E.sell(w, s, g, have)
+            gain = E.sell(w, s, g, have) * (1.0 + CH.personal(w, "trade"))
             p.cargo[g] -= have
             p.gold += gain
             return {"ok": True, "message": f"卖出{have}份{GOODS[g][0]}，得{gain:.0f}金"}
@@ -968,6 +1043,9 @@ def act(w: World, action: str, data: dict) -> dict:
             return {"ok": True}
         if action == "smith":
             G.open_menu(w, "smith", pend, s.id)
+            return {"ok": True}
+        if action == "companion":
+            w.player["pending"] = {"type": "companion", "id": str(data.get("choice", "")), "back": pend}
             return {"ok": True}
         if action == "talk":
             return _open_talk(w, data["hero"], pend)
@@ -980,6 +1058,7 @@ def act(w: World, action: str, data: dict) -> dict:
                 declare_war(w, s.faction)
             w.player["pending"] = None
             WF.start_raid(w, p, s)
+            CO.react(w, "raid")
             return {"ok": True, "message": "劫掠开始：按住空格等待"}
         if action == "attack_hideout3d":
             w.player["pending"] = {"type": "battle", "setup": WF.hideout_setup(w, p, s), "att": p.id, "dfn": s.id}
@@ -1100,18 +1179,27 @@ def battle_result(w: World, result: dict) -> dict:
     if not pend or pend.get("type") != "battle":
         return {"ok": False, "message": "当前没有进行中的战斗"}
     w.player["pending"] = None
+    if isinstance((result or {}).get("companions"), dict):
+        CO.apply_outcomes(w, result["companions"])   # knocked out companions rest a few days
+    # weapon proficiency from your own hits (the client counts them by weapon kind)
+    if w.player.get("char") and isinstance((result or {}).get("player_hits"), dict):
+        CH.gain_prof(w.player["char"], {str(k): int(v) for k, v in result["player_hits"].items()})
     if pend["setup"].get("arena"):
         WF.apply_arena_result(w, pend["setup"], result or {})
         w.player["pending"] = pend.get("back")           # back in the town
         return {"ok": True, "event": None}
-    if pend["setup"].get("hideout"):
-        WF.apply_hideout_result(w, pend["setup"], result or {})
-        ev = {}
-    elif pend["setup"].get("siege_town"):
-        WF.apply_siege_result(w, pend["setup"], result or {})
-        ev = {}
-    else:
-        ev = WF.apply_battle_result(w, pend["setup"], result or {})
+    w.player["_in_person"] = True               # fought in person: more experience (character.award_battle)
+    try:
+        if pend["setup"].get("hideout"):
+            WF.apply_hideout_result(w, pend["setup"], result or {})
+            ev = {}
+        elif pend["setup"].get("siege_town"):
+            WF.apply_siege_result(w, pend["setup"], result or {})
+            ev = {}
+        else:
+            ev = WF.apply_battle_result(w, pend["setup"], result or {})
+    finally:
+        w.player.pop("_in_person", None)
     _next_captive(w)
     return {"ok": True, "event": ev.get("id") if ev else None}
 
@@ -1130,8 +1218,10 @@ def on_victory(w: World, enemy_losses: int, losers: list[Party]) -> None:
     gain = enemy_losses * B.player.renown_per_victory_kill
     gain += sum(5 for q in losers if q.kind == "lord")
     w.player["renown"] = round(w.player["renown"] + gain, 1)
+    CO.react(w, "victory")
     got = G.loot(w, enemy_losses, losers)
     if got:
+        CO.react(w, "loot")
         w.log("loot", "战后打扫战场，你挑了些能用的：" + "、".join(G.name(i) for i in got) + "（按 I 打开装备）", player=True)
     for q in losers:
         if q.kind == "bandit":
@@ -1143,6 +1233,7 @@ def on_victory(w: World, enemy_losses: int, losers: list[Party]) -> None:
 
 def defeated(w: World, p: Party, winners: list[Party], surrendered: bool = False) -> None:
     lost = T.healthy(p.troops) + T.wounded(p.troops)
+    CO.react(w, "defeat")
     if T.healthy(p.troops) == 0:
         # nobody left to fight: they turn out your purse and let you go (no captivity spiral)
         gold = round(p.gold * B.player.defeat_gold_loss)
@@ -1168,6 +1259,7 @@ def defeated(w: World, p: Party, winners: list[Party], surrendered: bool = False
     p.memo.pop("siege", None)
     p.memo.pop("raid", None)
     w.player["captive_until"] = w.hour + 24 * B.player.captive_days
+    CO.captured(w)                               # the companions scatter; they turn up in taverns later
     from .politics import release_hero
     for h in captives(w):
         release_hero(w, h, "你兵败被俘，他趁乱获释")
@@ -1201,6 +1293,7 @@ def daily(w: World) -> None:
     Q.daily(w)
     from . import events as EV
     EV.daily(w)
+    CO.daily(w)
     # a vassal who missed the call (busy in a menu when the army formed) is summoned the next day
     kid = w.player.get("kingdom")
     if kid and not w.player.get("following") and not w.player.get("pending"):
@@ -1234,34 +1327,53 @@ def daily(w: World) -> None:
             p.gold += pay
     if captive(w):
         return
-    # wages
-    p.gold -= T.upkeep(p.troops)
+    # wages (统御 lowers them)
+    lead = CH.skill(w.player["char"], "leadership") if w.player.get("char") else 0
+    wage_cut = lead * float(CH.skills().get("leadership", {}).get("wage_per_level", 0.0))
+    p.gold -= T.upkeep(p.troops) * max(0.5, 1.0 - wage_cut)
     if p.gold < 0:
         p.gold = 0.0
         n = max(1, T.healthy(p.troops) // 20)
         T.take_healthy(p.troops, n, w.rng)
         w.log("player", f"你发不出军饷，{n}名士兵开了小差", player=True)
-    # training & automatic upgrades (balanced towards a mixed force)
-    counts = T.class_counts(p.troops)
-    total = sum(counts.values()) or 1
-    for tid, v in list(p.troops.items()):
-        p.xp[tid] = p.xp.get(tid, 0) + v[0] * 1.5
-    for tid in list(p.troops):
-        t = TROOPS[tid]
-        if not t["upgrades"] or p.troops[tid][0] <= 0:
-            continue
-        n = min(p.troops[tid][0], int(p.xp.get(tid, 0) // t["xp"]), int(max(0.0, p.gold - 400) // t["upgrade_cost"]))
-        if n <= 0:
-            continue
-        opts = t["upgrades"]
-        weights = [1.0 / (0.3 + counts[TROOPS[o]["cls"]] / total) for o in opts]
-        for _ in range(n):
-            o = w.rng.choices(opts, weights)[0]
-            p.troops[tid][0] -= 1
-            T.add(p.troops, o, 1)
-        p.xp[tid] -= n * t["xp"]
-        p.gold -= n * t["upgrade_cost"]
-    T.prune(p.troops)
+    # The player chooses a branch when spending the experience earned in camp and battle.
+    drill = 1.5 + CH.personal(w, "trainer")         # 训练: extra drill for every healthy man
+    for tid, v in p.troops.items():
+        p.xp[tid] = p.xp.get(tid, 0) + v[0] * drill
+
+
+def _promotable(p: Party, tid: str) -> int:
+    unit = TROOPS[tid]
+    if not unit["upgrades"]:
+        return 0
+    return min(p.troops.get(tid, [0, 0])[0], int(p.xp.get(tid, 0) // unit["xp"]))
+
+
+def _training_menu(p: Party, pend: dict) -> dict:
+    source = pend.get("troop")
+    opts = []
+    if source is None:
+        text = "士兵从战斗和日常操练中获得经验。选中一个兵种，再决定晋升路线。"
+        for tid in p.troops:
+            n = _promotable(p, tid)
+            if n > 0:
+                opts.append(_opt("training_select", f"{TROOPS[tid]['name']}（{n} 人可晋升）", choice=tid))
+        if not opts:
+            text += "\n目前没有经验足够的健康士兵。"
+    else:
+        unit = TROOPS[source]
+        cost = unit["upgrade_cost"]
+        n = _promotable(p, source)
+        affordable = min(n, int(p.gold // cost)) if cost else n
+        text = f"{unit['name']}有 {n} 人可晋升。每人花费 {cost} 金，现有 {int(p.gold)} 金。"
+        for target in unit["upgrades"]:
+            name = TROOPS[target]["name"]
+            opts.append(_opt("promote", f"晋升 1 人为{name}", affordable > 0, choice=f"{target}:1"))
+            if affordable > 1:
+                opts.append(_opt("promote", f"晋升 {affordable} 人为{name}（{cost * affordable} 金）",
+                                 choice=f"{target}:{affordable}"))
+    opts.append(_opt("back", "返回"))
+    return {"type": "training", "title": "部队整训", "text": text, "options": opts}
 
 
 # ------------------------------------------------------------- the arena (比武)
@@ -1492,7 +1604,7 @@ def advice(w: World) -> list[str]:
     if renown < 40 and p.gold < 600 and len(out) < 3:
         out.append("手头紧、名声小：可以去城里的擂台比武（木兵器，不伤性命），赢了有赏钱和名望。")
     elif n < limit(w) * 0.6 and p.gold > 300:
-        out.append(f"部队还能扩充（{T.total(p.troops)}/{limit(w)}）：进城、进村招募，士兵每天操练会自动升级。")
+        out.append(f"部队还能扩充（{T.total(p.troops)}/{limit(w)}）：进城、进村招募，按 U 查看部队整训。")
     if wounded > n * 0.4 and wounded >= 8:
         out.append("伤员很多：进城休整（按住空格等待）恢复得最快，在野外恢复得慢。")
     if wage > 0 and p.gold < wage * 4:
@@ -1557,5 +1669,9 @@ def view(w: World) -> dict:
         "quests": [__import__("warlords.quests", fromlist=["describe"]).describe(w, q) for q in w.player.get("quests", [])],
         "busy": p.mode in ("siege", "raid"), "mode": p.mode,
         "classes": {CLASS_NAMES[k]: v for k, v in T.class_counts(p.troops).items()},
+        "companions": CO.view(w),
+        "char": ({"level": w.player["char"]["level"], "xp": w.player["char"]["xp"],
+                  "next_xp": CH.xp_need(w.player["char"]["level"] + 1), "points": dict(w.player["char"]["points"])}
+                 if w.player.get("char") else None),
     }
 

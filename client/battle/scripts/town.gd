@@ -10,6 +10,8 @@ extends RefCounted
 ## middle, the hall at the north end of the main street, an arena in the east. Castle: a smaller wall, a
 ## keep and a yard. Village: a dozen houses scattered round a well, fields beyond, no wall.
 
+const Art := preload("res://battle/scripts/art_mesh.gd")
+const TIMBER := Color("584033")
 const CELL := 16.0              # town block pitch (a 4 m street between blocks)
 const GRID := 8.0               # lookup grid for the height query
 
@@ -310,7 +312,6 @@ const TEX := {
 	"iwall": ["plaster", 3.0], "cottage": ["earth", 2.5],
 	"wall": ["brick", 2.2], "tower": ["brick", 2.2], "well": ["brick", 1.6],
 	"stall": ["planks", 1.6], "pillar": ["planks", 1.6], "dais": ["planks", 1.6], "seat": ["planks", 1.2],
-	"table": ["planks", 1.2], "bench": ["planks", 1.2], "counter": ["planks", 1.2], "shelf": ["planks", 1.2],
 }
 static var _tex_cache := {}
 static var _mat_cache := {}
@@ -372,10 +373,6 @@ const LOOK := {
 	"pillar": [Color("6a2f24"), null],
 	"dais": [Color("5a4634"), null],
 	"seat": [Color("4a2a1c"), null],
-	"table": [Color("5c4128"), null],
-	"bench": [Color("4f3820"), null],
-	"counter": [Color("5a3d22"), null],
-	"shelf": [Color("4a3220"), null],
 }
 
 
@@ -393,6 +390,8 @@ func build_visuals(parent: Node3D, ground: Callable, culture_roof: Color) -> voi
 			m.roughness = 0.95
 			mats[k] = m
 	var roof_mats := {}
+	var facades := {}
+	var furniture := Art.begin() if room else null
 	for b in blocks:
 		var look: String = b[5]
 		var w: float = b[2] - b[0]
@@ -400,13 +399,19 @@ func build_visuals(parent: Node3D, ground: Callable, culture_roof: Color) -> voi
 		var h: float = b[4]
 		var c := Vector3((b[0] + b[2]) * 0.5, 0, (b[1] + b[3]) * 0.5)
 		var g: float = ground.call(c.x, c.z)
+		if room and look in ["table", "bench", "shelf", "counter"]:
+			_furniture(furniture, Vector3(c.x, g, c.z), w, d, h, look)
+			continue
 		var body := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(w, h + 0.6, d)
+		var body_height := h - 0.23 if look == "well" else h
+		bm.size = Vector3(w, body_height + 0.6, d)
 		body.mesh = bm
 		body.material_override = mats.get(look, mats.house)
-		body.position = Vector3(c.x, g + (h + 0.6) * 0.5 - 0.6, c.z)
+		body.position = Vector3(c.x, g + (body_height + 0.6) * 0.5 - 0.6, c.z)
 		parent.add_child(body)
+		if look == "well":
+			_well(parent, Vector3(c.x, g + body_height, c.z), w, d, mats.well)
 		var roof_col = LOOK.get(look, LOOK.house)[1]
 		if roof_col != null:
 			var rc: Color = culture_roof if look in ["house", "hall", "inn"] else roof_col
@@ -424,14 +429,108 @@ func build_visuals(parent: Node3D, ground: Callable, culture_roof: Color) -> voi
 			if along_x:
 				roof.rotation.y = PI * 0.5
 			parent.add_child(roof)
+			var cell := Vector2i(floori(c.x / 32.0), floori(c.z / 32.0))
+			if not facades.has(cell):
+				facades[cell] = Art.begin()
+			_facade(facades[cell], Vector3(c.x, g, c.z), w, d, h, look, along_x, rc)
 		if look in ["house", "cottage", "inn", "hall", "prison"]:
 			_door(parent, b, g)
 		if look == "wall":
 			_merlons(parent, b, g, mats.wall)
+	for st in facades.values():
+		Art.add(parent, st.commit())
 	if room:
-		_interior(parent)
+		Art.add(parent, furniture.commit())
+		_interior(parent, culture_roof)
 	else:
 		_props(parent, ground)
+
+
+func _furniture(st: SurfaceTool, c: Vector3, w: float, d: float, h: float, look: String) -> void:
+	var wood := Color("6a4a31")
+	var dark := wood.darkened(0.24)
+	var top := c + Vector3.UP * (h - 0.065)
+	Art.box(st, Vector3(w, 0.13, d), top, wood.lightened(0.06))
+	match look:
+		"shelf":
+			for x in [-w * 0.5 + 0.075, w * 0.5 - 0.075]:
+				Art.box(st, Vector3(0.15, h, d), c + Vector3(x, h * 0.5, 0), dark)
+			for i in 3:
+				var y := 0.14 + i * 0.68
+				Art.box(st, Vector3(w - 0.28, 0.095, d), c + Vector3.UP * y, wood)
+				for j in 8:
+					var x := ((j + 0.5) / 8.0 - 0.5) * (w - 0.26)
+					var height := 0.19 + 0.065 * ((j + i * 2) % 4)
+					var clay: Color = [Color("82654a"), Color("776654"), Color("95794e")][(j + i) % 3]
+					Art.box(st, Vector3(0.22, height, 0.24), c + Vector3(x, y + 0.048 + height * 0.5, 0.05), clay)
+		"counter":
+			Art.box(st, Vector3(w - 0.15, h - 0.13, d - 0.12), c + Vector3.UP * ((h - 0.13) * 0.5), dark)
+			for i in 5:
+				var x := (i - 2) * w * 0.187
+				Art.box(st, Vector3(w * 0.17, h - 0.36, 0.038), c + Vector3(x, (h - 0.04) * 0.5, d * 0.5 - 0.052), wood)
+		_:
+			var count := maxi(2, ceili(maxf(w, d) / 3.2))
+			var span := maxf(w, d) - 0.34
+			var wide := w >= d
+			var sides := [0.0] if look == "bench" else [-1.0, 1.0]
+			for i in count:
+				var length := (float(i) / (count - 1) - 0.5) * span
+				for side in sides:
+					var cross: float = side * (minf(w, d) * 0.5 - 0.12)
+					var p := Vector3(length, (h - 0.13) * 0.5, cross) if wide else Vector3(cross, (h - 0.13) * 0.5, length)
+					Art.box(st, Vector3(0.13, h - 0.13, 0.13), c + p, dark)
+			var apron := Vector3(w - 0.30, 0.10, maxf(0.10, d - 0.26))
+			Art.box(st, apron, top - Vector3.UP * 0.101, dark)
+
+
+func _facade(st: SurfaceTool, c: Vector3, w: float, d: float, h: float,
+		look: String, along_x: bool, color: Color) -> void:
+	var tower := look == "tower"
+	var plinth := Color("797269") if tower else Color("756453")
+	# The recessed base and the roof fascia give the same block three distinct levels.
+	Art.box(st, Vector3(w + 0.08, 0.48, d + 0.08), c + Vector3.UP * 0.24, plinth)
+	Art.box(st, Vector3(w + 0.82, 0.17, d + 0.82), c + Vector3.UP * (h - 0.06), TIMBER)
+	var ridge_height := minf(w, d) * (0.6 if tower else 0.32)
+	var ridge := Vector3(w + 0.97, 0.12, 0.18) if along_x else Vector3(0.18, 0.12, d + 0.97)
+	Art.box(st, ridge, c + Vector3.UP * (h + ridge_height - 0.03), color.darkened(0.24))
+	if not tower:
+		for x in [-w * 0.5 + 0.13, w * 0.5 - 0.13]:
+			for z in [-d * 0.5 + 0.13, d * 0.5 - 0.13]:
+				Art.box(st, Vector3(0.32, h - 0.48, 0.32), c + Vector3(x, (h + 0.48) * 0.5, z), TIMBER)
+	# Keep the windows high enough to clear the usable doors.
+	for side in 4:
+		var basis := Basis(Vector3.UP, side * PI * 0.5)
+		var width := w if side % 2 == 0 else d
+		var depth := d if side % 2 == 0 else w
+		var count := clampi(floori(width / 3.6), 1, 6)
+		var window_width := 0.32 if tower else (0.67 if look == "cottage" else 0.95)
+		var window_y := h - (1.1 if tower else 0.67)
+		for i in count:
+			var x := ((i + 0.5) / count - 0.5) * width
+			var p := c + basis * Vector3(x, window_y, depth * 0.5)
+			Art.box(st, Vector3(window_width + 0.20, 0.80, 0.13), p, TIMBER, basis)
+			Art.box(st, Vector3(window_width, 0.61, 0.085), p + basis * Vector3(0, 0, 0.032), Color("282925"), basis)
+			if not tower:
+				Art.box(st, Vector3(0.072, 0.62, 0.10), p + basis * Vector3(0, 0, 0.050), TIMBER, basis)
+				Art.box(st, Vector3(window_width + 0.30, 0.10, 0.23), p + basis * Vector3(0, -0.35, 0.047), plinth, basis)
+
+
+func _well(parent: Node3D, rim: Vector3, w: float, d: float, stone: Material) -> void:
+	var side := BoxMesh.new()
+	side.size = Vector3(0.28, 0.23, d)
+	var end := BoxMesh.new()
+	end.size = Vector3(w - 0.56, 0.23, 0.28)
+	for sign in [-1.0, 1.0]:
+		Art.add(parent, side, rim + Vector3(sign * (w - 0.28) * 0.5, 0.115, 0)).material_override = stone
+		Art.add(parent, end, rim + Vector3(0, 0.115, sign * (d - 0.28) * 0.5)).material_override = stone
+	var water := PlaneMesh.new()
+	water.size = Vector2(w - 0.54, d - 0.54)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color("384d45")
+	material.roughness = 0.32
+	var surface := Art.add(parent, water, rim + Vector3.UP * 0.018)
+	surface.material_override = material
+	surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _door(parent: Node3D, b: Array, g: float) -> void:
@@ -489,38 +588,29 @@ func _merlons(parent: Node3D, b: Array, g: float, mat: Material) -> void:
 
 
 func _props(parent: Node3D, ground: Callable) -> void:
-	# beaten earth inside the walls (a village: round the well and along the road in)
-	var dirt := StandardMaterial3D.new()
-	dirt.albedo_color = Color("6a5c46")
-	dirt.roughness = 1.0
-	var pads: Array = [[Vector3.ZERO, radius * 2.0 - 8.0, radius * 2.0 - 8.0]] if kind != "village" \
-		else [[Vector3.ZERO, 22.0, 22.0], [Vector3(0, 0, 32), 6.0, 44.0]]
-	for pd in pads:
-		var pl := MeshInstance3D.new()
-		var plm := PlaneMesh.new()
-		plm.size = Vector2(pd[1], pd[2])
-		pl.mesh = plm
-		pl.material_override = dirt
-		var pc: Vector3 = pd[0]
-		pl.position = Vector3(pc.x, ground.call(pc.x, pc.z) + 0.03, pc.z)
-		parent.add_child(pl)
+	# The village path blends directly into the terrain material.
+	if kind != "village":
+		var pad := PlaneMesh.new()
+		pad.size = Vector2.ONE * (radius * 2.0 - 8.0)
+		var street := Art.add(parent, pad, Vector3.UP * (ground.call(0.0, 0.0) + 0.03))
+		street.material_override = tex_mat("earth", Color("8e8a78"), 5.1, 1.0, 0.56)
+		street.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color("6b4a2a")
-	var cloth := StandardMaterial3D.new()
-	cloth.albedo_color = Color("b0503a")
-	cloth.cull_mode = BaseMaterial3D.CULL_DISABLED
-	# awnings over the market stalls
+	if kind in ["town", "castle"]:
+		_paving(parent, ground)
+	var canopies := Art.begin()
+	var stall := 0
 	for b in blocks:
-		if b[5] == "stall":
-			var aw := MeshInstance3D.new()
-			var am := BoxMesh.new()
-			am.size = Vector3(3.4, 0.08, 3.2)
-			aw.mesh = am
-			aw.material_override = cloth
-			var c := Vector3((b[0] + b[2]) * 0.5 + 0.6, 0, (b[1] + b[3]) * 0.5)
-			aw.position = Vector3(c.x, ground.call(c.x, c.z) + 2.3, c.z)
-			aw.rotation.z = -0.25
-			parent.add_child(aw)
+		if b[5] != "stall":
+			continue
+		var c := Vector3((b[0] + b[2]) * 0.5, 0, (b[1] + b[3]) * 0.5)
+		c.y = ground.call(c.x, c.z)
+		var cloth: Color = [Color("a8573b"), Color("597779"), Color("a37e40"), Color("8b4d49")][stall % 4]
+		_canopy(canopies, c, cloth)
+		stall += 1
+	if stall > 0:
+		Art.add(parent, canopies.commit())
 	for pr in props:
 		var kind_p: String = pr[0]
 		var pos: Vector3 = pr[1]
@@ -559,20 +649,70 @@ func _props(parent: Node3D, ground: Callable) -> void:
 				st.position = Vector3(pos.x, ground.call(pos.x, pos.z) + 0.15, pos.z)
 				parent.add_child(st)
 			"field":
-				var f := MeshInstance3D.new()
-				var pm := PlaneMesh.new()
-				pm.size = Vector2(pr[2] * 1.6, pr[2])
-				f.mesh = pm
-				var fm := StandardMaterial3D.new()
-				fm.albedo_color = Color("8a8a3a") if int(pos.x) % 2 == 0 else Color("6a7a32")
-				f.material_override = fm
-				f.position = Vector3(pos.x, ground.call(pos.x, pos.z) + 0.05, pos.z)
-				f.rotation.y = atan2(pos.x, pos.z)
-				parent.add_child(f)
+				_field_rows(parent, pos, pr[2], ground)
 
 
-func _interior(parent: Node3D) -> void:
-	var floor_m := tex_mat("planks", Color("8a7058"), 1.8) if ceiling < 5.0 else tex_mat("brick", Color("b8b2a6"), 1.4)
+func _field_rows(parent: Node3D, p: Vector3, depth: float, ground: Callable) -> void:
+	var basis := Basis(Vector3.UP, atan2(p.x, p.z))
+	var st := Art.begin()
+	var loam := Color("746548")
+	var crop := Color("8b9049") if p.x > 0.0 else Color("7d8744")
+	for i in 15:
+		var x := (i - 7) * depth * 0.10
+		for j in 8:
+			var z0 := (float(j) / 8.0 - 0.5) * depth
+			var z1 := z0 + depth / 8.0
+			var half := depth * 0.05
+			var a := _furrow_point(p, basis, Vector3(x - half, 0.026, z0), ground)
+			var b := _furrow_point(p, basis, Vector3(x - half, 0.026, z1), ground)
+			var c := _furrow_point(p, basis, Vector3(x, 0.19, z1), ground)
+			var d := _furrow_point(p, basis, Vector3(x, 0.19, z0), ground)
+			var e := _furrow_point(p, basis, Vector3(x + half, 0.026, z1), ground)
+			var f := _furrow_point(p, basis, Vector3(x + half, 0.026, z0), ground)
+			Art.quad(st, b, a, d, c, loam.lerp(crop, 0.38 + 0.16 * ((i + j) % 3)))
+			Art.quad(st, c, d, f, e, crop.darkened(0.14 + 0.04 * ((i + j) % 3)))
+	var rows := Art.add(parent, st.commit())
+	rows.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _furrow_point(p: Vector3, basis: Basis, offset: Vector3, ground: Callable) -> Vector3:
+	var pos := p + basis * offset
+	pos.y += ground.call(pos.x, pos.z)
+	return pos
+
+
+func _paving(parent: Node3D, ground: Callable) -> void:
+	var stone := tex_mat("brick", Color("999180"), 3.0, 1.0, 0.74)
+	var parts := [Rect2(-2.3, -50.0, 4.6, 36.0), Rect2(-15.0, -14.0, 30.0, 28.0),
+		Rect2(-2.3, 14.0, 4.6, 53.0)] if kind == "town" else [Rect2(-3.0, -16.0, 6.0, 48.0)]
+	for r in parts:
+		var plane := PlaneMesh.new()
+		plane.size = r.size
+		var c: Vector2 = r.get_center()
+		var paving := Art.add(parent, plane, Vector3(c.x, ground.call(c.x, c.y) + 0.047, c.y))
+		paving.material_override = stone
+		paving.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _canopy(st: SurfaceTool, base: Vector3, cloth: Color) -> void:
+	var tilt := Basis(Vector3.FORWARD, 0.25)
+	var c := base + Vector3(0.43, 2.33, 0)
+	for j in 7:
+		var z := (j - 3) * 0.45
+		var col := cloth if j % 2 == 0 else Color("cebb94")
+		Art.box(st, Vector3(3.45, 0.06, 0.45), c + Vector3(0, 0, z), col, tilt)
+		Art.box(st, Vector3(0.055, 0.22, 0.44), c + tilt * Vector3(1.70, -0.11, z), col)
+	for z in [-1.32, 1.32]:
+		Art.box(st, Vector3(0.09, 2.64, 0.09), base + Vector3(-1.08, 1.34, z), TIMBER)
+		Art.box(st, Vector3(0.09, 2.05, 0.09), base + Vector3(1.89, 1.04, z), TIMBER)
+		Art.box(st, Vector3(3.55, 0.075, 0.075), c + tilt * Vector3(0, -0.085, z), TIMBER, tilt)
+
+
+func _interior(parent: Node3D, culture_roof: Color) -> void:
+	var floor_m := tex_mat("planks", Color("8a7058"), 1.8)
+	if kind == "hall_room":
+		floor_m = tex_mat("brick", Color("b8b2a6"), 1.9, 1.0, 0.8).duplicate() as StandardMaterial3D
+		floor_m.roughness_texture = null
 	var fl := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = rect.size + Vector2(2, 2)
@@ -603,7 +743,8 @@ func _interior(parent: Node3D) -> void:
 		bmi.position = Vector3(rect.get_center().x, ceiling - 0.2, z)
 		parent.add_child(bmi)
 		z += 4.0
-	# lamps: a warm glow on a small bright box
+	var furnishings := Art.begin()
+	# Warm lanterns with iron cages, around the existing light sources.
 	var glow := StandardMaterial3D.new()
 	glow.albedo_color = Color("ffcf7a")
 	glow.emission_enabled = true
@@ -624,17 +765,44 @@ func _interior(parent: Node3D) -> void:
 		lm.material_override = glow
 		lm.position = lp
 		parent.add_child(lm)
+		var iron := Color("423c34")
+		if kind == "hall_room" and absf(lp.x) > 1.0:
+			var side := signf(lp.x)
+			Art.box(furnishings, Vector3(1.0, 0.078, 0.086), lp + Vector3(side * 0.49, 0.22, 0), iron)
+		else:
+			var length: float = ceiling - lp.y - 0.22
+			Art.box(furnishings, Vector3(0.040, length, 0.04), lp + Vector3.UP * (0.22 + length * 0.5), iron)
+		for y in [-0.20, 0.20]:
+			Art.box(furnishings, Vector3(0.36, 0.056, 0.36), lp + Vector3.UP * y, iron)
+		for x in [-0.148, 0.148]:
+			for z_offset in [-0.148, 0.148]:
+				Art.box(furnishings, Vector3(0.041, 0.44, 0.041), lp + Vector3(x, 0, z_offset), iron)
 	for pr in props:
 		if pr[0] == "banner":
-			var bn := MeshInstance3D.new()
-			var bq := BoxMesh.new()
-			bq.size = Vector3(2.2, pr[2], 0.06)
-			bn.mesh = bq
-			var bm := StandardMaterial3D.new()
-			bm.albedo_color = Color("7a2a20")
-			bn.material_override = bm
-			bn.position = Vector3(pr[1].x, 2.6 + pr[2] * 0.5 - 0.5, pr[1].z)
-			parent.add_child(bn)
+			var h: float = pr[2]
+			var p := Vector3(pr[1].x, 2.1 + h * 0.5, pr[1].z + 0.11)
+			var cloth := culture_roof.lerp(Color("823e32"), 0.50)
+			var gold := Color("c39c58")
+			Art.box(furnishings, Vector3(2.20, h, 0.052), p, cloth)
+			Art.box(furnishings, Vector3(2.58, 0.11, 0.11), p + Vector3.UP * (h * 0.5), TIMBER)
+			for x in [-0.91, 0.91]:
+				Art.box(furnishings, Vector3(0.073, h, 0.055), p + Vector3(x, 0, 0.025), gold)
+			Art.box(furnishings, Vector3(0.72, 0.72, 0.048), p + Vector3(0, 0.15, 0.035), gold,
+				Basis(Vector3.FORWARD, PI * 0.25))
+			Art.box(furnishings, Vector3(0.51, 0.51, 0.032), p + Vector3(0, 0.15, 0.054), cloth,
+				Basis(Vector3.FORWARD, PI * 0.25))
+	if kind == "hall_room":
+		var rug := Color("73453b")
+		var border := Color("8d7045")
+		Art.box(furnishings, Vector3(2.9, 0.018, 18.0), Vector3(0, 0.044, -1.0), rug)
+		for x in [-1.35, 1.35]:
+			Art.box(furnishings, Vector3(0.12, 0.015, 17.7), Vector3(x, 0.05, -1.0), border)
+		for z_offset in [-9.8, 7.8]:
+			Art.box(furnishings, Vector3(2.8, 0.015, 0.12), Vector3(0, 0.05, z_offset), border)
+		for z_offset in [-8.4, -4.7, -1.0, 2.7, 6.4]:
+			Art.box(furnishings, Vector3(0.49, 0.015, 0.49), Vector3(0, 0.051, z_offset), border,
+				Basis(Vector3.UP, PI * 0.25))
+	Art.add(parent, furnishings.commit())
 	# the doorway: daylight (or night) beyond
 	var door_m := StandardMaterial3D.new()
 	door_m.albedo_color = Color("d8c9a8")

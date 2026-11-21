@@ -134,6 +134,8 @@ def _complete(w: World, q: dict, how: str = "") -> None:
     p = w.parties.get(PID)
     if p:
         p.gold += q["reward"]
+        from .character import C, award
+        award(w, q["reward"] * float(C().get("xp", {}).get("quest_per_gold", 0.6)))
     w.player["renown"] = round(w.player["renown"] + q["renown"], 1)
     h = w.heroes.get(q["giver"])
     if h:

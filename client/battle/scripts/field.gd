@@ -3,6 +3,7 @@ extends Node3D
 ## The battlefield: a square heightmap (mesh + collision) coloured by the campaign terrain type,
 ## optional trees, sky and sun. Also answers height queries (arrows, camera, spawning).
 
+const Art := preload("res://battle/scripts/art_mesh.gd")
 const RES := 96                       # cells per side
 
 const LOOKS := {
@@ -25,6 +26,7 @@ var heights := PackedFloat32Array()
 var trees: Array = []                 # [Vector3 pos, radius] for steering around them
 var _tree_grid := {}                  # Vector2i cell (8 m) -> [tree]
 var terrain := "plains"
+static var _cloud_map: ImageTexture
 
 # ---- siege works (setup["siege"]): a straight town wall across the field, scaling ladders leaning on its
 # outer face, stone stairs down into the town. Everything is measured in "u" = depth towards the town
@@ -97,14 +99,16 @@ func build(terrain_type: String, field_size: float, seed_value: int, night: bool
 				h *= 1.0 - flat
 				flat = 0.0
 			heights[j * (RES + 1) + i] = h * (1.0 - flat)
-	_build_mesh(look)
+	if DisplayServer.get_name() != "headless":
+		_build_mesh(look, seed_value)
 	_build_collision()
 	if not siege.is_empty():
 		_build_siege_works()
 	if not town.is_empty():
 		_build_town()
 	_build_trees(int(look[3]) if siege.is_empty() and town.is_empty() else (6 if town.get("kind", "") == "village" else 0), seed_value)
-	_build_env(night)
+	if DisplayServer.get_name() != "headless":
+		_build_env(night, seed_value)
 
 
 func height_at(x: float, z: float) -> float:
@@ -179,12 +183,19 @@ func level(p: Vector3) -> int:
 	if siege.is_empty():
 		return 0
 	var u := p.z * float(siege.sd)
-	var w := works_at(p.x, p.z)
-	if u >= W_FRONT and u <= W_BACK:
-		return 1
 	if u < W_FRONT:
-		return 1 if w > float(siege.h) * 0.5 else 0
-	return 1 if w > float(siege.h) * 0.5 else 2
+		if u > W_FRONT - LADDER_LEN * 0.5:
+			for lx: float in siege.ladders:
+				if absf(p.x - lx) <= LADDER_HALF:
+					return 1
+		return 0
+	if u <= W_BACK:
+		return 1
+	if u < W_BACK + STAIR_LEN * 0.5:
+		for sx: float in siege.stairs:
+			if absf(p.x - sx) <= STAIR_HALF:
+				return 1
+	return 2
 
 
 func _wpt(x: float, u: float) -> Vector3:
@@ -313,7 +324,15 @@ func _build_siege_works() -> void:
 	mmi.multimesh = mm
 	mmi.material_override = stone_dark
 	add_child(mmi)
-	# towers every so often along the wall (outside the walk, purely for the skyline)
+	# Stone trim is inset into the face so the ladder rungs still clear it.
+	var trim := BoxMesh.new()
+	trim.size = Vector3(size, 0.38, 0.23)
+	Art.add(self, trim, Vector3(0, h - 0.55, (W_FRONT + 0.032) * sd)).material_override = stone_dark
+	Art.add(self, trim, Vector3(0, 0.58, (W_FRONT + 0.032) * sd)).material_override = stone_dark
+	var tower_roof := PrismMesh.new()
+	tower_roof.size = Vector3(8.5, 3.5, 8.5)
+	var tower_tiles := TownLayout.roof_mat(Color("4e535a"))
+	# Roofed watchtowers frame the approach on both sides.
 	for tx in [-110.0, -75.0, 75.0, 110.0]:
 		var t := MeshInstance3D.new()
 		var tb := BoxMesh.new()
@@ -322,6 +341,22 @@ func _build_siege_works() -> void:
 		t.material_override = stone_dark
 		t.position = Vector3(tx, (h + 6.0) * 0.5 - 2.0, (W_FRONT - 2.5) * sd)
 		add_child(t)
+		var roof_center := Vector3(tx, h + 4.0 + tower_roof.size.y * 0.5, t.position.z)
+		Art.add(self, tower_roof, roof_center).material_override = tower_tiles
+		var details := Art.begin()
+		var beams := Color("584740")
+		Art.box(details, Vector3(8.35, 0.24, 8.35), Vector3(tx, h + 3.91, t.position.z), beams)
+		Art.box(details, Vector3(0.17, 0.16, 8.67), roof_center + Vector3(0, 1.71, 0), beams)
+		var face_z := t.position.z - sd * 3.5
+		for off in [-2.2, 2.2]:
+			Art.box(details, Vector3(0.60, 1.28, 0.19), Vector3(tx + off, h + 2.30, face_z), beams)
+			Art.box(details, Vector3(0.33, 1.05, 0.16), Vector3(tx + off, h + 2.30, face_z - sd * 0.054), Color("282b2c"))
+		var cloth := Color("815045") if absf(tx) < 100.0 else Color("566976")
+		var p := Vector3(tx, h + 1.39, face_z - sd * 0.13)
+		Art.box(details, Vector3(1.03, 2.32, 0.069), p, cloth)
+		Art.box(details, Vector3(1.44, 0.09, 0.11), p + Vector3.UP * 1.15, beams)
+		Art.box(details, Vector3(0.72, 0.072, 0.081), p - Vector3.UP * 0.90, Color("b99d6b"))
+		Art.add(self, details.commit())
 	# scaling ladders: two rails and rungs from the foot to the top of the wall
 	var rlen := sqrt(LADDER_LEN * LADDER_LEN + h * h)
 	for lx in siege.ladders:
@@ -365,7 +400,8 @@ func _build_siege_works() -> void:
 	# a few houses in the town behind (for show)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
-	var roof := TownLayout.roof_mat(Color("4a4f58"))
+	var roofs := [TownLayout.roof_mat(Color("4a4f58")), TownLayout.roof_mat(Color("615845")),
+		TownLayout.roof_mat(Color("71524b"))]
 	var plaster := TownLayout.tex_mat("plaster", Color("e0d6c2"), 3.0)
 	for k in 26:
 		var hx := rng.randf_range(-size * 0.45, size * 0.45)
@@ -385,7 +421,7 @@ func _build_siege_works() -> void:
 		var pm := PrismMesh.new()
 		pm.size = Vector3(hw + 1.0, 1.8, hd + 1.0)
 		r.mesh = pm
-		r.material_override = roof
+		r.material_override = roofs[k % roofs.size()]
 		r.position = base + Vector3(0, hh + 0.9, 0)
 		add_child(r)
 
@@ -394,41 +430,165 @@ func ground(p: Vector3) -> Vector3:
 	return Vector3(p.x, height_at(p.x, p.z), p.z)
 
 
-func _build_mesh(look: Array) -> void:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var lo: Color = look[0]
-	var hi: Color = look[1]
-	var amp: float = maxf(1.0, look[2])
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
-	var w := RES + 1
-	var cols := PackedColorArray()
-	cols.resize(w * w)
-	for k in w * w:
-		var t := clampf(heights[k] / amp * 0.5 + 0.5, 0.0, 1.0)
-		cols[k] = lo.lerp(hi, t).darkened(rng.randf_range(-0.04, 0.06))
-	for j in RES:
-		for i in RES:
-			var idx := [j * w + i, j * w + i + 1, (j + 1) * w + i, (j + 1) * w + i + 1]
-			var pts: Array[Vector3] = []
-			for k in idx:
-				var ii: int = k % w
-				var jj: int = k / w
-				pts.append(Vector3((float(ii) / RES - 0.5) * size, heights[k], (float(jj) / RES - 0.5) * size))
-			for tri in [[0, 1, 2], [1, 3, 2]]:
-				for t in tri:
-					st.set_color(cols[idx[t]])
-					st.add_vertex(pts[t])
-	st.generate_normals()
+## The heightmap keeps its original topology for collisions. The visible mesh shares vertices
+## and uses smooth normals, plus world-scale UVs for soil, grass, sand and snow.
+func _build_mesh(look: Array, seed_value: int) -> void:
+	var width := RES + 1
+	var count := width * width
+	var cell := size / RES
+	var points := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var tangents := PackedFloat32Array()
+	var uvs := PackedVector2Array()
+	var masks := PackedColorArray()
+	var indices := PackedInt32Array()
+	points.resize(count)
+	normals.resize(count)
+	tangents.resize(count * 4)
+	uvs.resize(count)
+	masks.resize(count)
+	indices.resize(RES * RES * 6)
+	var patches := FastNoiseLite.new()
+	patches.seed = 97
+	patches.frequency = 0.063
+	patches.fractal_octaves = 2
+	var cover_amount: float = {"meadow": 0.79, "plains": 0.64, "steppe": 0.36, "hills": 0.61,
+		"forest": 0.52, "taiga": 0.48, "marsh": 0.63, "mountain": 0.38}.get(terrain, 0.0)
+	for j in width:
+		var z := j * cell - size * 0.5
+		for i in width:
+			var x := i * cell - size * 0.5
+			var k := j * width + i
+			var dx := heights[j * width + mini(i + 1, RES)] - heights[j * width + maxi(i - 1, 0)]
+			var dz := heights[mini(j + 1, RES) * width + i] - heights[maxi(j - 1, 0) * width + i]
+			var tangent := Vector3(cell * 2.0, dx, 0.0).normalized()
+			points[k] = Vector3(x, heights[k], z)
+			normals[k] = Vector3(-dx, cell * 2.0, -dz).normalized()
+			tangents[k * 4] = tangent.x
+			tangents[k * 4 + 1] = tangent.y
+			tangents[k * 4 + 2] = tangent.z
+			tangents[k * 4 + 3] = -1.0
+			uvs[k] = Vector2(x, z)
+			var patch := patches.get_noise_2d(x, z)
+			var grass := clampf(cover_amount + patch * 1.18 - (1.0 - normals[k].y) * 1.8, 0.0, 1.0)
+			masks[k] = Color(grass, clampf(0.55 + patch * 0.6, 0.0, 1.0), 0.0)
+			if i < RES and j < RES:
+				var f := (j * RES + i) * 6
+				indices[f] = k
+				indices[f + 1] = k + 1
+				indices[f + 2] = k + width
+				indices[f + 3] = k + 1
+				indices[f + 4] = k + width + 1
+				indices[f + 5] = k + width
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = points
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TANGENT] = tangents
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_COLOR] = masks
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.vertex_color_is_srgb = true
-	mat.roughness = 0.95
-	mi.material_override = mat
+	mi.mesh = mesh
+	var material := _ground_material(look, cover_amount > 0.0)
+	mi.material_override = material
 	add_child(mi)
+	_build_horizon(material, patches, cover_amount, maxf(17.0, float(look[2]) * 2.8), seed_value)
+
+
+## Continue the terrain beyond the four gameplay edges, joining the exact
+## heightmap samples. Only the original square has collision.
+func _build_horizon(material: ShaderMaterial, patches: FastNoiseLite, cover_amount: float,
+		relief: float, seed_value: int) -> void:
+	var hills := FastNoiseLite.new()
+	hills.seed = seed_value + 2147
+	hills.frequency = 0.0055
+	hills.fractal_octaves = 3
+	var edge := PackedVector2Array()
+	var edge_heights := PackedFloat32Array()
+	var width := RES + 1
+	for side in 4:
+		for i in RES:
+			var t := float(i) / RES - 0.5
+			match side:
+				0:
+					edge.append(Vector2(t, -0.5))
+					edge_heights.append(heights[i])
+				1:
+					edge.append(Vector2(0.5, t))
+					edge_heights.append(heights[i * width + RES])
+				2:
+					edge.append(Vector2(-t, 0.5))
+					edge_heights.append(heights[RES * width + RES - i])
+				3:
+					edge.append(Vector2(-0.5, -t))
+					edge_heights.append(heights[(RES - i) * width])
+	var rings := [1.0, 1.16, 1.44, 1.87, 2.47, 3.3, 4.6]
+	var points := PackedVector3Array()
+	var tint := PackedColorArray()
+	for radial: float in rings:
+		var merge := smoothstep(1.0, 2.0, radial)
+		var haze := smoothstep(1.0, 1.76, radial)
+		for i in edge.size():
+			var p := edge[i] * (size * radial)
+			var ridge := hills.get_noise_2d(p.x, p.y) * relief + relief * 0.43
+			points.append(Vector3(p.x, lerpf(edge_heights[i], ridge, merge), p.y))
+			var patch := patches.get_noise_2d(p.x, p.y)
+			tint.append(Color(clampf(cover_amount + patch * 1.18, 0.0, 1.0),
+				clampf(0.55 + patch * 0.6, 0.0, 1.0), haze))
+	var mesh := SurfaceTool.new()
+	mesh.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for ring in rings.size() - 1:
+		for i in edge.size():
+			var a := ring * edge.size() + i
+			var b := ring * edge.size() + ((i + 1) % edge.size())
+			var c := a + edge.size()
+			var d := b + edge.size()
+			for k in [a, c, b, b, c, d]:
+				mesh.set_uv(Vector2(points[k].x, points[k].z))
+				mesh.set_color(tint[k])
+				mesh.add_vertex(points[k])
+	mesh.index()
+	mesh.generate_normals()
+	mesh.generate_tangents()
+	var backdrop := MeshInstance3D.new()
+	backdrop.name = "DistantGround"
+	backdrop.mesh = mesh.commit()
+	backdrop.material_override = material
+	backdrop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(backdrop)
+
+
+func _ground_material(look: Array, blend_cover: bool) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://battle/scripts/ground.gdshader")
+	var soil_texture := "earth"
+	var soil_tint := Color("867054")
+	var far_tint := Color("75867c")
+	if terrain in ["desert", "dunes"]:
+		soil_texture = "sand"
+		soil_tint = look[0].lerp(look[1], 0.40)
+		far_tint = Color("ac9270")
+	elif terrain == "snow":
+		soil_texture = "snow"
+		soil_tint = Color("aabecb")
+		far_tint = Color("9fb5c6")
+		m.set_shader_parameter("exposure", 0.39)
+	elif terrain in ["forest", "marsh", "taiga"]:
+		soil_tint = Color("705f46")
+	var dir := "res://assets/textures/%s/" % soil_texture
+	m.set_shader_parameter("soil", load(dir + "albedo.jpg"))
+	m.set_shader_parameter("relief", load(dir + "normal.jpg"))
+	m.set_shader_parameter("cover", load("res://assets/textures/turf/albedo.jpg"))
+	m.set_shader_parameter("cover_relief", load("res://assets/textures/turf/normal.jpg"))
+	m.set_shader_parameter("soil_tint", soil_tint)
+	m.set_shader_parameter("cover_tint", look[0].lerp(look[1], 0.5).lightened(0.09))
+	m.set_shader_parameter("far_tint", far_tint)
+	m.set_shader_parameter("blend_cover", blend_cover)
+	m.set_shader_parameter("village", town.get("kind", "") == "village")
+	return m
 
 
 func _build_collision() -> void:
@@ -452,27 +612,6 @@ func _build_trees(n: int, seed_value: int) -> void:
 		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value + 99
-	var trunk_mm := MultiMesh.new()
-	trunk_mm.transform_format = MultiMesh.TRANSFORM_3D
-	var crown_mm := MultiMesh.new()
-	crown_mm.transform_format = MultiMesh.TRANSFORM_3D
-	var trunk := CylinderMesh.new()
-	trunk.top_radius = 0.18
-	trunk.bottom_radius = 0.25
-	trunk.height = 3.0
-	var crown := CylinderMesh.new()
-	crown.top_radius = 0.0
-	crown.bottom_radius = 1.8
-	crown.height = 5.0
-	var conifer := terrain in ["taiga", "snow", "mountain"]
-	if not conifer:
-		var sm := SphereMesh.new()
-		sm.radius = 2.0
-		sm.height = 3.6
-		crown_mm.mesh = sm
-	else:
-		crown_mm.mesh = crown
-	trunk_mm.mesh = trunk
 	var placed: Array[Transform3D] = []
 	var tries := 0
 	while placed.size() < n and tries < n * 20:
@@ -484,16 +623,11 @@ func _build_trees(n: int, seed_value: int) -> void:
 			continue
 		var s := rng.randf_range(0.8, 1.3)
 		placed.append(Transform3D(Basis().scaled(Vector3(s, s, s)), Vector3(x, height_at(x, z), z)))
-	trunk_mm.instance_count = placed.size()
-	crown_mm.instance_count = placed.size()
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	add_child(body)
-	for k in placed.size():
-		var t := placed[k]
+	for t in placed:
 		var s := t.basis.get_scale().x
-		trunk_mm.set_instance_transform(k, Transform3D(t.basis, t.origin + Vector3(0, 1.5 * s, 0)))
-		crown_mm.set_instance_transform(k, Transform3D(t.basis, t.origin + Vector3(0, (5.0 if conifer else 4.4) * s, 0)))
 		var cs := CollisionShape3D.new()
 		var cyl := CylinderShape3D.new()
 		cyl.radius = 0.35 * s
@@ -507,51 +641,73 @@ func _build_trees(n: int, seed_value: int) -> void:
 		if not _tree_grid.has(ck):
 			_tree_grid[ck] = []
 		_tree_grid[ck].append(tr)
-	var tm := MultiMeshInstance3D.new()
-	tm.multimesh = trunk_mm
-	var tmat := StandardMaterial3D.new()
-	tmat.albedo_color = Color("5a4330")
-	tm.material_override = tmat
-	add_child(tm)
-	var cm := MultiMeshInstance3D.new()
-	cm.multimesh = crown_mm
-	var cmat := StandardMaterial3D.new()
-	cmat.albedo_color = Color("3f6a2e") if terrain != "snow" else Color("4d6a52")
-	cm.material_override = cmat
-	add_child(cm)
+	if DisplayServer.get_name() != "headless" and not placed.is_empty():
+		var conifer := terrain in ["taiga", "snow", "mountain"]
+		var art := preload("res://battle/scripts/tree_art.gd")
+		add_child(art.build(placed, conifer, terrain == "snow"))
+		if terrain != "snow":
+			var tufts: Array[Transform3D] = []
+			var decor := RandomNumberGenerator.new()
+			decor.seed = seed_value + 884
+			for t in placed:
+				for i in 19:
+					var angle := decor.randf_range(0.0, TAU)
+					var origin := t.origin + Vector3(cos(angle), 0, sin(angle)) * decor.randf_range(1.4, 6.0)
+					var scale := decor.randf_range(0.62, 1.36)
+					tufts.append(Transform3D(Basis(Vector3.UP, angle).scaled(Vector3.ONE * scale), ground(origin)))
+			add_child(art.understory(tufts))
 
 
-func _build_env(night: bool) -> void:
+func _build_env(night: bool, seed_value: int) -> void:
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
 	var sky := Sky.new()
-	var sm := ProceduralSkyMaterial.new()
+	var sm := ShaderMaterial.new()
+	sm.shader = preload("res://battle/scripts/field_sky.gdshader")
+	if _cloud_map == null:
+		var noise := FastNoiseLite.new()
+		noise.frequency = 0.031
+		noise.fractal_octaves = 4
+		var cloud_image := noise.get_seamless_image(256, 256)
+		cloud_image.generate_mipmaps()
+		_cloud_map = ImageTexture.create_from_image(cloud_image)
+	sm.set_shader_parameter("cloud_map", _cloud_map)
+	sm.set_shader_parameter("cloud_shift", Vector2(fposmod(seed_value * 0.031, 1.0), fposmod(seed_value * 0.047, 1.0)))
+	sm.set_shader_parameter("night", night)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-50, -35, 0)
+	sm.set_shader_parameter("light_dir", sun.transform.basis.z)
 	if night:
-		sm.sky_top_color = Color("0b1424")
-		sm.sky_horizon_color = Color("27324a")
-		sm.ground_horizon_color = Color("1c2230")
-		sm.ground_bottom_color = Color("0a0d12")
+		sm.set_shader_parameter("zenith", Color("0a152d"))
+		sm.set_shader_parameter("horizon", Color("2e4262"))
+		sm.set_shader_parameter("lower_air", Color("131b29"))
+		sm.set_shader_parameter("cloud_top", Color("46516b"))
+		sm.set_shader_parameter("cloud_base", Color("1e283c"))
+		sm.set_shader_parameter("cloud_threshold", 0.56)
 	else:
-		sm.sky_top_color = Color("4f7fb8")
-		sm.sky_horizon_color = Color("b9c9d6")
-		sm.ground_horizon_color = Color("8f9a8a")
+		var dry := terrain in ["desert", "dunes", "steppe"]
+		sm.set_shader_parameter("zenith", Color("3873ae"))
+		sm.set_shader_parameter("horizon", Color("d3d2be") if dry else Color("aec5d4"))
+		sm.set_shader_parameter("lower_air", Color("c2c7c4"))
+		sm.set_shader_parameter("cloud_top", Color("e7e8e0"))
+		sm.set_shader_parameter("cloud_base", Color("9baab6"))
+		sm.set_shader_parameter("cloud_threshold", 0.62 if dry else (0.42 if terrain in ["snow", "marsh"] else 0.48))
 	sky.sky_material = sm
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color("8796a8") if not night else Color("2a3550")
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
-	e.ambient_light_energy = 0.45 if night else 0.6
+	e.ambient_light_energy = 0.45 if night else 0.52
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.tonemap_exposure = 1.0
 	e.fog_enabled = true
 	e.fog_light_color = Color("aab8c4") if not night else Color("1a2232")
-	e.fog_density = 0.004 if not night else 0.012
+	e.fog_density = 0.0032 if not night else 0.012
+	e.fog_sky_affect = 0.16 if not night else 0.31
 	env.environment = e
 	add_child(env)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, -35, 0)
-	sun.light_energy = 0.25 if night else 1.0
+	sun.light_energy = 0.25 if night else 0.91
 	sun.light_color = Color("9fb4ff") if night else Color("fff1d6")
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 120.0

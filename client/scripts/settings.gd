@@ -28,7 +28,7 @@ var vsync := true
 var lock_mouse := true
 var edge_scroll := true
 var edge_speed := 1.0
-var battle_size := 120          # 3D battles: most soldiers on the field at once (Warband's battle size)
+var battle_size := BattleRules.DEFAULT_BATTLE_SIZE
 # Warband-style difficulty options for 3D battles (indices into the lists below)
 const DMG_LEVELS := [["1/4", 0.25], ["1/2", 0.5], ["全额", 1.0]]
 const AI_LEVELS := ["差", "一般", "好"]
@@ -82,7 +82,8 @@ func _load() -> void:
 	lock_mouse = bool(cf.get_value("input", "lock_mouse", lock_mouse))
 	edge_scroll = bool(cf.get_value("input", "edge_scroll", edge_scroll))
 	edge_speed = float(cf.get_value("input", "edge_speed", edge_speed))
-	battle_size = int(cf.get_value("battle", "size", battle_size))
+	battle_size = clampi(int(cf.get_value("battle", "size", battle_size)),
+		BattleRules.MIN_BATTLE_SIZE, BattleRules.MAX_BATTLE_SIZE)
 	player_damage = clampi(int(cf.get_value("battle", "player_damage", player_damage)), 0, 2)
 	ally_damage = clampi(int(cf.get_value("battle", "ally_damage", ally_damage)), 0, 2)
 	ai_level = clampi(int(cf.get_value("battle", "ai_level", ai_level)), 0, 2)
@@ -150,6 +151,8 @@ func is_windowed() -> bool:
 
 
 func apply_display() -> void:
+	if Engine.get_write_movie_path() != "":
+		return              # Movie Maker (promo recordings): keep the recording's own resolution, not the saved window
 	if _headless:
 		return
 	var win := get_window()
@@ -346,8 +349,8 @@ func _build() -> void:
 	_row(grid, "边缘滚屏速度", spd)
 
 	var bs := HSlider.new()
-	bs.min_value = 40
-	bs.max_value = 300
+	bs.min_value = BattleRules.MIN_BATTLE_SIZE
+	bs.max_value = BattleRules.MAX_BATTLE_SIZE
 	bs.step = 10
 	bs.value = battle_size
 	bs.custom_minimum_size = Vector2(160, 0)

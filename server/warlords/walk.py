@@ -60,6 +60,11 @@ def setup(w: World, s: Settlement, options: list[dict]) -> dict:
             sp.update(where="hall", npc="家宰", role="你的封地", troop="villager", color="#6a5a48")
         elif oid in ("trade", "deliver"):
             sp.update(where="market", npc="市令", role="市集", troop="villager", color="#9a7a4a")
+        elif oid == "companion":
+            from .companions import comps
+            c = comps(w).get(o.get("choice", ""), {})
+            sp.update(where="inn", npc=c.get("name", "酒客"), role=c.get("title", "酒肆"),
+                      troop=_troop(c.get("troop", "villager")), color="#6a5a48", armed=False)
         elif oid == "smith":
             sp.update(where="market", npc="铁匠", role="兵器铺", troop="villager", color="#5a4a3a")
         elif oid == "sell_prisoners":
@@ -80,6 +85,7 @@ def setup(w: World, s: Settlement, options: list[dict]) -> dict:
         spots.append(sp)
     p = party(w)
     me = dict(_hero_entry(w, p))
+    me.pop("companions", None)
     lo = dict(me.get("loadout", {}))
     lo.pop("horse", None)
     me["loadout"] = lo

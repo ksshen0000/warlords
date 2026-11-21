@@ -55,6 +55,8 @@ class Rules:
         self.doctrine = read("doctrine").get("rule", [])
         self.ai = read("ai")
         self.items = read("items")          # the player's equipment (gear.py)
+        self.character = read("character")  # attributes, skills, proficiencies, levels (character.py)
+        self.companions = read("companions")  # named companions in the taverns (companions.py)
         self.battle = read("battle")        # 3D combat numbers: the server only reads them to describe items
         B.__init__(self.balance_raw, "balance.")
         self.local = {}

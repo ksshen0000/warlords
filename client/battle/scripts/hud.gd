@@ -5,6 +5,13 @@ extends CanvasLayer
 const CREAM := Color("efe6d2")
 const GOLD := Color("f2c75c")
 const MUTED := Color("aab4ae")
+const FRIENDLY := Color("a3d3ac")
+const HOSTILE := Color("ffa49b")
+const PANEL := Color(0.07, 0.085, 0.09, 0.78)
+const RIM := Color(0.72, 0.65, 0.51, 0.36)
+const RETICLE_SHADOW := Color(0.05, 0.06, 0.06, 0.65)
+const GROUP_NAMES := {"inf": "步兵", "arc": "射手", "cav": "骑兵"}
+const STANCE_NAMES := {"hold": "驻守", "follow": "跟随", "charge": "冲锋", "stand": "站住", "retreat": "撤退"}
 
 var battle: Battle
 var canvas: Control
@@ -68,16 +75,29 @@ func _process(dt: float) -> void:
 
 
 func _t(p: Vector2, s: String, size: int, c: Color, center := false) -> void:
-	var w := font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-	var q := p - Vector2(w * 0.5, 0) if center else p
+	var q := p
+	if center:
+		q.x -= _width(s, size) * 0.5
 	canvas.draw_string_outline(font, q, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 4, Color(0, 0, 0, 0.8))
 	canvas.draw_string(font, q, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
 
 
+func _width(s: String, size: int) -> float:
+	return font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+
+
+func _panel(rect: Rect2, accent: Color = RIM) -> void:
+	canvas.draw_rect(rect, PANEL)
+	canvas.draw_rect(rect, RIM, false, 1.0)
+	canvas.draw_rect(Rect2(rect.position, Vector2(2, rect.size.y)), accent)
+
+
 func _bar(p: Vector2, w: float, frac: float, c: Color, label: String) -> void:
-	canvas.draw_rect(Rect2(p, Vector2(w, 12)), Color(0, 0, 0, 0.55))
-	canvas.draw_rect(Rect2(p + Vector2(1, 1), Vector2((w - 2) * clampf(frac, 0, 1), 10)), c)
-	_t(p + Vector2(w + 8, 11), label, 14, CREAM)
+	canvas.draw_rect(Rect2(p, Vector2(w, 10)), Color(0.03, 0.035, 0.04, 0.85))
+	var filled := (w - 2) * clampf(frac, 0, 1)
+	canvas.draw_rect(Rect2(p + Vector2(1, 1), Vector2(filled, 8)), c)
+	canvas.draw_rect(Rect2(p + Vector2(1, 1), Vector2(filled, 2)), c.lightened(0.28))
+	_t(p + Vector2(w + 8, 10), label, 14, CREAM)
 
 
 func _draw() -> void:
@@ -103,24 +123,46 @@ func _draw() -> void:
 		if a.active():
 			n[a.side] += 1
 	var me := battle.player_side
-	_t(Vector2(16, 28), "%s  %d 人%s" % [battle.side_names[me], n[me], ("（援军 %d）" % battle.reserves[me].size()) if battle.reserves[me].size() else ""], 17, Color("8fd3a0"))
-	_t(Vector2(16, 52), "%s  %d 人%s" % [battle.side_names[1 - me], n[1 - me], ("（援军 %d）" % battle.reserves[1 - me].size()) if battle.reserves[1 - me].size() else ""], 17, Color("ff8f8f"))
-	var sel_names := {"inf": "步兵", "arc": "射手", "cav": "骑兵"}
+	var strength: Array[String] = []
+	for side in [me, 1 - me]:
+		var reserve: int = battle.reserves[side].size()
+		strength.append("%s  %d 人%s" % [battle.side_names[side], n[side], ("（援军 %d）" % reserve) if reserve > 0 else ""])
 	var sel: Array[String] = []
-	for g in battle.ctrl.selected:
-		var o: Dictionary = battle.orders[me][g]
-		sel.append("%s:%s" % [sel_names[g], {"hold": "驻守", "follow": "跟随", "charge": "冲锋", "stand": "站住", "retreat": "撤退"}.get(o.type, o.type)])
 	if not battle.setup.get("arena", false):
-		_t(Vector2(16, 76), "  ".join(sel), 14, MUTED)
+		for g in battle.ctrl.selected:
+			var o: Dictionary = battle.orders[me][g]
+			var stance: String = STANCE_NAMES.get(o.type, o.type)
+			sel.append("%s:%s%s" % [GROUP_NAMES[g], stance, " / 停射" if o.get("hold_fire", false) else ""])
+	var orders := "  ".join(sel)
+	var score_w := maxf(_width(strength[0], 17), _width(strength[1], 17)) + 30.0
+	_panel(Rect2(12, 12, score_w, 54))
+	canvas.draw_rect(Rect2(22, 23, 3, 11), FRIENDLY)
+	canvas.draw_rect(Rect2(22, 46, 3, 11), HOSTILE)
+	_t(Vector2(32, 33), strength[0], 17, FRIENDLY)
+	_t(Vector2(32, 56), strength[1], 17, HOSTILE)
+	if not orders.is_empty():
+		_panel(Rect2(12, 70, maxf(score_w, _width(orders, 14) + 24.0), 26))
+		_t(Vector2(24, 89), orders, 14, CREAM)
 	# messages (top centre) and kill feed (right)
 	for i in _msgs.size():
 		var m: Array = _msgs[i]
 		_t(Vector2(c.x, 34 + i * 24), m[0], 17, Color(m[1], clampf(6.0 - m[2], 0, 1)), true)
 	for i in _feed.size():
 		var m: Array = _feed[i]
-		var w := font.get_string_size(m[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-		_t(Vector2(vs.x - w - 16, 30 + i * 22), m[0], 15, Color(m[1], clampf(8.0 - m[2], 0, 1)))
+		var w := _width(m[0], 15)
+		var x := vs.x - w - 23.0
+		var y := 12.0 + i * 24.0
+		var opacity := clampf(8.0 - m[2], 0, 1)
+		canvas.draw_rect(Rect2(x - 9, y, w + 20, 22), Color(PANEL, 0.67 * opacity))
+		canvas.draw_rect(Rect2(vs.x - 14, y + 4, 2, 14), Color(m[1], opacity))
+		_t(Vector2(x, y + 16), m[0], 15, Color(m[1], opacity))
 	if battle.over:
+		return
+	if battle.phase_pending:
+		_panel(Rect2(c - Vector2(250, 52), Vector2(500, 104)), GOLD.darkened(0.32))
+		_t(c - Vector2(0, 13), "第 %d 阶段结束，援军待命" % battle.phase, 22, GOLD, true)
+		var retreat := "撤出城池" if battle.siege_def == battle.player_side else "撤离战场"
+		_t(c + Vector2(0, 22), "回车  重新列阵     Tab  %s" % retreat, 17, CREAM, true)
 		return
 	if p == null or not p.alive():
 		_t(Vector2(c.x, vs.y - 60), "你已倒下 —— Tab 让部下继续作战（加速）", 18, Color("ff8f8f"), true)
@@ -129,27 +171,38 @@ func _draw() -> void:
 		_t(Vector2(c.x, vs.y - 40), "观战（AI 代你作战）", 16, MUTED, true)
 		return
 	# health / horse / weapon
-	var y := vs.y - 70
-	_bar(Vector2(20, y), 200, p.hp / p.max_hp, Color("c0392b"), "生命 %d" % int(maxf(0, p.hp)))
-	if p.mounted:
-		_bar(Vector2(20, y + 20), 200, p.horse_hp / maxf(1.0, p.horse_max_hp), Color("a07a4a"), "坐骑 %d" % int(p.horse_hp))
-	var wname: String = (p.ranged.get("name", "") + "  箭 %d" % p.ammo) if p.using_ranged else str(p.weapon().get("name", ""))
+	var wname: String = (p.ranged.get("name", "") + ("  剩 %d" if p.is_thrower() else "  箭 %d") % p.ammo) if p.using_ranged else str(p.weapon().get("name", ""))
 	if p.shield_up():
 		wname += " + " + str(p.shield.get("name", "盾"))
+		if p.shield_max > 0.0:
+			wname += " %d/%d" % [int(ceil(p.shield_hp)), int(p.shield_max)]
 	elif not p.shield.is_empty():
 		wname += "（%s负于背）" % str(p.shield.get("name", "盾"))
 	if p.using_ranged and p.ranged.get("kind", "") == "crossbow" and not p.crossbow_loaded and not p.can_reload():
 		wname += "  马上无法上弦"
-	_t(Vector2(20, y + 48), wname + "   （滚轮换武器）", 15, CREAM)
+	wname += "   （滚轮换武器）"
+	var y := vs.y - (98.0 if p.mounted else 78.0)
+	_panel(Rect2(12, y - 10, maxf(296.0, _width(wname, 15) + 24.0), 72 if p.mounted else 52))
+	_bar(Vector2(24, y), 180, p.hp / p.max_hp, Color("bd5444"), "生命 %d" % int(maxf(0, p.hp)))
+	if p.mounted:
+		_bar(Vector2(24, y + 20), 180, p.horse_hp / maxf(1.0, p.horse_max_hp), Color("a68652"), "坐骑 %d" % int(p.horse_hp))
+	_t(Vector2(24, vs.y - 45), wname, 15, CREAM)
+	if battle.has_method("interact_hint"):
+		var hint: String = battle.interact_hint(p)
+		if hint != "":
+			_t(Vector2(vs.x * 0.5, vs.y * 0.62), hint, 18, Color("f2c75c"), true)
 	# crosshair / reticle
 	if p.using_ranged:
 		var r := 4.0 + tan(deg_to_rad(p.spread())) * vs.y * 0.9 if p.state == Agent.AIM else 22.0
-		canvas.draw_arc(c, r, 0, TAU, 32, Color(1, 1, 1, 0.75), 1.5, true)
-		canvas.draw_circle(c, 1.5, Color.WHITE)
+		canvas.draw_arc(c, r, 0, TAU, 32, RETICLE_SHADOW, 3.5, true)
+		canvas.draw_arc(c, r, 0, TAU, 32, Color(CREAM, 0.85), 1.4, true)
+		canvas.draw_circle(c, 2.6, RETICLE_SHADOW)
+		canvas.draw_circle(c, 1.4, CREAM)
 		if p.state == Agent.RELOAD:
 			_t(c + Vector2(0, 40), "上弦中……", 14, MUTED, true)
 	else:
-		canvas.draw_circle(c, 2.0, Color(1, 1, 1, 0.8))
+		canvas.draw_circle(c, 3.1, RETICLE_SHADOW)
+		canvas.draw_circle(c, 1.7, CREAM)
 		var dir: int = p.attack_dir if p.state in [Agent.READY, Agent.STRIKE] else battle.ctrl.current_dir()
 		var col := GOLD if p.state in [Agent.READY, Agent.STRIKE] else Color(1, 1, 1, 0.35)
 		if p.state == Agent.BLOCK:
@@ -162,6 +215,8 @@ func _draw() -> void:
 		var tip: Vector2 = c + v * 34.0
 		var base: Vector2 = c + v * 18.0
 		var perp := Vector2(-v.y, v.x) * 8.0
+		canvas.draw_colored_polygon(PackedVector2Array([tip + v * 2.0, base + perp * 1.25 - v, base - perp * 1.25 - v]),
+			Color(RETICLE_SHADOW, col.a * 0.82))
 		canvas.draw_colored_polygon(PackedVector2Array([tip, base + perp, base - perp]), col)
 		if p.state == Agent.READY and p.state_t >= p.ready_time():
 			canvas.draw_arc(c, 40, 0, TAU, 32, Color(GOLD, 0.6), 2.0, true)

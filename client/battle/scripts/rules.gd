@@ -3,6 +3,38 @@ extends RefCounted
 ## Loads server/rules/battle.toml (combat feel, weapons, loadouts) and server/rules/units.toml
 ## (troop names / tiers / classes, same ids as the campaign server) for the 3D battle.
 
+const DEFAULT_BATTLE_SIZE := 120
+const MIN_BATTLE_SIZE := 40
+const MAX_BATTLE_SIZE := 150
+
+## Movement numbers are constant for a scene. Keep the per-tick reads typed.
+class Movement:
+	var foot_run: float
+	var foot_walk: float
+	var armor_slow: float
+	var foot_accel: float
+	var foot_turn: float
+	var backward: float
+	var horse_speed: float
+	var horse_turn: float
+	var horse_accel: float
+	var canter: float
+	var ladder_speed: float
+
+	func _init(rules: BattleRules) -> void:
+		foot_run = rules.num("human", "run", 4.4)
+		foot_walk = rules.num("human", "walk", 1.6)
+		armor_slow = rules.num("human", "armor_slow", 0.012)
+		foot_accel = rules.num("human", "accel", 14.0)
+		foot_turn = rules.num("human", "turn", 7.0)
+		backward = rules.num("human", "backward", 0.6)
+		horse_speed = rules.num("horse", "speed", 10.5)
+		horse_turn = rules.num("horse", "turn", 2.2)
+		horse_accel = rules.num("horse", "accel", 4.5)
+		canter = rules.num("horse", "canter", 5.0)
+		ladder_speed = rules.num("siege", "ladder_speed", 0.45)
+
+var movement: Movement
 var cfg: Dictionary = {}          # battle.toml
 var troops: Dictionary = {}       # troop id -> {id, name, culture, tier, cls}
 var culture_names: Dictionary = {}
@@ -22,6 +54,7 @@ func load_all(dir: String = "") -> bool:
 	var units := Toml.load_file(dir.path_join("units.toml"))
 	if cfg.is_empty() or units.is_empty():
 		return false
+	movement = Movement.new(self)
 	# same troop ids as server/warlords/data.py
 	for c in units.get("cultures", {}):
 		var v: Dictionary = units.cultures[c]
@@ -113,7 +146,7 @@ func loadout(tid: String, override: Dictionary = {}) -> Dictionary:
 					break
 	var armor := int(spec.get("armor", 0))
 	var out := {"melee": [], "ranged": {}, "shield": {}, "armor": armor, "head_armor": int(spec.get("head_armor", armor)),
-		"horse": str(spec.get("horse", "")), "look": spec.get("look", {})}
+		"horse": str(spec.get("horse", "")), "look": spec.get("look", {}), "char": spec.get("char", {})}
 	for k in ["horse_hp", "horse_speed", "horse_armor"]:
 		if spec.has(k):
 			out[k] = float(spec[k])

@@ -160,6 +160,22 @@ price = 800
 tier = 3
 cultures = ["zhou", "shu", "liang"]
 
+[items.javelin]
+type = "ranged"
+base = "javelin"
+name = "标枪"
+price = 140
+tier = 2
+cultures = ["shu", "zhou"]
+
+[items.throwing_axe]
+type = "ranged"
+base = "throwing_axe"
+name = "飞斧"
+price = 170
+tier = 2
+cultures = ["yan", "rou", "zhao"]
+
 # ------------------------------------------------------------ 盾
 [items.rattan]
 type = "shield"

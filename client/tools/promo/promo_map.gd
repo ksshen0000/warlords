@@ -39,5 +39,5 @@ func _process(dt: float) -> void:
 		var k := clampf((t - 6.0) / 5.0, 0.0, 1.0)
 		k = k * k * (3.0 - 2.0 * k)
 		var start := c0.lerp(c0 * 0.6 + me * 0.4, 0.3)
-		var zk: float = exp(lerpf(log(z0 * 1.35), log(map.close_zoom(3.5)), k))
+		var zk: float = exp(lerpf(log(z0 * 1.35), log(map.close_zoom(3.5 / map.MAP_SCALE)), k))
 		map.focus(start.lerp(me, k), zk)

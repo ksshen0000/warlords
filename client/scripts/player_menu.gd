@@ -16,6 +16,7 @@ var trade_box: VBoxContainer
 var trade_grid: GridContainer
 var trade_info: Label
 var content: VBoxContainer
+var char_box: VBoxContainer
 var gear_layer: CanvasLayer
 var gear_screen: Control
 const GearScreenScript := preload("res://scripts/gear_screen.gd")
@@ -65,6 +66,10 @@ func _ready() -> void:
 	trade_grid.add_theme_constant_override("h_separation", 8)
 	trade_box.add_child(trade_grid)
 	v.add_child(trade_box)
+
+	char_box = VBoxContainer.new()
+	char_box.add_theme_constant_override("separation", 6)
+	v.add_child(char_box)
 
 	chat_box = VBoxContainer.new()
 	chat_log = RichTextLabel.new()
@@ -118,6 +123,7 @@ func open(m: Dictionary) -> void:
 	body.text = _esc(m.get("text", ""))
 	_build_buttons()
 	_build_trade()
+	_build_char()
 	_build_gear()
 	_build_chat()
 
@@ -226,7 +232,7 @@ func _build_gear() -> void:
 	content.visible = not on
 	self_modulate.a = 0.0 if on else 1.0
 	mouse_filter = Control.MOUSE_FILTER_IGNORE if on else Control.MOUSE_FILTER_STOP
-	custom_minimum_size = Vector2(0 if on else 560, 0)
+	custom_minimum_size = Vector2(0 if on else (720 if menu.has("char") else 560), 0)
 	if on:
 		if gear_layer == null:
 			gear_layer = CanvasLayer.new()
@@ -243,6 +249,117 @@ func _build_gear() -> void:
 func _exit_tree() -> void:
 	if gear_layer:
 		gear_layer.queue_free()
+
+
+# ------------------------------------------------------------ the character sheet (C)
+func _build_char() -> void:
+	for c in char_box.get_children():
+		c.queue_free()
+	var ch: Dictionary = menu.get("char", {})
+	char_box.visible = not ch.is_empty()
+	if not char_box.visible:
+		return
+	custom_minimum_size = Vector2(720, 0)
+	var pts: Dictionary = ch.get("points", {})
+	# whose sheet (you, then the companions)
+	var people: Array = menu.get("people", [])
+	if people.size() > 1:
+		var tabs := HBoxContainer.new()
+		for p in people:
+			var b := Button.new()
+			b.text = str(p.name)
+			b.focus_mode = Control.FOCUS_NONE
+			b.disabled = str(p.id) == str(menu.get("who", "player"))
+			var pid: String = str(p.id)
+			b.pressed.connect(func(): action.emit("who", {"who": pid}))
+			tabs.add_child(b)
+		char_box.add_child(tabs)
+	# level bar
+	var bar := ProgressBar.new()
+	bar.min_value = float(ch.get("this_xp", 0))
+	bar.max_value = maxf(float(ch.get("next_xp", 1)), bar.min_value + 1.0)
+	bar.value = float(ch.get("xp", 0))
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 8)
+	char_box.add_child(bar)
+	# attributes
+	char_box.add_child(_head_label("属性（可分配 %d 点）" % int(pts.get("attr", 0))))
+	var ar := HBoxContainer.new()
+	ar.add_theme_constant_override("separation", 14)
+	for a in ch.get("attr", []):
+		var l := Label.new()
+		l.text = "%s %d" % [a.name, int(a.value)]
+		l.add_theme_color_override("font_color", CREAM)
+		ar.add_child(l)
+		var b := Button.new()
+		b.text = "+"
+		b.focus_mode = Control.FOCUS_NONE
+		b.disabled = int(pts.get("attr", 0)) <= 0
+		var key: String = a.id
+		b.pressed.connect(func(): action.emit("spend", {"kind": "attr", "key": key}))
+		ar.add_child(b)
+	char_box.add_child(ar)
+	# skills
+	char_box.add_child(_head_label("技能（可分配 %d 点；技能不能超过对应属性 ÷ 3；★ = 队伍技能，取队里最高的人）" % int(pts.get("skill", 0))))
+	var g := GridContainer.new()
+	g.columns = 5
+	g.add_theme_constant_override("h_separation", 10)
+	g.add_theme_constant_override("v_separation", 2)
+	for sk in ch.get("skills", []):
+		var n := Label.new()
+		n.text = ("★" if sk.party else "  ") + str(sk.name)
+		n.custom_minimum_size = Vector2(70, 0)
+		n.add_theme_color_override("font_color", GOLD if int(sk.level) > 0 else CREAM)
+		g.add_child(n)
+		var at := Label.new()
+		at.text = str(sk.attr)
+		at.add_theme_color_override("font_color", MUTED)
+		at.add_theme_font_size_override("font_size", 12)
+		g.add_child(at)
+		var lv := Label.new()
+		lv.text = "%d / %d" % [int(sk.level), int(sk.cap)]
+		lv.custom_minimum_size = Vector2(46, 0)
+		lv.add_theme_color_override("font_color", CREAM)
+		g.add_child(lv)
+		var ef := Label.new()
+		ef.text = str(sk.now)
+		ef.custom_minimum_size = Vector2(380, 0)
+		ef.clip_text = true
+		ef.add_theme_font_size_override("font_size", 12)
+		ef.add_theme_color_override("font_color", CREAM if int(sk.level) > 0 else MUTED)
+		g.add_child(ef)
+		var b := Button.new()
+		b.text = "+"
+		b.focus_mode = Control.FOCUS_NONE
+		b.tooltip_text = "下一级：" + str(sk.next)
+		b.disabled = int(pts.get("skill", 0)) <= 0 or int(sk.level) >= int(sk.cap)
+		var key: String = sk.id
+		b.pressed.connect(func(): action.emit("spend", {"kind": "skill", "key": key}))
+		g.add_child(b)
+	char_box.add_child(g)
+	# weapon proficiencies
+	char_box.add_child(_head_label("武器熟练度（亲自上阵打中敌人就会提高；影响伤害和出手速度）"))
+	var pr := HBoxContainer.new()
+	pr.add_theme_constant_override("separation", 16)
+	for p in ch.get("prof", []):
+		var l := Label.new()
+		l.text = "%s %d" % [p.name, int(p.value)]
+		l.add_theme_color_override("font_color", CREAM)
+		pr.add_child(l)
+	char_box.add_child(pr)
+	if str(menu.get("msg", "")) != "":
+		var m := Label.new()
+		m.text = str(menu.msg)
+		m.add_theme_color_override("font_color", Color("9ff0b0") if menu.get("msg_ok", true) else Color("ff8f7a"))
+		char_box.add_child(m)
+
+
+func _head_label(t: String) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.add_theme_color_override("font_color", MUTED)
+	l.add_theme_font_size_override("font_size", 13)
+	return l
 
 
 func _build_chat() -> void:

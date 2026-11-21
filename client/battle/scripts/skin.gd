@@ -28,7 +28,10 @@ static var _meshes := {}
 
 ## The face rectangles of a part, in pixels: {top, bottom, left, front, right, back} -> Rect2i.
 static func faces(part: String) -> Dictionary:
-	var p: Array = PARTS[part]
+	return box_faces(PARTS[part])
+
+
+static func box_faces(p: Array) -> Dictionary:
 	var u: int = p[0]
 	var v: int = p[1]
 	var w: int = p[2]
@@ -47,9 +50,20 @@ static func mesh(part: String, size: Vector3, limb := false) -> ArrayMesh:
 	var key := "%s|%s|%s" % [part, size, limb]
 	if _meshes.has(key):
 		return _meshes[key]
-	var f := faces(part)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# A limb is modelled upright, then laid along -Z with its top at the joint.
+	var basis := Basis(Vector3.RIGHT, -PI * 0.5) if limb else Basis()
+	var shift := Vector3(0, 0, -size.y * 0.5) if limb else Vector3.ZERO
+	append_box(st, faces(part), size, SIZE, Transform3D(basis, shift))
+	var m := st.commit()
+	_meshes[key] = m
+	return m
+
+
+## Append an atlas-mapped box to the same surface as other parts on the same joint.
+static func append_box(st: SurfaceTool, faces_uv: Dictionary, size: Vector3, atlas: float,
+		transform: Transform3D = Transform3D.IDENTITY) -> void:
 	var hx := size.x * 0.5
 	var hy := size.y * 0.5
 	var hz := size.z * 0.5
@@ -62,23 +76,17 @@ static func mesh(part: String, size: Vector3, limb := false) -> ArrayMesh:
 		"top": [Vector3(-hx, hy, hz), Vector3(hx, hy, hz), Vector3(hx, hy, -hz), Vector3(-hx, hy, -hz), Vector3(0, 1, 0)],
 		"bottom": [Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz), Vector3(hx, -hy, hz), Vector3(-hx, -hy, hz), Vector3(0, -1, 0)],
 	}
-	# a limb is modelled upright (length along Y) and then laid along -Z, its top at the joint
-	var to_limb := Basis(Vector3.RIGHT, -PI * 0.5) if limb else Basis()
-	var shift := Vector3(0, 0, -size.y * 0.5) if limb else Vector3.ZERO
 	for name in quads:
 		var q: Array = quads[name]
-		var r: Rect2i = f[name]
-		var uv0 := Vector2(r.position) / SIZE
-		var uv1 := Vector2(r.end) / SIZE
+		var r: Rect2i = faces_uv[name]
+		var uv0 := Vector2(r.position) / atlas
+		var uv1 := Vector2(r.end) / atlas
 		var uvs := [uv0, Vector2(uv1.x, uv0.y), uv1, Vector2(uv0.x, uv1.y)]
-		var n: Vector3 = to_limb * (q[4] as Vector3)
+		var n: Vector3 = transform.basis * (q[4] as Vector3)
 		for i in [0, 2, 1, 0, 3, 2]:          # Godot culls by winding: this order faces outwards
 			st.set_normal(n)
 			st.set_uv(uvs[i])
-			st.add_vertex(to_limb * (q[i] as Vector3) + shift)
-	var m := st.commit()
-	_meshes[key] = m
-	return m
+			st.add_vertex(transform * (q[i] as Vector3))
 
 
 ## Material for a soldier's look (cached by everything that changes the picture).
@@ -176,7 +184,7 @@ static func paint(look: Dictionary) -> Image:
 	# ---- torso: a cross-collared robe (交领), a belt
 	var tf := faces("torso")
 	for k in tf:
-		_fill(img, tf[k], coat)
+		_cloth(img, tf[k], coat, vr)
 	_fill(img, tf.top, coat.darkened(0.1))
 	var tr: Rect2i = tf.front
 	for y in 7:
@@ -188,12 +196,13 @@ static func paint(look: Dictionary) -> Image:
 	var belt := Color("2e241c") if not steppe else Color("5a3a22")
 	for k in ["front", "back", "left", "right"]:
 		_fill(img, tf[k], belt, 0, 8, tf[k].size.x, 1)
-		_fill(img, tf[k], coat.darkened(0.12), 0, 9, tf[k].size.x, 3)      # the skirt of the robe
+		_fill(img, tf[k], coat.darkened(0.14), 0, 9, tf[k].size.x, 1)
+		_fill(img, tf[k], coat.lightened(0.12), 0, 11, tf[k].size.x, 1)      # stitched robe hem
 	_px(img, tr, 3, 8, Color("b8a050"))                                    # buckle
 	# pelvis: the robe's skirt
 	var pf := faces("pelvis")
 	for k in pf:
-		_fill(img, pf[k], coat.darkened(0.15))
+		_cloth(img, pf[k], coat.darkened(0.15), vr + 2)
 
 	# ---- armour (outer layer over the chest)
 	var af := faces("armor")
@@ -208,7 +217,8 @@ static func paint(look: Dictionary) -> Image:
 				for y in range(2, 9, 2):
 					_fill(img, af[k], lam.darkened(0.3), 0, y, r.size.x, 1)    # rows of lamellae (札甲)
 					for x in range((y / 2) % 2, r.size.x, 2):
-						_px(img, af[k], x, y - 1, lam.lightened(0.12))
+						_px(img, af[k], x, y - 1, lam.lightened(0.24))
+						_px(img, af[k], x, y, Color("716351"))
 				_fill(img, af[k], lam.darkened(0.15), 0, 9, r.size.x, 2)        # the armoured skirt
 			else:
 				_fill(img, af[k], lam.darkened(0.25), 0, 4, r.size.x, 1)
@@ -224,7 +234,7 @@ static func paint(look: Dictionary) -> Image:
 	for part in ["uarm", "farm"]:
 		var ff := faces(part)
 		for k in ff:
-			_fill(img, ff[k], coat.darkened(0.08))
+			_cloth(img, ff[k], coat.darkened(0.08), vr)
 		if part == "farm":
 			for k in ["front", "back", "left", "right"]:
 				_fill(img, ff[k], skin, 0, 6, 3, 2)
@@ -244,7 +254,7 @@ static func paint(look: Dictionary) -> Image:
 	for part in ["thigh", "shin"]:
 		var ff := faces(part)
 		for k in ff:
-			_fill(img, ff[k], trousers)
+			_cloth(img, ff[k], trousers, vr)
 		if part == "shin":
 			for k in ["front", "back", "left", "right"]:
 				if body <= 2 and not steppe:
@@ -253,6 +263,17 @@ static func paint(look: Dictionary) -> Image:
 				_fill(img, ff[k], boot, 0, 5, 4, 3)
 			_fill(img, ff.bottom, boot)
 	return img
+
+
+## Weave and larger folds are painted once into the existing cached atlas.
+static func _cloth(img: Image, r: Rect2i, base: Color, variation: int) -> void:
+	for y in r.size.y:
+		for x in r.size.x:
+			var fold := (x + int(y / 5) + variation) % 5
+			var c := base.darkened(0.13) if fold == 0 else (base.lightened(0.09) if fold == 1 else base)
+			if (x * 3 + y * 7 + variation) % 6 == 0:
+				c = c.lightened(0.07)
+			img.set_pixelv(r.position + Vector2i(x, y), c)
 
 
 static func _fill(img: Image, r: Rect2i, c: Color, x := 0, y := 0, w := -1, h := -1) -> void:

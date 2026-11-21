@@ -10,6 +10,7 @@ const MapViewScript := preload("res://scripts/map_view.gd")
 const BattleReportScript := preload("res://scripts/battle_report.gd")
 const PlayerMenuScript := preload("res://scripts/player_menu.gd")
 const SettingsScript := preload("res://scripts/settings.gd")
+const SavePanelScript := preload("res://scripts/save_panel.gd")
 
 const SPEEDS := [["慢", 0.8], ["正常", 0.4], ["快", 0.18], ["很快", 0.08], ["极快", 0.035]]   # real seconds per game hour
 const KIND_NAMES := {"lord": "将军部曲", "caravan": "商队", "villager": "村民", "bandit": "匪寇",
@@ -46,6 +47,7 @@ var api: Node
 var map: Control
 var report_popup: Control
 var menu_panel: PanelContainer
+var save_panel: PanelContainer
 var settings: Control
 var state: Dictionary = {}
 var player: Dictionary = {}
@@ -93,6 +95,7 @@ func _ready() -> void:
 	var theme := Theme.new()
 	theme.default_font = font
 	theme.default_font_size = 15
+	_style_controls(theme)
 	ThemeDB.fallback_font = font
 	get_tree().root.theme = theme
 	api = ApiScript.new()
@@ -144,6 +147,53 @@ func _style(bg: Color) -> StyleBoxFlat:
 	sb.set_content_margin_all(10)
 	sb.set_corner_radius_all(6)
 	return sb
+
+
+func _style_controls(theme: Theme) -> void:
+	var normal := _style(Color("202a2d"))
+	normal.set_corner_radius_all(4)
+	normal.set_content_margin(SIDE_LEFT, 7)
+	normal.set_content_margin(SIDE_RIGHT, 7)
+	normal.set_content_margin(SIDE_TOP, 3)
+	normal.set_content_margin(SIDE_BOTTOM, 3)
+	normal.set_border_width_all(1)
+	normal.border_color = Color("3f4946")
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color("2e3a3d")
+	hover.border_color = Color("827359")
+	var pressed := hover.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color("3c3c31")
+	pressed.border_color = Color("c3a46d")
+	var disabled := normal.duplicate() as StyleBoxFlat
+	disabled.bg_color = Color("171e20")
+	disabled.border_color = Color("2d3535")
+	var focus := normal.duplicate() as StyleBoxFlat
+	focus.draw_center = false
+	focus.border_color = GOLD
+	for control in ["Button", "OptionButton"]:
+		theme.set_stylebox("normal", control, normal)
+		theme.set_stylebox("hover", control, hover)
+		theme.set_stylebox("pressed", control, pressed)
+		theme.set_stylebox("disabled", control, disabled)
+		theme.set_stylebox("focus", control, focus)
+		theme.set_color("font_color", control, CREAM)
+		theme.set_color("font_hover_color", control, CREAM.lightened(0.16))
+		theme.set_color("font_pressed_color", control, GOLD)
+		theme.set_color("font_disabled_color", control, MUTED.darkened(0.24))
+	# Reserve room for the dropdown arrow; OptionButton draws it over its style box.
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		var style := theme.get_stylebox(state, "OptionButton").duplicate() as StyleBoxFlat
+		style.set_content_margin(SIDE_RIGHT, 18)
+		theme.set_stylebox(state, "OptionButton", style)
+	var tabs_bg := _style(PANEL_BG.darkened(0.16))
+	tabs_bg.set_border_width_all(1)
+	tabs_bg.border_color = Color("4c5148")
+	theme.set_stylebox("panel", "TabContainer", tabs_bg)
+	theme.set_stylebox("tab_selected", "TabContainer", pressed)
+	theme.set_stylebox("tab_hovered", "TabContainer", hover)
+	theme.set_stylebox("tab_unselected", "TabContainer", normal)
+	theme.set_color("font_selected_color", "TabContainer", GOLD)
+	theme.set_color("font_unselected_color", "TabContainer", CREAM)
 
 
 func _label(text: String, fsize: int, color: Color) -> Label:
@@ -207,6 +257,17 @@ func _build_ui() -> void:
 	menu_panel.action.connect(func(id, data): api.act(id, data))
 	menu_panel.say.connect(func(hero, text): api.talk(hero, text))
 	menu_anchor.add_child(menu_panel)
+	var save_anchor := CenterContainer.new()
+	save_anchor.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	save_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map_holder.add_child(save_anchor)
+	save_panel = SavePanelScript.new()
+	save_panel.save_requested.connect(func(slot): api.save_game(slot))
+	save_panel.load_requested.connect(func(slot):
+		save_panel.close()
+		status_label.text = "正在读档…"
+		api.load_game(slot))
+	save_anchor.add_child(save_panel)
 
 	var side_margin := MarginContainer.new()
 	side_margin.custom_minimum_size = Vector2(500, 0)
@@ -234,7 +295,26 @@ func _build_ui() -> void:
 	kit.tooltip_text = "你本人的兵器、甲胄、坐骑（I）"
 	kit.focus_mode = Control.FOCUS_NONE
 	kit.pressed.connect(_open_gear)
+	var me := Button.new()
+	me.text = "角色"
+	me.tooltip_text = "角色：等级、属性、技能、武器熟练度（C）"
+	me.focus_mode = Control.FOCUS_NONE
+	me.pressed.connect(_open_character)
+	head.add_child(me)
 	head.add_child(kit)
+	# in the header row (a row of its own pushed the title off a 1080-high window)
+	var training := Button.new()
+	training.text = "整训"
+	training.tooltip_text = "部队整训：给经验足够的士兵选择晋升路线（U）"
+	training.focus_mode = Control.FOCUS_NONE
+	training.pressed.connect(_open_training)
+	head.add_child(training)
+	var saves := Button.new()
+	saves.text = "存档"
+	saves.tooltip_text = "存档 / 读档（F5）"
+	saves.focus_mode = Control.FOCUS_NONE
+	saves.pressed.connect(_open_saves)
+	head.add_child(saves)
 	head.add_child(gear)
 	side.add_child(head)
 	status_label = _label("连接中…", 13, MUTED)
@@ -344,6 +424,23 @@ func _fill_tiers() -> void:
 
 
 # ------------------------------------------------------------- control
+## The character sheet (C): a server menu like the equipment screen; time stops while it is open.
+func _open_character() -> void:
+	if _menu_open() and str(menu_panel.menu.get("type", "")) == "character":
+		api.act("back")
+	elif not _menu_open() or str(menu_panel.menu.get("type", "")) == "settlement":
+		api.act("character")
+
+
+## The save / load panel (F5). Saving is refused while a menu is open or during character creation.
+func _open_saves() -> void:
+	if save_panel.visible:
+		save_panel.close()
+		return
+	save_panel.open(not _menu_open() and not bool(player.get("creating", false)) and not player.is_empty())
+	api.list_saves()
+
+
 func _menu_open() -> bool:
 	return player.get("menu") != null
 
@@ -391,14 +488,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var handled := true
 	match key:
+		KEY_F5:
+			_open_saves()
 		KEY_ESCAPE:
+			if save_panel.visible:
+				save_panel.close()
+				get_viewport().set_input_as_handled()
+				return
 			if map.sel_kind != "":
 				map.select("", "")
 			elif _menu_open() and _menu_has("leave"):
 				api.act("leave")
 			elif _menu_open() and _menu_has("ok"):
 				api.act("ok")
-			elif _menu_open() and menu_panel.menu.has("gear"):
+			elif _menu_open() and (menu_panel.menu.has("gear") or menu_panel.menu.type in ["training", "character"]):
 				api.act("back")
 			else:
 				settings.open()
@@ -413,10 +516,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_speed(3)
 		KEY_5:
 			_set_speed(4)
-		KEY_C, KEY_P:
+		KEY_P:
 			tabs.current_tab = 0
+		KEY_C:
+			_open_character()
 		KEY_I:
 			_open_gear()
+		KEY_U:
+			_open_training()
 		KEY_N:
 			tabs.current_tab = 1 if map.sel_kind != "" else 2
 		KEY_K:
@@ -446,6 +553,13 @@ func _open_gear() -> void:
 		api.act("back")
 	elif not _menu_open() or str(menu_panel.menu.get("type", "")) == "settlement":
 		api.act("equipment")
+
+
+func _open_training() -> void:
+	if _menu_open() and menu_panel.menu.type == "training":
+		api.act("back")
+	elif not _menu_open() or menu_panel.menu.type == "settlement":
+		api.act("training")
 
 
 func _menu_has(id: String) -> bool:
@@ -555,7 +669,7 @@ func _capture() -> void:
 
 # ------------------------------------------------------------- network
 func _on_failed(kind: String, message: String) -> void:
-	if kind in ["reset", "reload", "move", "act", "talk", "config"]:
+	if kind in ["reset", "reload", "move", "act", "talk", "config", "save", "load", "saves"]:
 		_toast(message)
 		if kind == "talk":
 			menu_panel.set_waiting(false)
@@ -583,6 +697,11 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 		return
 	if kind == "talk":
 		menu_panel.set_waiting(false)
+	if kind == "saves":
+		save_panel.show_list(data.get("saves", []), str(data.get("dir", "")))
+		return
+	if kind == "save":
+		api.list_saves()                    # refresh the slot list
 	var result: Dictionary = data.get("result", {})
 	if str(result.get("message", "")) != "":
 		_toast(str(result.message))
@@ -591,7 +710,7 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 	connected = true
 	map.status_text = ""
 	var seed := int(data.get("seed", 0))
-	if kind == "reset" or (kind == "state" and state.is_empty()):
+	if kind == "reset" or kind == "load" or (kind == "state" and state.is_empty()):
 		log_lines.clear()
 		report_events.clear()
 		map.speeches.clear()
@@ -605,6 +724,9 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 	state = data.state
 	var was_creating := bool(player.get("creating", false))
 	player = data.get("player", {})
+	if not has_meta("saves_hook") and OS.get_cmdline_user_args().has("--open-saves"):   # tests: open the save panel
+		set_meta("saves_hook", true)
+		_open_saves.call_deferred()
 	# fog of war: only what the player's scouts can see is drawn (creating a character = see all)
 	map.vision = 0.0 if player.is_empty() or bool(player.get("creating", false)) else float(player.get("vision", 0.0))
 	map.my_kingdom = player.get("kingdom")
@@ -644,12 +766,15 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 	if not bool(player.get("moving", false)) and not player.get("captive", false):
 		map.follow_id = ""
 	_apply_pending_actions()
-	var pend := int(ai_info.get("pending", 0))
-	var llm := str(ai_info.get("llm")) + " " + str(ai_info.get("model")) if ai_info.get("llm") != null else "无（规则 AI）"
-	status_label.text = "AI：%s · %s 档「%s」%s · 种子 %d" % [llm, str(ai_info.get("tier", "?")),
-		str(ai_info.get("tier_name", "")), ("· %d 位将军正在思考" % pend) if pend > 0 else "", seed]
-	if str(ai_info.get("error", "")) != "":
-		status_label.text += "\nLLM 不可用：" + str(ai_info.error)
+	if ai_info.get("components", []).is_empty():
+		status_label.text = "单机模式 · 规则 AI · 种子 %d" % seed
+	else:
+		var pend := int(ai_info.get("pending", 0))
+		var llm := "%s %s" % [ai_info.llm, ai_info.get("model", "")] if ai_info.get("llm") != null else "规则 AI"
+		status_label.text = "AI：%s · %s 档「%s」%s · 种子 %d" % [llm, str(ai_info.get("tier", "?")),
+			str(ai_info.get("tier_name", "")), (" · %d 位将军正在思考" % pend) if pend > 0 else "", seed]
+		if str(ai_info.get("error", "")) != "":
+			status_label.text += "\nLLM 不可用：" + str(ai_info.error)
 	_refresh_all()
 
 
@@ -668,7 +793,8 @@ func _start_battle(m: Dictionary) -> void:
 	var script: Script = load("res://battle/scripts/battle.gd")
 	_battle = script.new()
 	_battle.preset_setup = m.get("setup", {}).duplicate()
-	_battle.preset_setup["battle_size"] = settings.battle_size
+	if not _battle.preset_setup.has("battle_size"):
+		_battle.preset_setup["battle_size"] = settings.battle_size
 	_battle.preset_setup["difficulty"] = settings.difficulty()
 	_battle.embedded = true
 	if OS.get_cmdline_user_args().has("--battle-auto"):
@@ -998,6 +1124,18 @@ func _player_panel() -> String:
 	var out := "[b][font_size=19]你的部队[/font_size][/b]  %s\n" % status
 	if str(player.get("background_name", "")) != "":
 		out += "[color=#8c9a94]出身 %s · %s[/color]\n" % [player.origin_name, player.background_name]
+	var comp_txt: Array[String] = []
+	for c in player.get("companions", []):
+		comp_txt.append("%s（%d 级，士气 %d%s）" % [c.name, int(c.level), int(c.morale),
+			("，养伤 %d 天" % int(c.wounded)) if int(c.wounded) > 0 else ""])
+	if comp_txt.size():
+		out += "同伴：%s [color=#8c9a94]（C 加点 · I 换装）[/color]\n" % "、".join(comp_txt)
+	var ch = player.get("char")
+	if ch != null:
+		var pts: Dictionary = ch.get("points", {})
+		var spare := int(pts.get("attr", 0)) + int(pts.get("skill", 0))
+		out += "等级 [b]%d[/b] · 经验 %d / %d%s\n" % [int(ch.level), int(ch.xp), int(ch.next_xp),
+			("  [color=#f2c75c]有 %d 个点数可分配（按 C）[/color]" % spare) if spare > 0 else ""]
 	if player.get("captive", false):
 		out += "[color=#ff8f8f]你正被关押，第 %d 天 %02d 时前后有机会逃脱[/color]\n" % [int(int(player.captive_until) / 24), int(player.captive_until) % 24]
 	out += "金币 [b]%d[/b] · 名望 %d · 部队 %d/%d 人（伤 %d）· 战力 %d · 日行 %d 里 · 视野 %d 里%s\n" % [int(player.gold), int(player.renown),

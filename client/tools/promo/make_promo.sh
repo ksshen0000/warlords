@@ -45,7 +45,7 @@ python3 "$here/compose.py" "$here/cut.json" "$work" "$work/silent.mp4"
 mpy="${MUSIC_PY:-python3}"
 if "$mpy" -c "import numpy, scipy" 2>/dev/null; then
   len=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$work/silent.mp4")
-  "$mpy" "$here/music.py" "$work/bgm_raw.wav" "$len"
+  "$mpy" "$here/music.py" "$work/bgm_raw.wav" "$len" "$here/cut.json"
   ffmpeg -y -loglevel error -i "$work/bgm_raw.wav" -af "highpass=f=32,loudnorm=I=-16:TP=-1.5:LRA=11" -ar 44100 "$work/bgm.wav"
   ffmpeg -y -loglevel error -i "$work/silent.mp4" -i "$work/bgm.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k \
     -shortest -movflags +faststart "$out"

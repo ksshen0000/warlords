@@ -43,6 +43,8 @@ var sfx: BattleSfx = null
 var ctrl: Node = null
 
 var _grid := {}
+var _engaged_cache := {}               # enemy id -> melee proximity, shared by all archers this tick
+var _center_cache := {}                # side -> enemy centroid for this tick
 var frame := 0                         # physics frame counter (rig level of detail)
 var _headless := false
 var prof := {}
@@ -56,6 +58,10 @@ var _slots := {}                       # agent instance id -> Vector3 (world)
 var _slot_t := 0.0
 var _morale_t := 0.0
 var _cmd_t := 0.0
+var _corpses: Array[Agent] = []        # recent bodies kept visible; outcomes remain on the agents
+var phase := 1
+var phase_pending := false
+var _waves := [0, 0]
 var arrows: Array = []
 var _arrow_mesh: BoxMesh
 var _capture_path := ""
@@ -119,7 +125,8 @@ func _ready() -> void:
 	if setup.get("arena", false):
 		message("比武开始！木兵器，打倒对手即胜 · Tab 认输", Color("f2c75c"))
 	elif siege_def >= 0:
-		message("攻城！%s架云梯靠上了城墙 · 攻方须登城杀尽守军 · F1 驻守 F3 冲锋 · Backspace 全图" % field.siege.ladders.size(), Color("f2c75c"))
+		var objective := "守住梯口，击退攻方" if player_side == siege_def else "登城击败守军"
+		message("%s 架云梯靠上了城墙 · %s · Backspace 全图" % [field.siege.ladders.size(), objective], Color("f2c75c"))
 	else:
 		message("战斗开始！1 步兵 2 射手 3 骑兵 0 全军 · F1 驻守 F2 跟我来 F3 冲锋 · Backspace 全图 · Tab 撤离", Color("f2c75c"))
 
@@ -180,12 +187,14 @@ func _parse_args() -> void:
 func _deploy() -> void:
 	var sides: Array = setup.get("sides", [])
 	var totals := [0, 0]
+	var tactics := [0, 0]
 	for s in 2:
 		var sd: Dictionary = sides[s] if s < sides.size() else {}
 		side_names[s] = str(sd.get("name", "我军" if s == player_side else "敌军"))
 		if sd.has("color"):
 			side_colors[s] = Color(str(sd.color))
 		heroes[s] = sd.get("hero", {})
+		tactics[s] = int(sd.get("tactics", 0))
 		var roster: Array = []
 		var troops: Dictionary = sd.get("troops", {})
 		for tid in troops:
@@ -195,12 +204,10 @@ func _deploy() -> void:
 		# better troops tend to be at the front of the queue (like a party's roster order)
 		roster.sort_custom(func(x, y): return int(rules.troops.get(x, {}).get("tier", 1)) > int(rules.troops.get(y, {}).get("tier", 1)))
 		reserves[s] = roster
-		totals[s] = roster.size() + (1 if not heroes[s].is_empty() else 0)
+		totals[s] = roster.size() + (1 if not heroes[s].is_empty() else 0) + heroes[s].get("companions", []).size()
 		initial_total[s] = totals[s]
-	var size := int(setup.get("battle_size", rules.num("battle", "size", 120)))
-	var all := maxi(1, totals[0] + totals[1])
-	for s in 2:
-		share[s] = mini(totals[s], maxi(int(round(size * float(totals[s]) / all)), mini(totals[s], 15)))
+	var size := int(setup.get("battle_size", rules.num("battle", "size", BattleRules.DEFAULT_BATTLE_SIZE)))
+	share = deployment_slots(totals, size, tactics)
 	for s in 2:
 		orders[s] = {}
 		for div in ["inf", "arc", "cav"]:
@@ -208,14 +215,43 @@ func _deploy() -> void:
 		if not heroes[s].is_empty():
 			var h: Dictionary = heroes[s]
 			var is_pl: bool = h.get("player", false)
-			var a := _spawn(s, str(h.get("troop", "")), _spawn_center(s) + Vector3(0, 0, 6.0 * (1 if s == 0 else -1)),
+			var origin := _spawn_center(s) + Vector3(0, 0, 6.0 * (1 if s == 0 else -1))
+			if is_pl and s == siege_def:
+				origin = field.wall_point(0.0, 0.5)
+			var a := _spawn(s, str(h.get("troop", "")), origin,
 				h.get("loadout", {}), str(h.get("name", "")), is_pl)
 			if is_pl:
 				player = a
-		_spawn_wave(s, share[s] - (1 if not heroes[s].is_empty() else 0))
+			# your companions ride beside you (named heroes: knocked out, never killed)
+			var comps: Array = h.get("companions", [])
+			for i in comps.size():
+				var c: Dictionary = comps[i]
+				var side_off := Vector3(2.4 * (1 + i / 2) * (1 if i % 2 == 0 else -1), 0, 0)
+				var ca := _spawn(s, str(c.get("troop", "")), origin + side_off, c.get("loadout", {}), str(c.get("name", "")), false)
+				ca.set_meta("companion", str(c.get("companion", "")))
+				companion_agents.append(ca)
+		_spawn_wave(s, share[s] - (1 if not heroes[s].is_empty() else 0) - heroes[s].get("companions", []).size())
 	if auto and player:
 		player.is_player = false            # the AI plays your character (tests / spectating)
 	_enemy_commander(true)
+	if player and player_side == siege_def:
+		_siege_commander(player_side, true)
+
+
+## Split a single budget. Keep a small contingent on each side where possible,
+## and give any unused slots to the other side. Size 2 supports the arena.
+static func deployment_slots(totals: Array, requested: int, tactics := [0, 0]) -> Array:
+	var total: int = totals[0] + totals[1]
+	if total == 0:
+		return [0, 0]
+	var slots := mini(total, clampi(requested, 2, BattleRules.MAX_BATTLE_SIZE))
+	var guaranteed := mini(15, slots / 2)
+	var minimum := maxi(mini(totals[0], guaranteed), slots - int(totals[1]))
+	var maximum := mini(int(totals[0]), slots - mini(totals[1], guaranteed))
+	var first_weight: float = totals[0] * (1.0 + 0.1 * clampi(tactics[0], 0, 10))
+	var second_weight: float = totals[1] * (1.0 + 0.1 * clampi(tactics[1], 0, 10))
+	var first := clampi(roundi(slots * first_weight / (first_weight + second_weight)), minimum, maximum)
+	return [first, slots - first]
 
 
 ## The arena: a ring of wooden posts with a rail (only for show).
@@ -261,9 +297,10 @@ func _spawn_wave(s: int, n: int) -> void:
 	reserves[s] = reserves[s].slice(take.size())
 	# group by class so each division forms up together
 	var groups := {"inf": [], "arc": [], "cav": []}
+	var dismounted: bool = setup.get("dismounted", false)
 	for tid in take:
 		var lo := rules.loadout(tid)
-		var g := "cav" if lo.horse != "" else ("arc" if not lo.ranged.is_empty() else "inf")
+		var g := "cav" if not dismounted and lo.horse != "" else ("arc" if not lo.ranged.is_empty() else "inf")
 		groups[g].append(tid)
 	var c := _spawn_center(s)
 	var fwd := Vector3(0, 0, -1) if s == 0 else Vector3(0, 0, 1)
@@ -296,6 +333,7 @@ func _spawn(s: int, tid: String, p: Vector3, override: Dictionary = {}, hname :=
 	a.setup(self, rules, tid, s, side_colors[s], override, hname)
 	a.global_position = field.ground(p) + Vector3(0, 0.05, 0)
 	a.safe_pos = a.global_position
+	a.spawn_origin = a.position
 	a.heading = _side_facing(s)
 	a.intent_yaw = a.heading
 	a.rotation.y = a.heading
@@ -306,7 +344,7 @@ func _spawn(s: int, tid: String, p: Vector3, override: Dictionary = {}, hname :=
 
 # ------------------------------------------------------------------ main loop
 func _physics_process(dt: float) -> void:
-	if over:
+	if over or phase_pending:
 		return
 	time += dt
 	frame += 1
@@ -318,9 +356,7 @@ func _physics_process(dt: float) -> void:
 			var k: int = t.get_instance_id()
 			attackers_on[k] = int(attackers_on.get(k, 0)) + 1
 	var t0 := Time.get_ticks_usec()
-	for a in agents:
-		if not a.alive():
-			continue
+	for a in _tick_agents:
 		if a == player and a.is_player:
 			ctrl.drive(a, dt)
 		elif not a.ai.has("lab"):            # tests/pose_lab.gd drives these by hand
@@ -331,18 +367,17 @@ func _physics_process(dt: float) -> void:
 			a.step(dt)
 	var t15 := Time.get_ticks_usec()
 	_resolve_overlaps()
+	_update_loose_horses(dt)
 	var t2 := Time.get_ticks_usec()
 	prof["overlap"] = float(prof.get("overlap", 0.0)) + (t2 - t15)
 	prof["ai"] = float(prof.get("ai", 0.0)) + (t1 - t0)
 	prof["step"] = float(prof.get("step", 0.0)) + (t2 - t1)
 	prof["n"] = int(prof.get("n", 0)) + 1
-	for a in agents:
+	for a in _tick_agents:
 		if not a.alive():
 			continue
 		if a.routed and _at_edge(a):
-			a.outcome = "routed"
-			a.state = Agent.DEAD
-			a.visible = false
+			_retire_routed(a)
 	_update_arrows(dt)
 	_slot_t -= dt
 	if _slot_t <= 0.0:
@@ -351,6 +386,7 @@ func _physics_process(dt: float) -> void:
 	_cmd_t -= dt
 	if _cmd_t <= 0.0:
 		_cmd_t = 1.0
+		_center_cache.clear()              # the commander sees positions after movement
 		_enemy_commander(false)
 		_reinforce()
 	_morale_t -= dt
@@ -369,20 +405,6 @@ func _physics_process(dt: float) -> void:
 		print("PROF ai %.2fms step %.2fms (overlap %.2f) per frame, alive %d, fps %d" % [prof.ai / n / 1000.0, prof.step / n / 1000.0, prof.get("overlap", 0.0) / n / 1000.0, agents.filter(func(x): return x.alive()).size(), Engine.get_frames_per_second()])
 
 
-## How often (in rendered frames) a soldier's 3D model is re-posed: 0 = never (no screen).
-## Close and in view: every frame; far away or behind the camera: every few frames.
-func rig_interval(a: Agent, cam: Camera3D = null) -> int:
-	if _headless:
-		return 0
-	if cam == null:
-		return 1
-	var to: Vector3 = a.global_position - cam.global_position
-	var d := to.length()
-	if d > 10.0 and to.dot(-cam.global_basis.z) < 0.0:
-		return 8                                   # behind the camera
-	return 1 if d < 22.0 else (2 if d < 50.0 else (4 if d < 100.0 else 8))
-
-
 var render_frame := 0
 
 
@@ -391,19 +413,25 @@ func _process(_delta: float) -> void:
 		return
 	render_frame += 1
 	var cam := get_viewport().get_camera_3d()
-	for a in agents:
+	var camera_pos := cam.global_position if cam else Vector3.ZERO
+	var view_dir := -cam.global_basis.z if cam else Vector3.ZERO
+	for a: Agent in agents:
 		if a.rig_done or not a.visible:
 			continue
-		var every := rig_interval(a, cam)
-		if every > 0 and (render_frame + a.rng_seed) % every == 0:
+		var world_pos := a.global_position
+		var to := world_pos - camera_pos
+		var d2 := to.length_squared() if cam else 0.0
+		var every := 1 if d2 < 484.0 else (2 if d2 < 2500.0 else (4 if d2 < 10000.0 else 8))
+		if d2 > 100.0 and to.dot(view_dir) < 0.0:
+			every = 8                   # behind the camera
+		if a.rig and a.rig.visible and (render_frame + a.rng_seed) % every == 0:
 			a.update_rig()
 		# hooves of horses close to the camera
-		if sfx and a.mounted and a.speed > 2.5 and a.alive() and cam \
-				and cam.global_position.distance_squared_to(a.global_position) < 900.0:
+		if sfx and a.mounted and a.speed > 2.5 and a.alive() and cam and d2 < 900.0:
 			a.hoof_t -= _delta * a.speed * 0.45
 			if a.hoof_t <= 0.0:
 				a.hoof_t = 1.0
-				sfx.play("hoof", a.global_position, -10.0 + a.speed * 0.6)
+				sfx.play("hoof", world_pos, -10.0 + a.speed * 0.6)
 
 
 static func _gkey(cx: int, cz: int) -> int:
@@ -411,16 +439,25 @@ static func _gkey(cx: int, cz: int) -> int:
 
 
 var alive_by_side: Array = [[], []]      # rebuilt every frame with the grid
+var _tick_agents: Array[Agent] = []      # alive at the start of the tick, in spawn order
 
 
 func _rebuild_grid() -> void:
 	_grid.clear()
-	alive_by_side = [[], []]
-	for a in agents:
+	_engaged_cache.clear()
+	_center_cache.clear()
+	alive_by_side[0].clear()
+	alive_by_side[1].clear()
+	_tick_agents.clear()
+	for a: Agent in agents:
 		if not a.alive():
 			continue
+		_tick_agents.append(a)
 		alive_by_side[a.side].append(a)
-		var k := _gkey(floori(a.position.x / CELL), floori(a.position.z / CELL))
+		var p := a.position
+		if siege_def >= 0:
+			a.siege_level = field.level(p)
+		var k := _gkey(floori(p.x / CELL), floori(p.z / CELL))
 		var cell = _grid.get(k)
 		if cell == null:
 			_grid[k] = [a]
@@ -434,10 +471,14 @@ func _resolve_overlaps() -> void:
 	# uses the grid built at the start of this frame (nobody moves more than a fraction of a cell)
 	var half := rules.num("battle", "field", 300) * 0.5 - 1.0
 	var has_trees := not field.trees.is_empty()
-	for a in agents:
+	var works := field.has_works()
+	for a in _tick_agents:
+		a.overlap_pos = a.position
+	for a in _tick_agents:
 		if not a.alive():
 			continue
-		var pa: Vector3 = a.position
+		var pa := a.overlap_pos
+		var radius := a.radius
 		var cx := floori(pa.x / CELL)
 		var cz := floori(pa.z / CELL)
 		for dx in range(-1, 2):
@@ -445,37 +486,43 @@ func _resolve_overlaps() -> void:
 				var cell = _grid.get(_gkey(cx + dx, cz + dz))
 				if cell == null:
 					continue
-				for o in cell:
+				for o: Agent in cell:
 					if o.rng_seed <= a.rng_seed:
 						continue
-					var d: Vector3 = o.position - a.position
+					var other_pos := o.overlap_pos
+					var d := other_pos - pa
 					d.y = 0.0
-					var need: float = a.radius + o.radius
+					var need := radius + o.radius
 					var l2 := d.length_squared()
 					if l2 >= need * need or l2 < 1e-8:
 						continue
 					var l := sqrt(l2)
 					var push := d / l * (need - l)
 					var wa: float = 0.15 if a.mounted and not o.mounted else (0.85 if o.mounted and not a.mounted else 0.5)
-					a.position -= push * wa
-					o.position += push * (1.0 - wa)
-		for t in (field.trees_near(a.position) if has_trees else []):
-			var d: Vector3 = a.position - t[0]
-			d.y = 0.0
-			var need: float = float(t[1]) * 0.6 + a.radius
-			if d.length_squared() < need * need and d.length_squared() > 1e-8:
-				a.position += d.normalized() * (need - d.length())
-				if a.mounted:
-					a.speed *= 0.5
-		a.position.x = clampf(a.position.x, -half, half)
-		a.position.z = clampf(a.position.z, -half, half)
-		var works := field.has_works()
-		var hh := field.height_at(a.position.x, a.position.z) if works else 0.0
-		if works and (hh - a.position.y > Agent.MAX_STEP or (a.position.y - hh > Agent.MAX_DROP and a != player)):
-			a.position.x = a.safe_pos.x       # shoved against a wall face or over the edge: stays put
-			a.position.z = a.safe_pos.z
-		a.position.y = field.height_at(a.position.x, a.position.z)
-		a.safe_pos = a.position
+					pa -= push * wa
+					o.overlap_pos = other_pos + push * (1.0 - wa)
+		if has_trees:
+			for t in field.trees_near(pa):
+				var d: Vector3 = pa - t[0]
+				d.y = 0.0
+				var need := float(t[1]) * 0.6 + radius
+				var l2 := d.length_squared()
+				if l2 < need * need and l2 > 1e-8:
+					pa += d.normalized() * (need - d.length())
+					if a.mounted:
+						a.speed *= 0.5
+		pa.x = clampf(pa.x, -half, half)
+		pa.z = clampf(pa.z, -half, half)
+		if works:
+			var hh := field.height_at(pa.x, pa.z)
+			if hh - pa.y > Agent.MAX_STEP or (pa.y - hh > Agent.MAX_DROP and a != player):
+				pa = a.safe_pos   # shoved against a wall face or over the edge: stays put
+		a.safe_pos = pa
+		a.overlap_pos = pa
+	# Submit each final position once. Higher spawn indices cannot push earlier agents.
+	for a in _tick_agents:
+		if a.position != a.overlap_pos:
+			a.position = a.overlap_pos
 
 
 func agents_near(p: Vector3, r: float) -> Array:
@@ -528,13 +575,17 @@ func tree_push(a: Agent) -> Vector3:
 
 
 func enemy_center(s: int) -> Vector3:
+	if _center_cache.has(s):
+		return _center_cache[s]
 	var c := Vector3.ZERO
 	var n := 0
 	for a in agents:
 		if a.side != s and a.active():
 			c += a.global_position
 			n += 1
-	return c / n if n > 0 else _spawn_center(1 - s)
+	var center := c / n if n > 0 else _spawn_center(1 - s)
+	_center_cache[s] = center
+	return center
 
 
 func retreat_point(a: Agent) -> Vector3:
@@ -638,17 +689,24 @@ func _wall_slots(lst: Array, div: String) -> void:
 
 ## Player's orders (Warband keys): groups = ["inf", "arc", "cav"] subset; kind = hold / follow / charge /
 ## stand / retreat / advance / fallback / closer / spread
-func command(s: int, groups: Array, kind: String) -> void:
+func command(s: int, groups: Array, kind: String, destination: Variant = null) -> void:
 	var names := {"inf": "步兵", "arc": "射手", "cav": "骑兵"}
 	var who: Array[String] = []
 	for g in groups:
 		who.append(names[g])
 		var o: Dictionary = orders[s][g]
+		if kind in ["hold_fire", "fire"]:
+			o["hold_fire"] = kind == "hold_fire"
+			for a: Agent in division_agents(s, g):
+				a.ai["next"] = 0.0
+			continue
+		if kind not in ["closer", "spread"]:
+			o.erase("wall")
 		var lst := division_agents(s, g)
 		match kind:
 			"hold":
 				o.type = "hold"
-				o.pos = player.global_position if player else centroid(lst)
+				o.pos = destination if destination is Vector3 else (player.global_position if player else centroid(lst))
 				o.facing = player.heading if player else o.facing
 			"follow":
 				o.type = "follow"
@@ -673,7 +731,8 @@ func command(s: int, groups: Array, kind: String) -> void:
 					rules.num("orders", "spacing_min", 0.8), rules.num("orders", "spacing_max", 3.0))
 	_slot_t = 0.0
 	var txt := {"hold": "原地驻守！", "follow": "跟我来！", "charge": "冲锋！", "stand": "就地站住！", "retreat": "撤退！",
-		"advance": "前进十步！", "fallback": "后退十步！", "closer": "靠拢！", "spread": "散开！"}
+		"advance": "前进十步！", "fallback": "后退十步！", "closer": "靠拢！", "spread": "散开！",
+		"hold_fire": "停止射击！", "fire": "自由射击！"}
 	message("%s：%s" % ["、".join(who), txt.get(kind, kind)], Color("f2c75c"))
 
 
@@ -748,14 +807,16 @@ func _siege_commander(s: int, first: bool) -> void:
 
 
 func _reinforce() -> void:
+	var wave_limit := int(rules.num("battle", "reinforcement_waves", 2))
 	for s in 2:
-		if reserves[s].is_empty():
+		if reserves[s].is_empty() or _waves[s] >= wave_limit:
 			continue
 		var on := 0
 		for a in agents:
-			if a.side == s and a.active():
+			if a.side == s and a.alive():     # routed troops still occupy a slot until they exit
 				on += 1
-		if on < share[s] * rules.num("battle", "reinforce_at", 0.35):
+		if on > 0 and on < share[s] * rules.num("battle", "reinforce_at", 0.35):
+			_waves[s] += 1
 			_spawn_wave(s, share[s] - on)
 			message("%s的援军赶到了" % side_names[s], Color("8fd3a0") if s == player_side else Color("ff8f8f"))
 
@@ -795,21 +856,70 @@ func _morale() -> void:
 
 
 func _check_end() -> void:
+	var remaining := [0, 0]
+	for a: Agent in agents:
+		if a.active():
+			remaining[a.side] += 1
 	for s in 2:
-		if not reserves[s].is_empty():
-			continue
-		var any := false
-		for a in agents:
-			if a.side == s and a.active():
-				any = true
-				break
-		if not any:
+		if remaining[s] == 0 and reserves[s].is_empty():
 			end_battle(1 - s, "")
 			return
+	if remaining[0] > 0 and remaining[1] > 0:
+		return
+	phase_pending = true
+	if _headless or auto or not player or not player.alive():
+		continue_phase()
+
+
+func _retire_routed(a: Agent) -> void:
+	a.outcome = "routed"
+	a.state = Agent.DEAD
+	a.hide()
+	a.rig.queue_free()
+	a.rig = null
+
+
+func continue_phase() -> void:
+	if not phase_pending or over:
+		return
+	phase_pending = false
+	phase += 1
+	_waves = [0, 0]
+	var remaining := [0, 0]
+	for a: Agent in agents:
+		if not a.alive():
+			continue
+		if a.routed:
+			_retire_routed(a)
+			continue
+		remaining[a.side] += 1
+		a.regroup(_side_facing(a.side))
+	for ar in arrows:
+		if ar.node:
+			ar.node.queue_free()
+	arrows.clear()
+	attackers_on.clear()
+	for s in 2:
+		for div in orders[s]:
+			var order: Dictionary = orders[s][div]
+			order.type = "charge"
+			order.pos = _spawn_center(s)
+			order.facing = _side_facing(s)
+		_spawn_wave(s, share[s] - remaining[s])
+	_enemy_commander(true)
+	if player and player_side == siege_def and player.alive():
+		_siege_commander(player_side, true)
+	_rebuild_grid()
+	_slot_t = 0.0
+	_cmd_t = 1.0
+	message("第 %d 阶段：双方重新列阵" % phase, Color("f2c75c"))
 
 
 ## Tab: leave the field. Allowed only if no enemy is close (like Warband).
 func request_retreat() -> bool:
+	if phase_pending:
+		end_battle(1 - player_side, "retreat")
+		return true
 	if over:
 		return false
 	if player and player.alive() and not setup.get("arena", false):      # in the arena Tab = concede
@@ -833,42 +943,66 @@ func auto_finish() -> void:
 ## Closest body part of any agent touched by the segment [p0, p1] (pad = extra radius).
 ## Returns [agent, point, part] or [] — part: "body" / "head" / "horse"
 func segment_hit(att: Agent, p0: Vector3, p1: Vector3, pad: float, skip_side := -1) -> Array:
-	var best: Array = []
+	var target: Agent = null
+	var part := ""
 	var best_t := INF
+	var ray := p1 - p0
+	var ray_sq := ray.length_squared()
 	var mid := (p0 + p1) * 0.5
-	for o in agents_near(mid, p0.distance_to(p1) * 0.5 + 2.5):
+	var half_span := ray.abs() * 0.5
+	var body_radius := (0.27 + pad) * (0.27 + pad)
+	var head_radius := (0.14 + pad) * (0.14 + pad)
+	var horse_radius := (0.36 + pad) * (0.36 + pad)
+	for o: Agent in agents_near(mid, sqrt(ray_sq) * 0.5 + 2.5):
 		if o == att or not o.alive() or o.state == Agent.DOWN or o.side == skip_side:
 			continue
 		var base: Vector3 = o.global_position
-		var caps := []
-		if o.mounted:
-			caps.append([base + Vector3(0, 1.75, 0), base + Vector3(0, 2.4, 0), 0.27, "body"])
-			caps.append([base + Vector3(0, 2.4, 0), base + Vector3(0, 2.6, 0), 0.14, "head"])
-			var f: Vector3 = o.forward()
-			caps.append([base + Vector3(0, 1.25, 0) + f * 0.7, base + Vector3(0, 1.25, 0) - f * 0.7, 0.36, "horse"])
-		else:
-			caps.append([base + Vector3(0, 0.3, 0), base + Vector3(0, 1.45, 0), 0.27, "body"])
-			caps.append([base + Vector3(0, 1.5, 0), base + Vector3(0, 1.72, 0), 0.14, "head"])
-		for c in caps:
-			var r := _seg_seg(p0, p1, c[0], c[1])
-			if r[0] <= float(c[2]) + pad and r[1] < best_t:
-				best_t = r[1]
-				best = [o, r[2], c[3]]
-	return best
+		# Reject grid neighbours whose body capsules cannot reach the segment.
+		# A horse's horizontal envelope includes its 0.7 m axis and 0.36 m radius.
+		var mounted: bool = o.mounted
+		var horizontal := (1.06 if mounted else 0.27) + pad + 0.001
+		var offset := base - mid
+		if absf(offset.x) > half_span.x + horizontal or absf(offset.z) > half_span.z + horizontal:
+			continue
+		var low := (0.89 if mounted else 0.03) - pad - 0.001
+		var high := (2.74 if mounted else 1.86) + pad + 0.001
+		if offset.y + low > half_span.y or offset.y + high < -half_span.y:
+			continue
+		var body_start := base + Vector3.UP * (1.75 if mounted else 0.3)
+		var body_end := base + Vector3.UP * (2.4 if mounted else 1.45)
+		var t := _capsule_hit_t(p0, ray, ray_sq, body_start, body_end, body_radius)
+		if t < best_t:
+			best_t = t
+			target = o
+			part = "body"
+		var head_start := base + Vector3.UP * (2.4 if mounted else 1.5)
+		var head_end := base + Vector3.UP * (2.6 if mounted else 1.72)
+		t = _capsule_hit_t(p0, ray, ray_sq, head_start, head_end, head_radius)
+		if t < best_t:
+			best_t = t
+			target = o
+			part = "head"
+		if mounted:
+			var back := base + Vector3(0, 1.25, 0)
+			var axis := o.forward() * 0.7
+			t = _capsule_hit_t(p0, ray, ray_sq, back + axis, back - axis, horse_radius)
+			if t < best_t:
+				best_t = t
+				target = o
+				part = "horse"
+	return [target, p0 + ray * best_t, part] if target != null else []
 
 
-## distance between segments, t along the first, closest point on the first
-static func _seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> Array:
-	var d1 := q1 - p1
+## Parameter of closest approach if the path touches the capsule, INF on a miss.
+static func _capsule_hit_t(p1: Vector3, d1: Vector3, a: float, p2: Vector3, q2: Vector3, radius_sq: float) -> float:
 	var d2 := q2 - p2
 	var r := p1 - p2
-	var a := d1.dot(d1)
 	var e := d2.dot(d2)
 	var f := d2.dot(r)
 	var s := 0.0
 	var t := 0.0
 	if a <= 1e-6 and e <= 1e-6:
-		return [r.length(), 0.0, p1]
+		return 0.0 if r.length_squared() <= radius_sq else INF
 	if a <= 1e-6:
 		t = clampf(f / e, 0.0, 1.0)
 	else:
@@ -888,7 +1022,7 @@ static func _seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> Arra
 				s = clampf((b - c) / a, 0.0, 1.0)
 	var c1 := p1 + d1 * s
 	var c2 := p2 + d2 * t
-	return [c1.distance_to(c2), s, c1]
+	return s if c1.distance_squared_to(c2) <= radius_sq else INF
 
 
 func _armor(raw: float, armor: float, dtype: String) -> float:
@@ -938,6 +1072,10 @@ func melee_hit(att: Agent, tgt: Agent, point: Vector3, part: String, thrust: boo
 		att.state_len = rules.num(C, "block_stun", 0.4)
 		_effect(point, Color("ffd27a"), 6)
 		sound("shield" if tgt.shield_up() else "clash", point)
+		if tgt.shield_up():
+			var key := "shield_thrust" if thrust else ("shield_axe" if str(w.get("kind", "")) == "two_hand"
+				else ("shield_blunt" if str(w.get("dtype", "")) == "blunt" else "shield_cut"))
+			tgt.damage_shield(float(w.get("thrust" if thrust else "damage", 20)) * att.damage_mult() * rules.num(C, key, 1.0))
 		if att == player or tgt == player:
 			message("格挡！" if tgt == player else "被挡住了", Color("cfd6dc"))
 		return
@@ -946,6 +1084,8 @@ func melee_hit(att: Agent, tgt: Agent, point: Vector3, part: String, thrust: boo
 	if early:
 		raw *= rules.num(C, "early_damage", 0.35)
 	raw *= (1.0 + _speed_bonus(att, tgt)) * (1.0 + 0.06 * att.tier()) * randf_range(0.85, 1.15)
+	raw *= att.damage_mult()
+	_count_hit(att, att.prof_kind())
 	_apply(att, tgt, raw, dtype, part, point, early)
 
 
@@ -964,6 +1104,24 @@ func bump(att: Agent, tgt: Agent) -> void:
 	stat("bump")
 	att.speed *= rules.num(H, "bump_slow", 0.45)
 	_apply(att, tgt, raw, "blunt", "body", tgt.chest(), false, randf() < rules.num(H, "bump_knock", 0.45))
+
+
+func kick(att: Agent) -> void:
+	var reach := rules.num("combat", "kick_reach", 1.15)
+	var from := att.global_position + Vector3.UP * 0.72
+	var hit := segment_hit(att, from, from + att.forward() * reach, 0.12)
+	if hit.is_empty():
+		return
+	var target: Agent = hit[0]
+	if target.side == att.side or target.mounted:
+		return
+	target.take_hit(rules.num("combat", "kick_damage", 3.0) * damage_scale(target), att, false, true)
+	if target.alive():
+		target._set_state(Agent.STUN, rules.num("combat", "kick_stun", 0.48))
+	else:
+		_feed(att, target)
+	sound("thud", hit[1])
+	stat("kicks")
 
 
 func _apply(att: Agent, tgt: Agent, raw: float, dtype: String, part: String, point: Vector3, early: bool, force_knock := false) -> void:
@@ -1049,6 +1207,14 @@ func hud_hit(dmg: int, early: bool) -> void:
 
 
 func on_agent_down(a: Agent) -> void:
+	if not _headless:
+		_corpses.append(a)
+		var limit := maxi(0, int(rules.num("battle", "corpse_limit", 30)))
+		if _corpses.size() > limit:
+			var oldest: Agent = _corpses.pop_front()
+			oldest.hide()
+			oldest.rig.queue_free()
+			oldest.rig = null
 	if siege_def >= 0:
 		var by: Agent = a.last_attacker
 		stat("down_s%d_lv%d_by_%s" % [a.side, field.level(a.global_position), "fall" if by == null else ("arrow" if by.using_ranged else "melee")])
@@ -1100,10 +1266,16 @@ func _effect(p: Vector3, c: Color, n: int) -> void:
 # ------------------------------------------------------------------ arrows
 ## Is enemy e in hand-to-hand fighting with soldiers of `my_side`?
 func engaged_with_ally(e: Agent, my_side: int) -> bool:
+	# There are exactly two sides; the enemy id also identifies the querying side.
+	var key := e.get_instance_id()
+	if _engaged_cache.has(key):
+		return _engaged_cache[key]
 	for o in agents_near(e.global_position, 2.2):
 		if o.side == my_side and o.alive() and not o.using_ranged:
-			if o.global_position.distance_to(e.global_position) < 2.2:
+			if o.global_position.distance_squared_to(e.global_position) < 2.2 * 2.2:
+				_engaged_cache[key] = true
 				return true
+	_engaged_cache[key] = false
 	return false
 
 
@@ -1129,12 +1301,196 @@ func ally_in_line(a: Agent, to: Vector3) -> bool:
 	return false
 
 
+# ------------------------------------------------------------------ riderless horses (Warband)
+## {pos, heading, speed, phase, rec (Agent.horse_record), node, rig}: a horse whose rider fell runs on,
+## slows and stands; you can walk up and mount it (F). Scenery otherwise: they don't block anyone.
+var loose_horses: Array = []
+const LOOSE_HORSE_LIMIT := 40
+
+
+func spawn_loose_horse(a: Agent, rec: Dictionary, run_speed: float, offset := Vector3.ZERO) -> void:
+	var h := {"pos": a.global_position + offset, "heading": a.heading + randf_range(-0.7, 0.7),
+		"speed": run_speed, "phase": 0.0, "rec": rec, "node": null, "rig": null}
+	if DisplayServer.get_name() != "headless":
+		var node := Node3D.new()
+		add_child(node)
+		node.global_position = h.pos
+		node.rotation.y = h.heading
+		var rig := AgentRig.new()
+		node.add_child(rig)
+		rig.build_horse_only(a)
+		h.node = node
+		h.rig = rig
+	loose_horses.append(h)
+	if loose_horses.size() > LOOSE_HORSE_LIMIT:
+		var old: Dictionary = loose_horses.pop_front()
+		if old.node:
+			old.node.queue_free()
+
+
+func _update_loose_horses(dt: float) -> void:
+	var half := field.size * 0.48
+	for h in loose_horses:
+		if h.speed > 0.0:
+			h.speed = maxf(0.0, h.speed - 1.6 * dt)
+			var f := Vector3(-sin(h.heading), 0, -cos(h.heading))
+			var p: Vector3 = h.pos + f * h.speed * dt
+			p.x = clampf(p.x, -half, half)
+			p.z = clampf(p.z, -half, half)
+			p.y = field.height_at(p.x, p.z)
+			h.pos = p
+			h.phase += dt * h.speed * 1.7
+		if h.node:
+			h.node.global_position = h.pos
+			h.node.rotation.y = h.heading
+			h.rig.pose_horse(h.phase, h.speed)
+
+
+func _nearest_loose_horse(p: Agent, within: float) -> int:
+	var best := -1
+	var bd := within
+	for i in loose_horses.size():
+		var d: float = (loose_horses[i].pos as Vector3).distance_to(p.global_position)
+		if d < bd and float(loose_horses[i].speed) < 3.5:
+			bd = d
+			best = i
+	return best
+
+
+## F: dismount, mount a riderless horse nearby, or pick a weapon up off the ground.
+func interact(p: Agent) -> void:
+	if p == null or not p.alive() or p.busy() or p.attacking():
+		return
+	if p.mounted:
+		if p.speed > 3.0:
+			message("马跑得太快，先勒马（S）再下马", Color("e0b070"))
+			return
+		spawn_loose_horse(p, p.horse_record(), 0.0, p.right() * -1.4)
+		p.dismount()
+		message("你下了马", Color("cfd6dc"))
+		return
+	var i := _nearest_loose_horse(p, 3.0)
+	if i >= 0:
+		var h: Dictionary = loose_horses[i]
+		loose_horses.remove_at(i)
+		if h.node:
+			h.node.queue_free()
+		p.global_position = Vector3(h.pos.x, p.global_position.y, h.pos.z)
+		p.heading = h.heading
+		p.mount(h.rec)
+		message("你骑上了%s" % _horse_name(h.rec), Color("cfd6dc"))
+		return
+	pick_up(p)
+
+
+func _horse_name(rec: Dictionary) -> String:
+	return "具装甲马" if str(rec.get("kind", "")) == "barded" else "战马"
+
+
+# ------------------------------------------------------------------ weapons on the ground
+## {pos, weapon (dict as in a loadout), node}: what the fallen dropped. F swaps it with the weapon in hand.
+var drops: Array = []
+const DROP_LIMIT := 60
+
+
+func drop_weapon(w: Dictionary, at: Vector3) -> void:
+	if w.is_empty() or str(w.get("kind", "")) == "unarmed":
+		return
+	var pos := Vector3(at.x + randf_range(-0.6, 0.6), 0.0, at.z + randf_range(-0.6, 0.6))
+	pos.y = field.height_at(pos.x, pos.z) + 0.04
+	var d := {"pos": pos, "weapon": w, "node": null}
+	if DisplayServer.get_name() != "headless":
+		var mi := Node3D.new()
+		add_child(mi)
+		AgentRig.Art.add(mi, AgentRig.Equipment.melee(w, maxf(0.35, float(w.get("reach", 1.4)) - 0.75)))
+		mi.global_position = pos
+		mi.rotation = Vector3(0, randf() * TAU, PI * 0.5)        # lying on its side
+		d.node = mi
+	drops.append(d)
+	if drops.size() > DROP_LIMIT:
+		var old: Dictionary = drops.pop_front()
+		if old.node:
+			old.node.queue_free()
+
+
+func _nearest_drop(p: Agent, within: float) -> int:
+	var best := -1
+	var bd := within
+	for i in drops.size():
+		var d: float = (drops[i].pos as Vector3).distance_to(p.global_position)
+		if d < bd:
+			bd = d
+			best = i
+	return best
+
+
+func pick_up(p: Agent) -> void:
+	var i := _nearest_drop(p, 2.2)
+	if i < 0:
+		return
+	var d: Dictionary = drops[i]
+	drops.remove_at(i)
+	if d.node:
+		d.node.queue_free()
+	var w: Dictionary = d.weapon
+	if not p.usable(w):
+		message("%s马上用不了" % str(w.get("name", "")), Color("e0b070"))
+		drops.insert(i, d)
+		return
+	var old: Dictionary = p.weapon() if not p.melee.is_empty() else {}
+	if p.melee.is_empty():
+		p.melee.append(w)
+		p.melee_idx = 0
+	else:
+		p.melee[p.melee_idx] = w
+	p.using_ranged = false
+	p.rig.set_weapon(p.weapon())
+	drop_weapon(old, p.global_position)
+	message("你拾起了%s" % str(w.get("name", "兵器")), Color("cfd6dc"))
+
+
+## What F would do right now (the HUD shows it).
+func interact_hint(p: Agent) -> String:
+	if p == null or not p.alive():
+		return ""
+	if p.mounted:
+		return ""
+	var i := _nearest_loose_horse(p, 3.0)
+	if i >= 0:
+		return "F 上马（%s）" % _horse_name(loose_horses[i].rec)
+	var w := _nearest_drop(p, 2.2)
+	if w >= 0:
+		return "F 拾起%s" % str(drops[w].weapon.get("name", "兵器"))
+	return ""
+
+
+## Your hits on enemies by weapon kind: the server turns them into weapon proficiency.
+var player_hits := {}
+var companion_agents: Array = []
+
+
+func _companion_outcomes() -> Dictionary:
+	var out := {}
+	for a in companion_agents:
+		if is_instance_valid(a):
+			out[str(a.get_meta("companion"))] = a.outcome if a.outcome != "" else "fine"
+	return out
+
+
+func _count_hit(att: Agent, kind: String) -> void:
+	if att != null and att == player and kind != "":
+		player_hits[kind] = int(player_hits.get(kind, 0)) + 1
+
+
 func spawn_arrow(owner: Agent, from: Vector3, vel: Vector3, dmg: float) -> void:
 	var node: MeshInstance3D = null
 	if DisplayServer.get_name() != "headless":
 		node = MeshInstance3D.new()
 		node.mesh = _arrow_mesh
 		node.material_override = _arrow_mat
+		if is_instance_valid(owner) and owner.is_thrower():
+			# a javelin is a long shaft; a throwing axe a short, thick one
+			node.scale = Vector3(1.6, 1.6, 2.4) if owner.ranged.get("id", "") == "javelin" else Vector3(3.0, 3.0, 0.75)
 		add_child(node)
 	stat("arrows")
 	arrows.append({"origin": from, "pos": from, "vel": vel, "owner": owner, "dmg": dmg, "life": rules.num("ranged", "arrow_life", 6.0),
@@ -1174,12 +1530,15 @@ func _update_arrows(dt: float) -> void:
 			stat("arrow_hits")
 			if _shield_stops(tgt, v, hit[2]):
 				stat("arrow_shield")
+				tgt.damage_shield(float(ar.dmg) * rules.num("combat", "shield_arrow", 0.5))
 				_effect(hit[1], Color("c8a060"), 3)
 				sound("shield", hit[1], -6.0, 1.3)
 			elif is_instance_valid(owner):
 				var spd := v.length() / rules.num("ranged", "speed_damage_ref", 50.0)
 				var raw: float = ar.dmg * clampf(spd, 0.5, 1.4) * randf_range(0.85, 1.15)
 				_apply(owner, tgt, raw, "pierce", hit[2], hit[1], false)
+				if not owner.is_thrower():
+					_count_hit(owner, "crossbow" if owner.ranged.get("kind", "") == "crossbow" else "bow")
 				sound("arrow_hit", hit[1], -2.0)
 			_place_arrow(ar)
 			keep.append(ar)
@@ -1229,13 +1588,13 @@ func _shield_stops(tgt: Agent, v: Vector3, part: String) -> bool:
 	if tgt.shield_on_back():
 		# slung on the back: covers the back against arrows from behind (not the head)
 		return part == "body" and ang >= 180.0 - rules.num("combat", "back_shield_angle", 55) \
-			and randf() < rules.num("combat", "back_shield_chance", 0.6)
+			and randf() < rules.num("combat", "back_shield_chance", 0.6) + float(tgt.char_stats.get("shield", 0.0))
 	if tgt.attacking() or tgt.state == Agent.AIM:
 		return false
 	if ang > rules.num("combat", "shield_angle", 100):
 		return false
 	# a raised shield always stops it; otherwise the shield on the arm catches about half
-	return tgt.blocking() or randf() < 0.55
+	return tgt.blocking() or randf() < 0.55 + float(tgt.char_stats.get("shield", 0.0))     # 盾术
 
 
 # ------------------------------------------------------------------ results
@@ -1262,10 +1621,11 @@ func end_battle(winner: int, how: String) -> void:
 			tally[tid].fine = int(tally[tid].fine) + 1
 		var hero_state := ""
 		for a in agents:
-			if a.side == s and (a.hero_name != "" or a == player):
+			if a.side == s and (a.hero_name != "" or a == player) and not a.has_meta("companion"):
 				hero_state = a.outcome if a.outcome != "" else "fine"
 		sides.append({"name": side_names[s], "troops": tally, "hero": hero_state})
-	result = {"winner": winner, "how": how, "player_side": player_side, "time": round(time), "sides": sides, "stats": stats}
+	result = {"winner": winner, "how": how, "player_side": player_side, "time": round(time), "sides": sides, "stats": stats,
+		"player_hits": player_hits, "companions": _companion_outcomes()}
 	var txt := JSON.stringify(result)
 	print("BATTLE_RESULT " + txt)
 	if out_path != "":

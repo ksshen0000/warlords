@@ -4,7 +4,7 @@ extends Node3D
 ## Battle calls step() every physics frame. Melee is directional like Warband:
 ##   up = overhead chop, right / left = side swings (named from the attacker's side), down = thrust.
 
-enum { IDLE, READY, STRIKE, RECOVER, BLOCK, STUN, DOWN, DEAD, AIM, RELOAD }
+enum { IDLE, READY, STRIKE, RECOVER, BLOCK, STUN, DOWN, DEAD, AIM, RELOAD, KICK }
 enum Dir { UP, RIGHT, LEFT, DOWN }
 const DIR_NAMES := ["上劈", "右砍", "左砍", "直刺"]
 
@@ -19,6 +19,7 @@ var hero_name := ""
 var is_player := false
 var color := Color.WHITE
 var safe_pos := Vector3.ZERO          # last position known to be on legal ground (siege works)
+var spawn_origin := Vector3.ZERO
 var division := "inf"                # inf / arc / cav (order groups)
 var rng_seed := 0
 
@@ -60,6 +61,9 @@ var _couch_cd := {}
 var heading := 0.0                   # yaw (radians); forward = -Z rotated by heading
 var speed := 0.0                     # horse forward speed
 var walk_phase := 0.0
+var jumping := false
+var _jump_origin_y := 0.0
+var _next_jump := 0.0
 
 # intents (set by the controller every frame)
 var intent_move := Vector3.ZERO      # world-space horizontal, length 0..1
@@ -79,6 +83,8 @@ var rig_done := false
 var hoof_t := 0.0                      # time to the next hoof beat (sound)                 # a corpse that has finished falling: no more posing
 var velocity := Vector3.ZERO
 var radius := 0.32                   # footprint for pushing apart (soldiers don't use the physics engine)
+var overlap_pos: Vector3            # working position during the overlap pass
+var siege_level := 0                # sampled before the AI picks targets
 
 
 func setup(b: Node, r: BattleRules, tid: String, sd: int, col: Color, override: Dictionary = {}, hname: String = "") -> void:
@@ -93,16 +99,20 @@ func setup(b: Node, r: BattleRules, tid: String, sd: int, col: Color, override: 
 	max_hp = r.num("human", "hp_base", 70) + r.num("human", "hp_per_tier", 12) * tier
 	if hname != "":
 		max_hp += 30
+	char_stats = lo.get("char", {})
+	max_hp += float(char_stats.get("hp", 0.0))            # 铁骨
 	hp = max_hp
 	armor = int(lo.armor)
 	head_armor = int(lo.head_armor)
 	look = lo.get("look", {})
-	horse_speed = float(lo.get("horse_speed", 1.0))
+	horse_speed = float(lo.get("horse_speed", 1.0)) * float(lo.get("char", {}).get("horse", 1.0))   # 骑术
 	horse_armor = float(lo.get("horse_armor", -1.0))
 	melee = lo.melee
 	ranged = lo.ranged
 	ammo = int(ranged.get("ammo", 0))
 	shield = lo.shield
+	shield_max = float(shield.get("hp", 0.0))
+	shield_hp = shield_max
 	horse_kind = lo.horse
 	if b.setup.get("dismounted", false):
 		horse_kind = ""                 # hideout raids are fought on foot
@@ -112,7 +122,7 @@ func setup(b: Node, r: BattleRules, tid: String, sd: int, col: Color, override: 
 	_check_mounted_kit()
 	melee_idx = _first_usable(0)
 	using_ranged = can_use_ranged()
-	division = "cav" if mounted else ("arc" if not ranged.is_empty() else "inf")
+	division = "cav" if mounted else ("arc" if is_archer() else "inf")
 	_apply_shape()
 	rig = AgentRig.new()
 	add_child(rig)
@@ -227,12 +237,86 @@ func allowed_dirs() -> Array:
 	return [Dir.UP, Dir.RIGHT, Dir.LEFT, Dir.DOWN] if can_thrust() else [Dir.UP, Dir.RIGHT, Dir.LEFT]
 
 
+## The character's skills and proficiencies (the player, companions; empty for ordinary troops).
+var char_stats: Dictionary = {}
+var shield_hp := 0.0                 # durability left (shields with no "hp" never break)
+var shield_max := 0.0
+
+
+## Blows and arrows the shield caught wear it down; at zero it splinters and is gone.
+func damage_shield(amount: float) -> void:
+	if shield.is_empty() or shield_max <= 0.0 or amount <= 0.0:
+		return
+	shield_hp -= amount
+	if shield_hp > 0.0:
+		return
+	var nm := str(shield.get("name", "盾"))
+	shield = {}
+	shield_hp = 0.0
+	if state == BLOCK:
+		_set_state(IDLE, 0.0)
+	if rig:
+		rig.drop_shield()
+	battle.sound("shield", chest(), 2.0, 0.7)
+	battle.stat("shield_broken")
+	if is_player:
+		battle.message("你的%s被劈碎了！" % nm, Color("ff8f7a"))
+
+
+## A bow or crossbow (javelins and throwing axes belong to the infantry: a few throws, then the blade).
+func is_archer() -> bool:
+	return ranged.get("kind", "") in ["bow", "crossbow"]
+
+
+func is_thrower() -> bool:
+	return ranged.get("kind", "") == "throw"
+
+
+## How far away the AI starts loosing: a throwing weapon carries much less far than a bow.
+func ranged_reach(default_range: float) -> float:
+	return float(ranged.get("range", default_range))
+
+
+## Which proficiency the weapon in hand uses ("" = none: fists).
+func prof_kind() -> String:
+	if using_ranged:
+		if is_thrower():
+			return ""
+		return "crossbow" if ranged.get("kind", "") == "crossbow" else "bow"
+	match str(weapon().get("kind", "")):
+		"one_hand":
+			return "one_hand"
+		"two_hand":
+			return "two_hand"
+		"polearm", "lance":
+			return "polearm"
+	return ""
+
+
+## Proficiency effect relative to 100 points: what = "prof_damage" | "prof_speed".
+func prof_mult(what: String) -> float:
+	if char_stats.is_empty():
+		return 1.0
+	var p := float(char_stats.get("prof", {}).get(prof_kind(), 100))
+	return clampf(1.0 + (p - 100.0) / 100.0 * float(char_stats.get(what, 0.0)), 0.75, 1.5)
+
+
+## Damage multiplier of this attacker's current weapon (强击 / 强弓 and proficiency).
+func damage_mult() -> float:
+	if char_stats.is_empty():
+		return 1.0
+	var skill := float(char_stats.get("melee", 1.0))
+	if using_ranged:
+		skill = float(char_stats.get("bow", 1.0)) if ranged.get("kind", "") != "crossbow" else 1.0
+	return skill * prof_mult("prof_damage")
+
+
 func ready_time() -> float:
-	return rules.num("combat", "ready_time", 0.38) / float(weapon().get("speed", 1.0)) / float(battle.diff.combat_speed)
+	return rules.num("combat", "ready_time", 0.38) / float(weapon().get("speed", 1.0)) / float(battle.diff.combat_speed) / prof_mult("prof_speed")
 
 
 func strike_time() -> float:
-	return rules.num("combat", "strike_time", 0.32) / float(weapon().get("speed", 1.0)) / float(battle.diff.combat_speed)
+	return rules.num("combat", "strike_time", 0.32) / float(weapon().get("speed", 1.0)) / float(battle.diff.combat_speed) / prof_mult("prof_speed")
 
 
 func _whoosh() -> void:
@@ -322,7 +406,7 @@ func spread() -> float:
 	var v := Vector2(velocity.x, velocity.z).length()
 	s += clampf(v / 4.0, 0.0, 1.0) * rules.num(R, "move_spread", 3.0)
 	if mounted:
-		s += rules.num(R, "horse_spread", 2.5) * clampf(v / 8.0, 0.3, 1.0)
+		s += rules.num(R, "horse_spread", 2.5) * clampf(v / 8.0, 0.3, 1.0) * float(char_stats.get("mounted_spread", 1.0))
 	return s
 
 
@@ -339,7 +423,7 @@ func release_shot(extra_error: float = 0.0) -> void:
 	var ang := randf() * TAU
 	var mag := randf() * spr
 	dir = (b * Vector3(cos(ang) * sin(mag), sin(ang) * sin(mag), -cos(mag))).normalized()
-	battle.spawn_arrow(self, from, dir * float(ranged.speed), float(ranged.damage))
+	battle.spawn_arrow(self, from, dir * float(ranged.speed), float(ranged.damage) * damage_mult())
 	battle.sound("crossbow" if ranged.kind == "crossbow" else "twang", from, -3.0)
 	ammo -= 1
 	if ranged.kind == "crossbow":
@@ -349,7 +433,7 @@ func release_shot(extra_error: float = 0.0) -> void:
 
 func switch_weapon() -> void:
 	## mouse wheel: cycle bow/crossbow -> melee weapons
-	if state in [READY, STRIKE, AIM, STUN, DOWN, DEAD]:
+	if state in [READY, STRIKE, AIM, STUN, DOWN, DEAD, KICK]:
 		return
 	var nxt := -1                      # next usable melee weapon after the current one
 	if not using_ranged:
@@ -386,6 +470,41 @@ func _set_state(s: int, length: float) -> void:
 	state_len = length
 
 
+func start_kick() -> void:
+	if state == IDLE and not mounted and not jumping:
+		_set_state(KICK, rules.num("combat", "kick_windup", 0.16))
+
+
+func start_jump() -> void:
+	if not alive() or state in [DOWN, STUN, KICK, RELOAD] or jumping or battle.time < _next_jump:
+		return
+	if mounted and speed < rules.num("horse", "jump_min_speed", 4.0):
+		return
+	jumping = true
+	couched = false
+	_jump_origin_y = position.y
+	velocity.y = rules.num("horse" if mounted else "human", "jump_speed", 4.2)
+	_next_jump = battle.time + rules.num("human", "jump_cooldown", 0.85)
+
+
+func regroup(facing: float) -> void:
+	position = spawn_origin
+	safe_pos = position
+	heading = facing
+	rotation.y = facing
+	intent_yaw = facing
+	intent_move = Vector3.ZERO
+	velocity = Vector3.ZERO
+	speed = 0.0
+	couched = false
+	jumping = false
+	_next_jump = 0.0
+	release_pending = false
+	_prev_seg.clear()
+	ai.clear()
+	_set_state(IDLE, 0.0)
+
+
 # ------------------------------------------------------------------ simulation
 func step(dt: float) -> void:
 	state_t += dt
@@ -409,6 +528,10 @@ func step(dt: float) -> void:
 			if state_t >= float(ranged.get("draw", 2.5)):
 				crossbow_loaded = true
 				_set_state(IDLE, 0.0)
+		KICK:
+			if state_t >= state_len:
+				battle.kick(self)
+				_set_state(RECOVER, rules.num("combat", "kick_recovery", 0.36))
 		IDLE:
 			if using_ranged and ranged.get("kind", "") == "crossbow" and not crossbow_loaded and ammo > 0 and can_reload():
 				_set_state(RELOAD, 0.0)
@@ -416,7 +539,7 @@ func step(dt: float) -> void:
 		rig_dt += dt                            # Battle keeps posing the body while it topples over
 		return
 	_move(dt)
-	if mounted:
+	if mounted and not jumping:
 		_horse_contacts()
 	# the rig is only for show (hits use pose() maths): Battle poses it once per *rendered* frame
 	# (fewer for far-away soldiers), so a slow frame never makes the simulation fall behind
@@ -424,27 +547,28 @@ func step(dt: float) -> void:
 
 
 func _move(dt: float) -> void:
-	var H := "human"
+	var tuning := rules.movement
 	var down := state == DOWN
 	if mounted:
-		var top := rules.num("horse", "speed", 10.5) * horse_speed
+		var top := tuning.horse_speed * horse_speed
 		var tgt_speed := 0.0
-		var turn_rate := rules.num("horse", "turn", 2.2) * (1.35 - 0.6 * clampf(speed / top, 0.0, 1.0))
+		var turn_rate := tuning.horse_turn * (1.35 - 0.6 * clampf(speed / top, 0.0, 1.0))
 		if steer_direct:
 			# player: W gallops, S reins in, neither = the horse slowly loses pace
 			heading += -intent_turn * turn_rate * dt
 			tgt_speed = top if intent_throttle > 0.0 else (0.0 if intent_throttle < 0.0 else maxf(0.0, speed - 2.0 * dt))
 			if intent_throttle > 0.0 and not intent_run:
-				tgt_speed = rules.num("horse", "canter", 5.0)
+				tgt_speed = tuning.canter
 		else:
 			var m := intent_move
-			if m.length() > 0.05:
+			var run_strength := m.length()
+			if run_strength > 0.05:
 				var want := atan2(-m.x, -m.z)
 				heading += clampf(wrapf(want - heading, -PI, PI), -turn_rate * dt, turn_rate * dt)
-				tgt_speed = m.length() * (top if intent_run else rules.num("horse", "canter", 5.0))
+				tgt_speed = run_strength * (top if intent_run else tuning.canter)
 				# slow down for sharp turns
 				tgt_speed *= clampf(1.0 - absf(wrapf(want - heading, -PI, PI)) / PI, 0.35, 1.0)
-		var acc := rules.num("horse", "accel", 4.5) * (1.8 if tgt_speed < speed else 1.0)
+		var acc := tuning.horse_accel * (1.8 if tgt_speed < speed else 1.0)
 		if routed:
 			tgt_speed = top
 		speed = move_toward(speed, tgt_speed, acc * dt)
@@ -452,9 +576,8 @@ func _move(dt: float) -> void:
 		velocity.x = f.x * speed
 		velocity.z = f.z * speed
 	else:
-		var top := rules.num(H, "run", 4.4) - armor * rules.num(H, "armor_slow", 0.012)
-		if not intent_run:
-			top = rules.num(H, "walk", 1.6)
+		var top := tuning.foot_run - armor * tuning.armor_slow if intent_run else tuning.foot_walk
+		top *= float(char_stats.get("foot", 1.0))             # 跑动
 		var mult := 1.0
 		if state == READY or state == STRIKE or state == AIM:
 			mult = 0.65
@@ -462,54 +585,69 @@ func _move(dt: float) -> void:
 			mult = 0.55
 		elif state == STUN:
 			mult = 0.25
-		if down:
+		if down or state == KICK:
 			mult = 0.0
 		if battle.siege_def >= 0 and battle.field.on_ladder(position):
-			mult *= rules.num("siege", "ladder_speed", 0.45)     # hand over hand up a scaling ladder
+			mult *= tuning.ladder_speed     # hand over hand up a scaling ladder
 		var m := intent_move.limit_length(1.0)
 		if m.length() > 0.01 and m.normalized().dot(forward()) < -0.3:
-			mult *= rules.num(H, "backward", 0.6)
+			mult *= tuning.backward
 		var want_v := m * top * mult
-		var acc := rules.num(H, "accel", 14.0)
+		var acc := tuning.foot_accel
 		velocity.x = move_toward(velocity.x, want_v.x, acc * dt)
 		velocity.z = move_toward(velocity.z, want_v.z, acc * dt)
 		if not down:
 			if is_player:
 				heading = intent_yaw
 			else:
-				heading += clampf(wrapf(intent_yaw - heading, -PI, PI), -rules.num(H, "turn", 7.0) * dt,
-					rules.num(H, "turn", 7.0) * dt)
+				heading += clampf(wrapf(intent_yaw - heading, -PI, PI), -tuning.foot_turn * dt, tuning.foot_turn * dt)
 	# plain kinematics on the heightmap (Battle pushes overlapping soldiers / trees apart afterwards)
 	var p := position
 	var f: BattleField = battle.field
 	var nx := p.x + velocity.x * dt
 	var nz := p.z + velocity.z * dt
+	var ground := f.height_at(nx, nz)
+	if jumping:
+		velocity.y -= rules.num("human", "jump_gravity", 13.0) * dt
+		p.y += velocity.y * dt
 	if not f.has_works():
 		p.x = nx
 		p.z = nz
 	else:
 		# siege works: no walking up a wall face (slide along it instead); stepping off an edge drops you
 		var y0 := f.height_at(p.x, p.z)
+		var step_ceiling := maxf(y0, p.y) if jumping else y0
 		var max_drop := INF if is_player else MAX_DROP    # only you may jump off on purpose
-		if f.height_at(nx, nz) - y0 <= MAX_STEP and y0 - f.height_at(nx, nz) <= max_drop:
+		if ground - step_ceiling <= MAX_STEP and y0 - ground <= max_drop:
 			p.x = nx
 			p.z = nz
-		elif f.height_at(nx, p.z) - y0 <= MAX_STEP and y0 - f.height_at(nx, p.z) <= max_drop:
-			p.x = nx
-			velocity.z = 0.0
-		elif f.height_at(p.x, nz) - y0 <= MAX_STEP and y0 - f.height_at(p.x, nz) <= max_drop:
-			p.z = nz
-			velocity.x = 0.0
 		else:
-			velocity.x = 0.0
-			velocity.z = 0.0
-		var drop := y0 - f.height_at(p.x, p.z)
+			ground = f.height_at(nx, p.z)
+			if ground - step_ceiling <= MAX_STEP and y0 - ground <= max_drop:
+				p.x = nx
+				velocity.z = 0.0
+			else:
+				ground = f.height_at(p.x, nz)
+				if ground - step_ceiling <= MAX_STEP and y0 - ground <= max_drop:
+					p.z = nz
+					velocity.x = 0.0
+				else:
+					ground = y0
+					velocity.x = 0.0
+					velocity.z = 0.0
+		var drop := y0 - ground
+		if not jumping and drop > 2.5 and alive():
+			battle.fall_damage(self, drop)
+	if jumping and p.y <= ground:
+		jumping = false
+		var drop := _jump_origin_y - ground
 		if drop > 2.5 and alive():
 			battle.fall_damage(self, drop)
-	p.y = f.height_at(p.x, p.z)
+	if not jumping:
+		p.y = ground
+		velocity.y = 0.0
 	position = p
 	safe_pos = p
-	velocity.y = 0.0
 	rotation.y = heading
 
 
@@ -662,7 +800,15 @@ func pose() -> Dictionary:
 			larm = loc
 			lreach = 0.6
 			twist = -0.35 * draw_progress()           # an archer turns his shoulder into the draw
-			if ranged.get("kind", "") == "bow":
+			if is_thrower():
+				# the throw: the right arm cocks back overhead, the shield stays up on the left
+				shooting = false
+				arm = Vector3(0.25, 0.25 + 0.45 * draw_progress(), 0.15 + 0.6 * draw_progress()).normalized()
+				reach = 0.5
+				larm = Vector3(-0.05, 0.25, -1.0) if shield_up() else Vector3(-0.3, -0.1, -0.8)
+				lreach = 0.42
+				twist = 0.3 * draw_progress()
+			elif ranged.get("kind", "") == "bow":
 				arm = (loc + Vector3(0.0, 0.0, 0.9) * draw_progress()).normalized()
 				reach = lerpf(0.5, 0.3, draw_progress())
 			else:
@@ -753,7 +899,7 @@ func _check_strike() -> void:
 
 
 func _horse_contacts() -> void:
-	var t := Time.get_ticks_msec() / 1000.0
+	var t: float = battle.time
 	# couched lance: automatic when galloping with a lance and not attacking
 	var w := weapon()
 	couched = not using_ranged and w.get("kind", "") == "lance" and speed > float(w.get("couch_speed", 7.5)) \
@@ -805,11 +951,40 @@ func hit_horse(dmg: float, from: Agent) -> void:
 		take_hit(10.0, from, true, true)
 
 
+## Get on a riderless horse (Battle.interact): its breed, wounds and barding come with it.
+func mount(h: Dictionary) -> void:
+	mounted = true
+	horse_kind = str(h.get("kind", "horse"))
+	horse_hp = float(h.get("hp", 110.0))
+	horse_max_hp = float(h.get("max_hp", horse_hp))
+	horse_speed = float(h.get("speed_mult", 1.0)) * float(char_stats.get("horse", 1.0))
+	horse_armor = float(h.get("armor", -1.0))
+	speed = 0.0
+	division = "cav"
+	_check_mounted_kit()
+	if not usable(weapon()):
+		melee_idx = _first_usable(0)
+	if using_ranged and not can_use_ranged():
+		using_ranged = false
+	_apply_shape()
+	rig.queue_free()
+	rig = AgentRig.new()
+	add_child(rig)
+	rig.build(self)
+
+
+## The horse this agent rides, as a record a riderless horse keeps.
+func horse_record() -> Dictionary:
+	var base_mult := horse_speed / maxf(0.01, float(char_stats.get("horse", 1.0)))
+	return {"kind": horse_kind, "hp": horse_hp, "max_hp": horse_max_hp, "speed_mult": base_mult,
+		"armor": horse_armor, "color": color, "seed": rng_seed}
+
+
 func dismount() -> void:
 	mounted = false
 	couched = false
 	speed = 0.0
-	division = "arc" if not ranged.is_empty() else "inf"
+	division = "arc" if is_archer() else "inf"
 	_apply_shape()
 	rig.queue_free()
 	rig = AgentRig.new()
@@ -822,6 +997,15 @@ func die(blunt: bool) -> void:
 	var wounded: bool = blunt or is_player or hero_name != "" or battle.player == self \
 		or randf() < rules.num("combat", "wounded_chance", 0.4)
 	outcome = "wounded" if wounded else "killed"
+	if battle.has_method("drop_weapon") and not melee.is_empty():
+		battle.drop_weapon(weapon(), global_position)        # left on the field for anyone to pick up
+	if mounted and horse_hp > 0.0 and battle.has_method("spawn_loose_horse"):
+		# the rider falls; the horse runs on without him (Warband's riderless horses)
+		battle.spawn_loose_horse(self, horse_record(), speed)
+		dismount()
+	if jumping:
+		jumping = false
+		position.y = battle.field.height_at(position.x, position.z)
 	_set_state(DEAD, 0.0)
 	velocity = Vector3.ZERO
 	if rig.label:

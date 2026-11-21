@@ -269,7 +269,11 @@ def daily(w: World) -> None:
     for p in list(w.parties.values()):
         if not p.alive:
             continue
-        T.heal(p.troops, B.troops.heal_rate_settlement if p.inside else B.troops.heal_rate_field, rng)
+        rate = B.troops.heal_rate_settlement if p.inside else B.troops.heal_rate_field
+        if p.kind == "player":
+            from .character import party as _party_skill
+            rate *= 1.0 + _party_skill(w, "wound_treatment")      # 疗伤
+        T.heal(p.troops, min(0.95, rate), rng)
         if p.kind == "lord" and p.hero:
             h = w.heroes[p.hero]
             if not w.fiefs_of(h.id):

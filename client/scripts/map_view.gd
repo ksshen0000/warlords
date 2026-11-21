@@ -81,7 +81,7 @@ func _ready() -> void:
 	focus_mode = Control.FOCUS_CLICK
 	# open sea beyond the map edge, so any window aspect ratio shows ocean instead of black bars
 	var sea := ColorRect.new()
-	sea.color = Color8(27, 59, 92)
+	sea.color = Color8(21, 47, 62)
 	sea.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sea.show_behind_parent = true
 	sea.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -640,19 +640,27 @@ func _draw_settlement(sid: String, s: float) -> void:
 func _icon_town(p: Vector2, r: float, c: Color) -> void:
 	var body := Rect2(p - Vector2(r, r * 0.55), Vector2(2 * r, r * 1.2))
 	draw_rect(body.grow(1.5), OUTLINE)
-	draw_rect(body, c.darkened(0.15))
+	draw_rect(body, c.darkened(0.17))
+	draw_rect(Rect2(body.position, Vector2(body.size.x, r * 0.27)), c.lightened(0.14))
+	draw_rect(Rect2(body.end - Vector2(body.size.x, r * 0.17), Vector2(body.size.x, r * 0.17)), c.darkened(0.39))
 	for i in 4:
 		var x := p.x - r + i * (2 * r / 3.0) - r * 0.18
-		draw_rect(Rect2(x, p.y - r * 0.85, r * 0.36, r * 0.32), OUTLINE)
-		draw_rect(Rect2(x + 1, p.y - r * 0.85 + 1, r * 0.36 - 2, r * 0.32 - 1), c.lightened(0.15))
-	draw_rect(Rect2(p.x - r * 0.22, p.y + r * 0.05, r * 0.44, r * 0.6), OUTLINE)
-	draw_rect(body, CREAM, false, 1.5)
+		var top := Rect2(x, p.y - r * 0.88, r * 0.36, r * 0.33)
+		draw_rect(top.grow(0.7), OUTLINE)
+		draw_rect(top, c.lightened(0.28))
+	var arch := Vector2(p.x, p.y + r * 0.23)
+	draw_circle(arch, r * 0.22, OUTLINE)
+	draw_rect(Rect2(arch - Vector2(r * 0.22, 0), Vector2(r * 0.44, r * 0.42)), OUTLINE)
+	draw_rect(body, Color(CREAM, 0.8), false, 1.2)
 
 
 func _icon_castle(p: Vector2, r: float, c: Color) -> void:
 	var keep := Rect2(p - Vector2(r * 0.6, r * 1.0), Vector2(r * 1.2, r * 1.7))
 	draw_rect(keep.grow(1.5), OUTLINE)
 	draw_rect(keep, c.darkened(0.1))
+	draw_rect(Rect2(keep.position, Vector2(r * 0.34, keep.size.y)), c.lightened(0.13))
+	draw_rect(Rect2(p.x - r * 0.09, p.y - r * 0.68, r * 0.18, r * 0.4), OUTLINE)
+	draw_rect(Rect2(p.x - r * 0.69, p.y + r * 0.52, r * 1.38, r * 0.19), c.darkened(0.32))
 	for i in 3:
 		draw_rect(Rect2(p.x - r * 0.6 + i * r * 0.45, p.y - r * 1.3, r * 0.3, r * 0.35), c.lightened(0.1))
 	draw_rect(keep, CREAM, false, 1.3)
