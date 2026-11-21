@@ -14,6 +14,10 @@ wound_days = 3                # 战场上被打倒后养伤几天（期间不上
 drift = 1.0                   # 士气每天向 start_morale 回归的量
 rival_per_day = 0.6           # 宿敌同队时每天的士气损失
 unpaid = 8                    # 发不出薪水时每人士气 -8
+quest_after_days = 5          # 入队这么多天、士气不低于 quest_min_morale 时，提出自己的心愿（个人差事）
+quest_min_morale = 40
+quest_morale = 25             # 完成后士气 +25、技能点 +1、名望 +quest_renown
+quest_renown = 3
 
 [morale]                      # 事件 -> 士气变化（按喜恶）
 raid = 12                     # 劫掠村庄
@@ -38,6 +42,7 @@ equip = ["sword", "round", "bow", "helm", "liangdang", "nag"]
 likes = ["release", "victory"]
 dislikes = ["raid", "execute"]
 rival = "hulu"
+quest = { kind = "visit", place = "襄阳", title = "回襄阳祭扫祖坟", ask = "我家的祖坟在襄阳城外，南渡后就没人祭扫过了。若是路过，能否陪我去一趟？", done = "在祖坟前磕了三个头。多谢你，这份情我记着。" }
 
 [companions.hulu]
 name = "斛律阿钵"
@@ -54,6 +59,7 @@ equip = ["horsebow", "sword", "leather_cap", "leather", "hequ"]
 likes = ["victory", "raid"]
 dislikes = ["defeat"]
 rival = "tan"
+quest = { kind = "bandits", count = 3, title = "剿灭三伙匪寇", ask = "跟着你这么久，还没正经打出名声。再碰上马贼，让我打头阵，打掉三伙给你看。", done = "三伙了！现在草原上也会传你我的名字。" }
 
 [companions.wang]
 name = "王灵素"
@@ -70,6 +76,7 @@ equip = ["knife", "robe", "hood"]
 likes = ["release"]
 dislikes = ["execute", "raid"]
 rival = "heruo"
+quest = { kind = "visit", place = "洛阳", title = "去洛阳看看疫情", ask = "听说洛阳城里闹过时疫，我想去看看那里的病人。能绕道洛阳吗？", done = "洛阳的病人好些了。能帮上忙，这一趟没白跟你出来。" }
 
 [companions.heruo]
 name = "贺若崇"
@@ -86,6 +93,7 @@ equip = ["axe", "helm", "leather"]
 likes = ["victory", "loot"]
 dislikes = ["defeat"]
 rival = "wang"
+quest = { kind = "visit", place = "邺城", title = "回邺城了结旧事", ask = "当年冤我的那个上司还在邺城。我不杀他，只想当面问一句为什么。陪我去一趟邺城吧。", done = "话问完了，心里的疙瘩也解开了。以后我这条命就是你的。" }
 
 [companions.zhi]
 name = "支法远"
@@ -102,6 +110,7 @@ equip = ["sword", "leather", "leather_cap", "nag"]
 likes = ["loot", "victory"]
 dislikes = ["defeat"]
 rival = "du"
+quest = { kind = "visit", place = "敦煌", title = "回敦煌看看商号", ask = "家里的商号还在敦煌，也不知道还剩几个伙计。路过敦煌时，让我回去看一眼。", done = "商号还在，伙计们也都好。往后西边的行情，我替你盯着。" }
 
 [companions.murong]
 name = "慕容翊"
@@ -118,6 +127,7 @@ equip = ["lance", "sword", "helm_neck", "lamellar", "warhorse"]
 likes = ["victory", "execute"]
 dislikes = ["defeat", "release"]
 rival = ""
+quest = { kind = "visit", place = "龙城", title = "远望龙城", ask = "我不能进龙城，可我想再远远看它一眼。若是北上，带我去龙城附近走走。", done = "看过了。总有一天，我会堂堂正正地回去。" }
 
 [companions.chen]
 name = "陈小乙"
@@ -134,6 +144,7 @@ equip = ["bow", "knife", "robe"]
 likes = ["victory", "release"]
 dislikes = ["execute"]
 rival = ""
+quest = { kind = "bandits", count = 2, title = "为渔民报仇", ask = "江上那些水匪害了我们村好几户人家。再碰上匪寇，打掉两伙，就算替乡亲们出口气。", done = "两伙了！乡亲们要是知道，一定会高兴的。" }
 
 [companions.du]
 name = "杜元礼"
@@ -150,3 +161,4 @@ equip = ["sword", "robe", "hood"]
 likes = ["release"]
 dislikes = ["raid", "execute"]
 rival = "zhi"
+quest = { kind = "visit", place = "建康", title = "去建康太学", ask = "一直想去建康看看太学，听听那里的博士讲经。哪天到了建康，能让我进城一趟吗？", done = "见识过了，眼界宽了许多。往后带兵，我也更有底气。" }

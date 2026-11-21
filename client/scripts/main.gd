@@ -12,7 +12,9 @@ const PlayerMenuScript := preload("res://scripts/player_menu.gd")
 const SettingsScript := preload("res://scripts/settings.gd")
 const SavePanelScript := preload("res://scripts/save_panel.gd")
 
-const SPEEDS := [["慢", 0.8], ["正常", 0.4], ["快", 0.18], ["很快", 0.08], ["极快", 0.035]]   # real seconds per game hour
+# real seconds per game hour. Doubled for the slower levels with the map's 2x close-up scale (map_view MAP_SCALE):
+# a party crosses the screen at the same pace as before; 极快 stays as fast as ever.
+const SPEEDS := [["慢", 1.6], ["正常", 0.8], ["快", 0.36], ["很快", 0.12], ["极快", 0.035]]
 const KIND_NAMES := {"lord": "将军部曲", "caravan": "商队", "villager": "村民", "bandit": "匪寇",
 	"hunter": "游侠", "merc": "义从", "player": "你的部队", "refugee": "流民"}
 const ORDER_NAMES := {"recruit": "招募", "besiege": "围攻", "defend": "驻防", "attack": "追击", "raid": "劫掠",

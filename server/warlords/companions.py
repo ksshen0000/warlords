@@ -112,6 +112,7 @@ def daily(w: World) -> None:
                 c["back"] = w.day + int(rule("return_days", 30))
                 c["where"] = None
                 w.log("companion", f"{c['name']}对你失望透顶，不辞而别。", player=True)
+            _quest_daily(w, c, d, p)
         elif c["state"] == "tavern":
             if w.day - int(c.get("since", 0)) >= int(rule("move_days", 12)) and towns and rng.random() < 0.3:
                 c["where"] = rng.choice(towns).id
@@ -121,6 +122,60 @@ def daily(w: World) -> None:
             c["where"] = rng.choice(towns).id
             c["since"] = w.day
             c["morale"] = start
+
+
+# ----------------------------------------------------------------- personal requests (心愿)
+def _quest_daily(w: World, c: dict, d: dict, p) -> None:
+    q = d.get("quest")
+    if not q or c["state"] != "party":
+        return
+    rec = c.get("quest")
+    if rec is None:
+        if w.day - int(c.get("since", 0)) >= int(rule("quest_after_days", 5)) and c["morale"] >= float(rule("quest_min_morale", 40)):
+            c["quest"] = {"state": "asked", "n": 0}
+            w.log("companion", f"{c['name']}似乎有件心事想跟你说（按 C 选中{c['name']}，点「交谈」）", player=True)
+        return
+    if rec["state"] == "active" and q.get("kind") == "visit":
+        s = next((x for x in w.settlements.values() if x.name == q.get("place")), None)
+        if s and (p.inside == s.id or ((p.pos[0] - s.pos[0]) ** 2 + (p.pos[1] - s.pos[1]) ** 2) ** 0.5 < 12):
+            _quest_done(w, c, q)
+
+
+def _quest_done(w: World, c: dict, q: dict) -> None:
+    c["quest"]["state"] = "done"
+    c["morale"] = min(100.0, c["morale"] + float(rule("quest_morale", 25)))
+    c["char"]["points"]["skill"] += 1
+    w.player["renown"] = round(w.player.get("renown", 0) + float(rule("quest_renown", 3)), 1)
+    _say(w, c, q.get("done", "多谢。"))
+    w.log("companion", f"{c['name']}的心愿「{q.get('title', '')}」了结了：士气大涨，多了 1 个技能点", player=True)
+
+
+def bandit_win(w: World) -> None:
+    """A band of bandits beaten: counts for the companions who asked for that."""
+    for c in in_party(w):
+        q = roster().get(c["id"], {}).get("quest")
+        rec = c.get("quest")
+        if q and rec and rec["state"] == "active" and q.get("kind") == "bandits":
+            rec["n"] = int(rec.get("n", 0)) + 1
+            if rec["n"] >= int(q.get("count", 1)):
+                _quest_done(w, c, q)
+
+
+def _mood_line(c: dict, d: dict, w: World) -> str:
+    m = c["morale"]
+    rival = d.get("rival")
+    rival_here = rival and comps(w).get(rival, {}).get("state") == "party"
+    if m >= 70:
+        line = "跟着你干，心里踏实。"
+    elif m >= 45:
+        line = "日子还过得去，就是盼着多打几场像样的仗。" if "victory" in d.get("likes", []) else "日子还过得去。"
+    elif m >= 25:
+        line = "说实话，我有些看不惯最近的事。"
+    else:
+        line = "我在想，是不是该另寻出路了。"
+    if rival_here:
+        line += f"还有，{comps(w)[rival]['name']}那个人，我实在合不来。"
+    return line
 
 
 def react(w: World, kind: str) -> None:
@@ -144,6 +199,14 @@ def react(w: World, kind: str) -> None:
 
 
 # ----------------------------------------------------------------- battle
+def strength(w: World) -> float:
+    """What the companions fit to fight add to the party's strength in an auto-resolved battle: each
+    counts like a top-tier soldier, +5% per level (they are heroes: never among the casualties)."""
+    from .data import TIER_POWER
+    base = float(TIER_POWER.get(4, TIER_POWER[max(TIER_POWER)]))
+    return sum(base * (1.0 + 0.05 * (c["char"]["level"] - 1)) for c in in_party(w) if fit(w, c))
+
+
 def battle_entries(w: World) -> list[dict]:
     """The companions fit to fight, as heroes of your side in a 3D battle."""
     from . import gear as G
@@ -214,6 +277,19 @@ def menu(w: World, pend: dict) -> dict:
         rival = roster().get(d.get("rival", ""), {}).get("name")
         if rival:
             lines.append(f"和{rival}合不来")
+        q, rec = d.get("quest"), c.get("quest")
+        if pend.get("said"):
+            lines += ["", f"{c['name']}：{pend['said']}"]
+        if q and rec and rec["state"] == "asked":
+            lines += ["", f"{c['name']}：{q.get('ask', '')}"]
+            opts.append(_opt("quest_accept", f"答应{c['name']}：{q.get('title', '')}"))
+        elif q and rec and rec["state"] == "active":
+            prog = (f"（已打掉 {rec.get('n', 0)} / {q.get('count')} 伙）" if q.get("kind") == "bandits"
+                    else f"（到{q.get('place')}去）")
+            lines.append(f"心愿：{q.get('title', '')}{prog}")
+        elif q and rec and rec["state"] == "done":
+            lines.append(f"心愿「{q.get('title', '')}」已了结")
+        opts.append(_opt("chat", "眼下怎么看？"))
         opts.append(_opt("dismiss", f"让{c['name']}离队（装备随人带走）"))
     opts.append(_opt("back", "返回"))
     return {"type": "companion", "id": c["id"], "title": c["name"], "text": "\n".join(lines), "options": opts}
@@ -239,6 +315,15 @@ def act(w: World, pend: dict, action: str, data: dict) -> dict:
         w.log("companion", f"{c['name']}（{c['title']}）加入了你的队伍", player=True)
         w.player["pending"] = pend.get("back")
         return {"ok": True, "message": f"{c['name']}入伙了（按 C / I 可以给同伴加点、换装）"}
+    if action == "chat":
+        pend["said"] = _mood_line(c, d, w)
+        return {"ok": True}
+    if action == "quest_accept" and (c.get("quest") or {}).get("state") == "asked":
+        c["quest"]["state"] = "active"
+        c["morale"] = min(100.0, c["morale"] + 5)
+        pend.pop("said", None)
+        w.log("companion", f"你答应了{c['name']}：{d['quest'].get('title', '')}", player=True)
+        return {"ok": True, "message": "已答应（进度在与同伴交谈时可以看到）"}
     if action == "dismiss" and c["state"] == "party":
         towns = _towns(w)
         c.update(state="tavern", where=w.rng.choice(towns).id if towns else None, since=w.day)

@@ -110,7 +110,20 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_1: _select(["inf"], e.shift_pressed)
 			KEY_2: _select(["arc"], e.shift_pressed)
 			KEY_3: _select(["cav"], e.shift_pressed)
-			KEY_0, KEY_QUOTELEFT: _select(["inf", "arc", "cav"])
+			KEY_0, KEY_QUOTELEFT: _select(["inf", "arc", "cav"] + _custom_groups())
+			KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
+				var g := "g%d" % (e.keycode - KEY_0)
+				if e.ctrl_pressed:
+					_assign(g)
+				elif battle.orders[battle.player_side].has(g):
+					_select([g], e.shift_pressed)
+				else:
+					battle.message("还没有第%d队：先选中兵种，按 Ctrl+%d 把你身边 25 米内的这些人编成第%d队" % [e.keycode - KEY_0, e.keycode - KEY_0, e.keycode - KEY_0], Color("e0b070"))
+			KEY_M:
+				if not battle.peaceful and not battle.over:
+					var n: int = battle.order_mount(battle.player_side, selected, e.shift_pressed)
+					battle.message(("上马！（%d 人去找马）" if e.shift_pressed else "下马步战！（%d 人）") % n if n > 0
+						else ("没有可以上马的人" if e.shift_pressed else "选中的分队里没有骑马的人"), Color("cfd6dc"))
 			KEY_H: _order("fire" if e.shift_pressed else "hold_fire")
 			KEY_R:
 				if _has_control():
@@ -150,6 +163,22 @@ func _has_control() -> bool:
 	return not battle.peaceful and not battle.over and battle.player != null and battle.player.is_player and battle.player.alive()
 
 
+func _custom_groups() -> Array:
+	return battle.orders[battle.player_side].keys().filter(func(k): return str(k).begins_with("g"))
+
+
+## Ctrl+4..9: the selected soldiers within 25 m of you become a custom group.
+func _assign(g: String) -> void:
+	if battle.peaceful or battle.over:
+		return
+	var n: int = battle.assign_group(battle.player_side, selected, g, 25.0)
+	if n == 0:
+		battle.message("你身边 25 米内没有选中分队的人", Color("e0b070"))
+		return
+	selected = [g]
+	battle.message("%d 人编为%s（按 %s 选中）" % [n, Battle.group_name(g), g.substr(1)], Color("cfd6dc"))
+
+
 func _select(groups: Array, add := false) -> void:
 	if battle.peaceful:
 		return
@@ -158,11 +187,10 @@ func _select(groups: Array, add := false) -> void:
 	for g in groups:
 		if g not in selected:
 			selected.append(g)
-	var names := {"inf": "步兵", "arc": "射手", "cav": "骑兵"}
 	var t: Array[String] = []
 	for g in selected:
-		t.append(names[g])
-	battle.message("选中：%s（F1 驻守 F2 跟我来 F3 冲锋 F4 站住 F5 撤退 F6 前进 F7 后退 F8 靠拢 F9 散开）" % "、".join(t), Color("cfd6dc"))
+		t.append(Battle.group_name(g))
+	battle.message("选中：%s（F1 驻守 F2 跟我来 F3 冲锋 F4 站住 F5 撤退 F6 前进 F7 后退 F8 靠拢 F9 散开 · H 停射只用近战 · M 下马 Shift+M 上马 · Ctrl+4~9 编队）" % "、".join(t), Color("cfd6dc"))
 
 
 func _order(kind: String) -> void:

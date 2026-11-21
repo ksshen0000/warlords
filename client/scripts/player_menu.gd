@@ -270,6 +270,7 @@ func _build_char() -> void:
 			b.text = str(p.name)
 			b.focus_mode = Control.FOCUS_NONE
 			b.disabled = str(p.id) == str(menu.get("who", "player"))
+			b.add_theme_color_override("font_disabled_color", GOLD)
 			var pid: String = str(p.id)
 			b.pressed.connect(func(): action.emit("who", {"who": pid}))
 			tabs.add_child(b)

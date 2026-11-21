@@ -263,6 +263,15 @@ func damage_shield(amount: float) -> void:
 		battle.message("你的%s被劈碎了！" % nm, Color("ff8f7a"))
 
 
+## The order group: a custom group (g4..g9, set in battle with Ctrl+number) or the division. Orders and
+## formation slots go by this; the fighting style (BattleAI) still goes by the division.
+var group := ""
+
+
+func order_key() -> String:
+	return group if group != "" else division
+
+
 ## A bow or crossbow (javelins and throwing axes belong to the infantry: a few throws, then the blade).
 func is_archer() -> bool:
 	return ranged.get("kind", "") in ["bow", "crossbow"]
@@ -947,6 +956,7 @@ func hit_horse(dmg: float, from: Agent) -> void:
 	rig.flash(Color(1, 0.3, 0.2))
 	if horse_hp <= 0.0 and mounted:
 		battle.on_horse_killed(self, from)
+		set_meta("lost_horse", true)        # a horseman on foot looks for another mount (BattleAI)
 		dismount()
 		take_hit(10.0, from, true, true)
 

@@ -34,6 +34,11 @@ def _unit(w: World, p: Party) -> Unit:
     tac = _party_tactics(w, p)
     wr = B.battle.wound_rate
     bonus = B.player.battle_bonus if p.kind == "player" else 1.0
+    if p.kind == "player":
+        from .companions import strength
+        base = T.power(p.troops)
+        if base > 0:
+            bonus *= (base + strength(w)) / base           # your companions fight too
     rate = wr.get(p.kind, wr.default)
     rate += (1.0 - rate) * _surgery(w, p)
     return Unit(w.heroes[p.hero].name if p.hero else p.name, p.troops, tac, p.id, p.hero, rate, bonus)
@@ -610,7 +615,6 @@ def hideout_setup(w: World, p: Party, h: Settlement) -> dict:
 
 
 def apply_hideout_result(w: World, setup: dict, result: dict) -> None:
-    rng = w.rng
     p = w.parties.get("player")
     h = w.settlements[setup["hideout"]]
     if p is None:

@@ -412,6 +412,7 @@ func _process(_delta: float) -> void:
 	if _headless:
 		return
 	render_frame += 1
+	_update_markers()
 	var cam := get_viewport().get_camera_3d()
 	var camera_pos := cam.global_position if cam else Vector3.ZERO
 	var view_dir := -cam.global_basis.z if cam else Vector3.ZERO
@@ -600,7 +601,7 @@ func _at_edge(a: Agent) -> bool:
 
 # ------------------------------------------------------------------ orders & formations
 func order_of(a: Agent) -> Dictionary:
-	return orders[a.side].get(a.division, {"type": "charge"})
+	return orders[a.side].get(a.order_key(), {"type": "charge"})
 
 
 func slot_of(a: Agent) -> Vector3:
@@ -611,7 +612,7 @@ func slot_of(a: Agent) -> Vector3:
 
 
 func division_agents(s: int, div: String) -> Array:
-	return agents.filter(func(a): return a.side == s and a.division == div and a.active() and a != player)
+	return agents.filter(func(a): return a.side == s and a.order_key() == div and a.active() and a != player)
 
 
 func centroid(lst: Array) -> Vector3:
@@ -689,11 +690,76 @@ func _wall_slots(lst: Array, div: String) -> void:
 
 ## Player's orders (Warband keys): groups = ["inf", "arc", "cav"] subset; kind = hold / follow / charge /
 ## stand / retreat / advance / fallback / closer / spread
+## "步兵" / "射手" / "骑兵", or "第4队".."第9队" for the custom groups.
+static func group_name(g: String) -> String:
+	return {"inf": "步兵", "arc": "射手", "cav": "骑兵"}.get(g, "第%s队" % g.substr(1))
+
+
+## Ctrl+4..9: the soldiers of the selected groups within `radius` of you become custom group g (Warband's
+## group assignment, here by distance). The group starts with the order its first member had.
+func assign_group(s: int, from_groups: Array, g: String, radius: float) -> int:
+	if player == null:
+		return 0
+	var n := 0
+	var first: Dictionary = {}
+	for a in agents:
+		if a.side != s or not a.active() or a == player or not (a.order_key() in from_groups):
+			continue
+		if a.global_position.distance_to(player.global_position) > radius:
+			continue
+		if first.is_empty():
+			first = order_of(a).duplicate(true)
+		a.group = g
+		n += 1
+	if n > 0:
+		if not orders[s].has(g):
+			orders[s][g] = first if not first.is_empty() else {"type": "follow", "pos": player.global_position,
+				"facing": player.heading, "spacing": rules.num("ai", "spacing", 1.15)}
+		for a in agents:
+			if a.side == s and a.group == g:
+				a.ai["next"] = 0.0
+	return n
+
+
+## M / Shift+M: the selected groups' horsemen get off and fight on foot (their horses wait beside them),
+## or go back to their horses and mount.
+func order_mount(s: int, groups: Array, mount: bool) -> int:
+	var n := 0
+	for a in agents:
+		if a.side != s or not a.active() or a == player or not (a.order_key() in groups):
+			continue
+		if not mount and a.mounted:
+			var rec: Dictionary = a.horse_record()
+			spawn_loose_horse(a, rec, 0.0, a.right() * -1.3)
+			loose_horses.back()["owner"] = a
+			if a.group == "":
+				a.group = "cav"              # still commanded with the cavalry
+			a.dismount()
+			a.set_meta("dismount_order", true)
+			n += 1
+		elif mount and not a.mounted and (a.has_meta("dismount_order") or a.has_meta("lost_horse")):
+			if a.has_meta("dismount_order"):
+				a.remove_meta("dismount_order")
+			a.set_meta("lost_horse", true)          # BattleAI._grab runs to a horse (its own first)
+			a.ai["next"] = 0.0
+			n += 1
+	return n
+
+
+## The riderless horse this agent left when ordered off it (or -1).
+func own_horse(a: Agent) -> int:
+	for i in loose_horses.size():
+		if loose_horses[i].get("owner") == a:
+			return i
+	return -1
+
+
 func command(s: int, groups: Array, kind: String, destination: Variant = null) -> void:
-	var names := {"inf": "步兵", "arc": "射手", "cav": "骑兵"}
 	var who: Array[String] = []
 	for g in groups:
-		who.append(names[g])
+		if not orders[s].has(g):
+			continue
+		who.append(group_name(g))
 		var o: Dictionary = orders[s][g]
 		if kind in ["hold_fire", "fire"]:
 			o["hold_fire"] = kind == "hold_fire"
@@ -1340,6 +1406,16 @@ func _update_loose_horses(dt: float) -> void:
 			p.y = field.height_at(p.x, p.z)
 			h.pos = p
 			h.phase += dt * h.speed * 1.7
+		# a horse takes up room: nobody walks through it
+		for a in agents_near(h.pos, 1.3):
+			if not a.alive() or a.mounted:
+				continue
+			var off: Vector3 = a.global_position - (h.pos as Vector3)
+			off.y = 0.0
+			var dist := off.length()
+			var need: float = 0.75 + a.radius
+			if dist < need and dist > 0.001:
+				a.global_position += off / dist * (need - dist)
 		if h.node:
 			h.node.global_position = h.pos
 			h.node.rotation.y = h.heading
@@ -1371,16 +1447,33 @@ func interact(p: Agent) -> void:
 		return
 	var i := _nearest_loose_horse(p, 3.0)
 	if i >= 0:
-		var h: Dictionary = loose_horses[i]
-		loose_horses.remove_at(i)
-		if h.node:
-			h.node.queue_free()
-		p.global_position = Vector3(h.pos.x, p.global_position.y, h.pos.z)
-		p.heading = h.heading
-		p.mount(h.rec)
-		message("你骑上了%s" % _horse_name(h.rec), Color("cfd6dc"))
+		mount_agent(p, i)
 		return
 	pick_up(p)
+
+
+## Put an agent on the riderless horse loose_horses[i] (you with F, a horseman who lost his own: BattleAI).
+func mount_agent(p: Agent, i: int) -> void:
+	var h: Dictionary = loose_horses[i]
+	loose_horses.remove_at(i)
+	if h.node:
+		h.node.queue_free()
+	p.global_position = Vector3(h.pos.x, p.global_position.y, h.pos.z)
+	p.heading = h.heading
+	p.mount(h.rec)
+	if p.has_meta("lost_horse"):
+		p.remove_meta("lost_horse")
+	if p == player:
+		message("你骑上了%s" % _horse_name(h.rec), Color("cfd6dc"))
+	else:
+		stat("remount")
+
+
+## How good a melee weapon is (for an AI deciding to pick one up).
+static func weapon_value(w: Dictionary) -> float:
+	if w.is_empty() or str(w.get("kind", "")) == "unarmed":
+		return 0.0
+	return maxf(float(w.get("damage", 0)), float(w.get("thrust", 0))) * float(w.get("speed", 1.0)) * (0.8 + 0.2 * float(w.get("reach", 1.2)))
 
 
 func _horse_name(rec: Dictionary) -> String:
@@ -1434,7 +1527,8 @@ func pick_up(p: Agent) -> void:
 		d.node.queue_free()
 	var w: Dictionary = d.weapon
 	if not p.usable(w):
-		message("%s马上用不了" % str(w.get("name", "")), Color("e0b070"))
+		if p == player:
+			message("%s马上用不了" % str(w.get("name", "")), Color("e0b070"))
 		drops.insert(i, d)
 		return
 	var old: Dictionary = p.weapon() if not p.melee.is_empty() else {}
@@ -1446,7 +1540,10 @@ func pick_up(p: Agent) -> void:
 	p.using_ranged = false
 	p.rig.set_weapon(p.weapon())
 	drop_weapon(old, p.global_position)
-	message("你拾起了%s" % str(w.get("name", "兵器")), Color("cfd6dc"))
+	if p == player:
+		message("你拾起了%s" % str(w.get("name", "兵器")), Color("cfd6dc"))
+	else:
+		stat("pickup")
 
 
 ## What F would do right now (the HUD shows it).
@@ -1462,6 +1559,43 @@ func interact_hint(p: Agent) -> String:
 	if w >= 0:
 		return "F 拾起%s" % str(drops[w].weapon.get("name", "兵器"))
 	return ""
+
+
+# ------------------------------------------------------------------ friendly markers (hold Alt)
+const GROUP_COLORS := {"inf": Color("efe6d2"), "arc": Color("8fd36a"), "cav": Color("6fa8ff"), "g4": Color("f2c75c"),
+	"g5": Color("ff9f5a"), "g6": Color("d58cff"), "g7": Color("5ad8d0"), "g8": Color("ff6b8a"), "g9": Color("b8b8b8")}
+var _markers_on := false
+var _markers_test := OS.get_cmdline_user_args().has("--markers")     # tests / screenshots: always shown
+
+
+## Warband's troop banners: while Alt is held, a small marker in the group's colour over every soldier on your side.
+func _update_markers() -> void:
+	var want := (Input.is_key_pressed(KEY_ALT) or _markers_test) and not peaceful and not over
+	if not want and not _markers_on:
+		return
+	_markers_on = want
+	for a in agents:
+		if a.side != player_side or a == player:
+			continue
+		var m: Label3D = a.get_meta("marker") if a.has_meta("marker") else null
+		if not want or not a.active():
+			if m:
+				m.visible = false
+			continue
+		if m == null:
+			m = Label3D.new()
+			m.text = "▼"
+			m.font_size = 40
+			m.pixel_size = 0.0007
+			m.fixed_size = true                       # the same small size near and far
+			m.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			m.no_depth_test = true
+			m.outline_size = 10
+			a.add_child(m)
+			a.set_meta("marker", m)
+		m.position = Vector3(0, 3.1 if a.mounted else 2.35, 0)
+		m.modulate = GROUP_COLORS.get(a.order_key(), Color.WHITE)
+		m.visible = true
 
 
 ## Your hits on enemies by weapon kind: the server turns them into weapon proficiency.

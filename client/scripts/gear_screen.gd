@@ -152,6 +152,7 @@ func _fill_people() -> void:
 		b.text = str(p.name)
 		b.focus_mode = Control.FOCUS_NONE
 		b.disabled = str(p.id) == str(g.get("who", "player"))
+		b.add_theme_color_override("font_disabled_color", GOLD)     # the one shown: highlighted, not greyed
 		var pid: String = str(p.id)
 		b.pressed.connect(func(): request.emit("who", {"who": pid}))
 		_people_row.add_child(b)

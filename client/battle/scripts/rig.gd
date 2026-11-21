@@ -8,8 +8,6 @@ extends Node3D
 ##   - the chest twists, leans and lunges with the swing; a soldier falls away from the blow that dropped him
 ## Procedural animation in the spirit of Veloren's code-driven skeletons (buildup / action / recover stages).
 
-const SKIN := Color("d8b48c")
-const TROUSERS := Color("3b3530")
 const UPPER_ARM := 0.31
 const FOREARM := 0.31
 const THIGH := 0.455
@@ -90,14 +88,6 @@ func _sbox(parent: Node3D, part: String, size: Vector3, pos: Vector3, m: Materia
 	mi.position = pos
 	parent.add_child(mi)
 	return mi
-
-
-## A bone: a pivot whose mesh runs along its local -Z for `length`.
-func _bone(parent: Node3D, length: float, thick: Vector2, c: Color) -> Node3D:
-	var n := Node3D.new()
-	parent.add_child(n)
-	_box(n, Vector3(thick.x, thick.y, length), Vector3(0, 0, -length * 0.5), c)
-	return n
 
 
 func build(a) -> void:

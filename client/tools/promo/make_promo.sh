@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 录制并剪辑宣传片（带合成的背景音乐）。需要 Godot 4.7、Python 3 + Pillow、ffmpeg；配乐另需 numpy + scipy。
 #   client/tools/promo/make_promo.sh [输出.mp4=~/Videos/liuminshuai_promo.mp4]
+#   同时输出竖版（1080×1920，手机用）：<输出>_vertical.mp4，两版共用同一段配乐
 # 流程：Movie Maker 逐帧录三段素材（大地图、野战、攻城）→ compose.py 按 cut.json 剪辑、加字幕和片头片尾 → mp4。
 # 录制时会开一个 1920×1080 的 Godot 窗口，录完自动关闭。AI 战斗每次不完全一样，镜头不理想就重录或改 cut.json 的时间段。
 set -euo pipefail
@@ -40,6 +41,8 @@ post /player/move '{"kind":"place","id":"zhao2"}'          # 出发去长安
 rec map res://tools/promo/promo_map.tscn --server=http://127.0.0.1:$port
 
 python3 "$here/compose.py" "$here/cut.json" "$work" "$work/silent.mp4"
+python3 "$here/compose.py" "$here/cut.json" "$work" "$work/silent_v.mp4" --vertical
+out_v="${out%.mp4}_vertical.mp4"
 
 # 背景音乐（music.py 现场合成，需要 numpy + scipy；MUSIC_PY 可指定装了它们的 python）
 mpy="${MUSIC_PY:-python3}"
@@ -47,10 +50,15 @@ if "$mpy" -c "import numpy, scipy" 2>/dev/null; then
   len=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$work/silent.mp4")
   "$mpy" "$here/music.py" "$work/bgm_raw.wav" "$len" "$here/cut.json"
   ffmpeg -y -loglevel error -i "$work/bgm_raw.wav" -af "highpass=f=32,loudnorm=I=-16:TP=-1.5:LRA=11" -ar 44100 "$work/bgm.wav"
-  ffmpeg -y -loglevel error -i "$work/silent.mp4" -i "$work/bgm.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k \
-    -shortest -movflags +faststart "$out"
+  for pair in "silent.mp4:$out" "silent_v.mp4:$out_v"; do
+    ffmpeg -y -loglevel error -i "$work/${pair%%:*}" -i "$work/bgm.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k \
+      -shortest -movflags +faststart "${pair#*:}"
+  done
 else
   echo "没有 numpy/scipy，输出无配乐版本（pip install numpy scipy 后可加配乐）"
   mv "$work/silent.mp4" "$out"
+  mv "$work/silent_v.mp4" "$out_v"
 fi
+echo "横版：$out"
+echo "竖版：$out_v"
 rm -rf "$work"

@@ -96,6 +96,8 @@ static func _act(a: Agent, b: Battle, dt: float) -> void:
 		tgt = null
 		a.ai["target"] = null
 	a.intent_run = true
+	if _grab(a, b):
+		return
 	var order: Dictionary = b.order_of(a)
 	if a.using_ranged and order.get("hold_fire", false):
 		if a.state in [Agent.AIM, Agent.RELOAD]:
@@ -139,6 +141,55 @@ static func _idle_move(a: Agent, b: Battle) -> void:
 		# charge with nobody in reach: advance towards the enemy army
 		var c: Vector3 = b.enemy_center(a.side)
 		_steer(a, b, c, 1.0)
+
+
+## Out of the fight for a moment: a horseman who lost his horse runs to a riderless one; an archer out of
+## arrows with only a knife picks up a better weapon off the ground. Never with an enemy close by.
+static func _grab(a: Agent, b: Battle) -> bool:
+	if a.routed or a.state != Agent.IDLE or a.is_player:
+		return false
+	if b.frame % 15 == a.rng_seed % 15:
+		a.ai.erase("grab")
+		for e in b.agents_near(a.global_position, 7.0):
+			if e.side != a.side and e.active():
+				return false
+		if not a.mounted and a.has_meta("lost_horse") and not b.loose_horses.is_empty():
+			var i: int = b.own_horse(a)              # ordered to remount: back to his own horse first
+			if i < 0:
+				i = b._nearest_loose_horse(a, 20.0)
+			if i >= 0:
+				a.ai["grab"] = {"horse": true, "pos": b.loose_horses[i].pos}
+		elif a.ranged.is_empty() or a.ammo <= 0:
+			var mine := Battle.weapon_value(a.weapon())
+			var best := -1
+			var best_v := mine * 1.3
+			for k in b.drops.size():
+				var d: Dictionary = b.drops[k]
+				if (d.pos as Vector3).distance_to(a.global_position) < 9.0 and a.usable(d.weapon):
+					var v := Battle.weapon_value(d.weapon)
+					if v > best_v:
+						best_v = v
+						best = k
+			if best >= 0:
+				a.ai["grab"] = {"horse": false, "pos": b.drops[best].pos}
+	var g = a.ai.get("grab")
+	if g == null:
+		return false
+	var to: Vector3 = (g.pos as Vector3) - a.global_position
+	to.y = 0.0
+	if to.length() < 2.0:
+		a.ai.erase("grab")
+		if g.horse:
+			var i: int = b.own_horse(a)
+			if i < 0 or (b.loose_horses[i].pos as Vector3).distance_to(a.global_position) > 2.6:
+				i = b._nearest_loose_horse(a, 2.6)
+			if i >= 0:
+				b.mount_agent(a, i)
+		else:
+			b.pick_up(a)
+		return true
+	_steer(a, b, g.pos, 1.0)
+	return true
 
 
 static func _steer(a: Agent, b: Battle, dest: Vector3, mag: float) -> void:

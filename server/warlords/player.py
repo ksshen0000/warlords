@@ -16,7 +16,7 @@ from . import character as CH
 from . import companions as CO
 from . import gear as G
 from .economy import WORKSHOP
-from .model import BANDIT, PLAYER, Party, World, party_speed
+from .model import PLAYER, Party, World, party_speed
 from .rules import B
 
 PID = "player"
@@ -1219,6 +1219,8 @@ def on_victory(w: World, enemy_losses: int, losers: list[Party]) -> None:
     gain += sum(5 for q in losers if q.kind == "lord")
     w.player["renown"] = round(w.player["renown"] + gain, 1)
     CO.react(w, "victory")
+    if any(q.kind == "bandit" for q in losers):
+        CO.bandit_win(w)
     got = G.loot(w, enemy_losses, losers)
     if got:
         CO.react(w, "loot")

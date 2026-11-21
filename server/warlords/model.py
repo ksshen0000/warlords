@@ -248,6 +248,8 @@ class World:
             bonus += B.battle.tactics_bonus * self.heroes[p.hero].tactics
         elif p.kind == "player":
             bonus = B.player.battle_bonus
+            from .companions import strength
+            return (T.power(p.troops) + strength(self)) * bonus      # the companions count too
         return T.power(p.troops) * bonus
 
     def kingdom_strength(self, kid: str) -> float:

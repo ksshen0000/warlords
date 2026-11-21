@@ -10,7 +10,6 @@ const HOSTILE := Color("ffa49b")
 const PANEL := Color(0.07, 0.085, 0.09, 0.78)
 const RIM := Color(0.72, 0.65, 0.51, 0.36)
 const RETICLE_SHADOW := Color(0.05, 0.06, 0.06, 0.65)
-const GROUP_NAMES := {"inf": "步兵", "arc": "射手", "cav": "骑兵"}
 const STANCE_NAMES := {"hold": "驻守", "follow": "跟随", "charge": "冲锋", "stand": "站住", "retreat": "撤退"}
 
 var battle: Battle
@@ -132,7 +131,7 @@ func _draw() -> void:
 		for g in battle.ctrl.selected:
 			var o: Dictionary = battle.orders[me][g]
 			var stance: String = STANCE_NAMES.get(o.type, o.type)
-			sel.append("%s:%s%s" % [GROUP_NAMES[g], stance, " / 停射" if o.get("hold_fire", false) else ""])
+			sel.append("%s:%s%s" % [Battle.group_name(g), stance, " / 只用近战" if o.get("hold_fire", false) else ""])
 	var orders := "  ".join(sel)
 	var score_w := maxf(_width(strength[0], 17), _width(strength[1], 17)) + 30.0
 	_panel(Rect2(12, 12, score_w, 54))
@@ -319,7 +318,9 @@ func _draw_map(vs: Vector2) -> void:
 		canvas.draw_circle(to_map.call(a.global_position), rad, col)
 	# your divisions' orders
 	var names := {"inf": "步", "arc": "射", "cav": "骑"}
-	for div in names:
+	for div in battle.orders[battle.player_side]:
+		if not names.has(div):
+			names[div] = str(div).substr(1)
 		var o: Dictionary = battle.orders[battle.player_side].get(div, {})
 		if o.is_empty() or o.get("type", "") == "charge":
 			continue
