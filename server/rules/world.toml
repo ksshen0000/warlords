@@ -8,7 +8,7 @@
 [layout]
 villages_per_town = 2
 villages_per_castle = 1
-hideouts = 10            # 匪巢总数（其中一部分开局处于沉寂状态；位置候选见 geography.toml hideouts）
+hideouts = 21            # 匪巢总数（其中一部分开局处于沉寂状态；位置候选见 geography.toml hideouts）
 
 # 国：sites 为该国的城池 [名字, 种类(town 城 / castle 关塞), 经度, 纬度, [附近村落名…]]，第一个是都城；
 #   位置参考真实地理，生成地图时会挪到附近合适的地形上。
@@ -394,7 +394,7 @@ persona = "年轻的射雕手，可汗的养子。崇拜英雄，渴望南下见
 # start：capital 都城 / town 任一城 / village 村落；relation：对出身国将军的初始好感；
 # cultures：只有这些出身可选（省略 = 都可选）；cargo：随身货物 [货物, 数量]
 [backgrounds.refugee]
-equip = ["spear", "knife", "rattan", "hood", "leather"]   # 开局装备（rules/items.toml 的物品，自动放进对应的格）
+equip = ["spear", "knife", "rattan", "hood", "leather", "nag"]   # 开局装备（rules/items.toml 的物品，自动放进对应的格）
 name = "流民帅"
 desc = "家乡毁于战火，你领着一群流亡的乡亲讨生活。人多、钱少、兵弱，但个个能吃苦。"
 gold = 400
@@ -405,7 +405,7 @@ pedigree = "low"
 start = "village"
 
 [backgrounds.lowborn]
-equip = ["sword", "round", "bow", "leather_cap", "liangdang"]
+equip = ["sword", "round", "bow", "leather_cap", "liangdang", "nag"]
 name = "寒门武人"
 desc = "你出身寒微，在边军里摸爬滚打多年，如今带着一队老兄弟出来闯荡。"
 gold = 1500

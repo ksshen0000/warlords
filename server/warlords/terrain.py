@@ -22,7 +22,7 @@ RW, RH = W // RC, H // RC   # 480 x 320 render grid
 NC = 8                      # navigation cell size
 NW, NH = W // NC, H // NC   # 240 x 160 nav grid
 INF = float("inf")
-CACHE_VERSION = 13  # bump whenever generation (geography, sites, kingdoms) changes
+CACHE_VERSION = 14  # bump whenever generation (geography, sites, kingdoms) changes
 
 _N8 = [(-1, 0, 1.0), (1, 0, 1.0), (0, -1, 1.0), (0, 1, 1.0),
        (-1, -1, 1.4142), (1, -1, 1.4142), (-1, 1, 1.4142), (1, 1, 1.4142)]
@@ -702,12 +702,17 @@ def _place_sites(t: Terrain, rng: random.Random) -> None:
         return all(math.dist((x, y), h[1]) > 60 for h in hideouts)
 
     hideouts = []    # (bandit type, pos, name)
-    for name, lon, lat in D.GEO.get("hideouts", []):
+    for entry in D.GEO.get("hideouts", []):
+        name, lon, lat = entry[0], entry[1], entry[2]
         p = nudge(*geo(lon, lat), lair_ok, reach=40.0)
         if p is None:
             continue
-        b = t.biome_at(*p)
-        btype = next((k for k, v in D.BANDIT_TYPES.items() if b in v[2]), None) or next(iter(D.BANDIT_TYPES))
+        # the bandit type is the hideout's own (geography.toml), so horse bandits stay on the steppe;
+        # an entry without one falls back to the terrain under it
+        btype = entry[3] if len(entry) > 3 and entry[3] in D.BANDIT_TYPES else None
+        if btype is None:
+            b = t.biome_at(*p)
+            btype = next((k for k, v in D.BANDIT_TYPES.items() if b in v[2]), None) or next(iter(D.BANDIT_TYPES))
         hideouts.append((btype, p, name))
 
     t.sites = {"fortified": fortified, "villages": villages, "hideouts": hideouts}

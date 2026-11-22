@@ -143,6 +143,13 @@ def resolve(rng: random.Random, attackers: list[Unit], defenders: list[Unit],
         if a_break and d_break:
             res.winner = "attacker" if ratio > 1 else "defender"
             break
+    else:
+        # nobody broke within the rounds: the side left stronger holds the field (the defender has the
+        # edge in a close call). It used to always go to the defender, so attacking anything your size
+        # was a lost cause whatever the odds.
+        sa = sum(T.power(u.roster) for u in attackers)
+        sd = sum(T.power(u.roster) for u in defenders) * defender_bonus
+        res.winner = "attacker" if sa > sd * B.battle.get("timeout_defender_edge", 1.1) else "defender"
     for u in attackers + defenders:
         T.prune(u.roster)
     return res

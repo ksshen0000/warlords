@@ -26,6 +26,8 @@ const TRAITS := {"aggression": "好战", "caution": "谨慎", "honor": "荣誉",
 const MINOR := ["order", "recruit", "speech", "release", "siege_end", "flee", "prisoners_sold",
 	"desertion", "raid_start", "caravan_founded", "brain_error", "hideout_new", "decision_opened", "refugees"]
 const REPORT_TYPES := ["battle", "conquest", "assault_failed", "hideout_cleared"]
+# never shown to the player: what a lord decided and why, and the AI's own error notes
+const SECRET := ["order", "brain_error"]
 # news that reaches you from anywhere (a city changing hands, wars, peace, a realm falling…);
 # everything else is only recorded when it happens within sight or concerns your own realm
 const NEWS := ["war", "peace", "conquest", "rebellion", "kingdom_destroyed", "defection", "succession", "execution",
@@ -81,6 +83,15 @@ var time_label: Label
 var clock_label: Label
 var status_label: Label
 var toast_label: Label
+var feed_box: VBoxContainer
+const FEED_MAX := 7
+const FEED_LIFE := 8.0
+# what reaches the map feed: your own affairs and the big news (the chronicle keeps everything)
+const FEED_TYPES := ["war", "peace", "conquest", "rebellion", "kingdom_destroyed", "succession", "execution",
+	"player", "player_war", "player_defeated", "ransom", "fief_granted", "quest_done", "quest_failed", "level",
+	"companion", "loot", "defection"]
+const LOG_KEEP := 300                 # lines shown in the chronicle (the newest)
+var _log_shown := 0
 var speed_opt: OptionButton
 var seed_box: SpinBox
 var tier_opt: OptionButton
@@ -248,6 +259,15 @@ func _build_ui() -> void:
 	toast_label = _label("", 15, Color("9ff0b0"))
 	toast_label.position = Vector2(14, 34)
 	map_holder.add_child(toast_label)
+	# Warband's message feed: the few things that matter to you scroll up in the corner and fade
+	feed_box = VBoxContainer.new()
+	feed_box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	feed_box.offset_left = 14
+	feed_box.offset_bottom = -30
+	feed_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	feed_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	feed_box.add_theme_constant_override("separation", 2)
+	map_holder.add_child(feed_box)
 
 	var menu_anchor := CenterContainer.new()
 	menu_anchor.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -339,7 +359,7 @@ func _build_ui() -> void:
 	row.add_child(fol)
 	var minor := CheckBox.new()
 	minor.text = "琐事"
-	minor.tooltip_text = "编年史显示全部：视野外的战斗、各国朝议，以及命令、招募、台词等琐事（不勾选时只记你听得到的消息）"
+	minor.tooltip_text = "编年史里加上你身边的琐事：招募、劫掠开始、流民、逃兵、将军的台词等（只记你看得到、听得到的）"
 	minor.toggled.connect(func(on): show_minor = on; _render_log())
 	row.add_child(minor)
 	var terr := CheckBox.new()
@@ -605,6 +625,12 @@ func _process(delta: float) -> void:
 		toast_left -= delta
 		if toast_left <= 0:
 			toast_label.text = ""
+	for l in feed_box.get_children():
+		var left: float = float(l.get_meta("left", 0.0)) - delta
+		l.set_meta("left", left)
+		l.modulate.a = clampf(left / 1.5, 0.0, 1.0)
+		if left <= 0.0:
+			l.queue_free()
 	if not connected:
 		retry_left -= delta
 		if retry_left <= 0.0 and not api.pending():
@@ -714,6 +740,10 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 	var seed := int(data.get("seed", 0))
 	if kind == "reset" or kind == "load" or (kind == "state" and state.is_empty()):
 		log_lines.clear()
+		log_text.clear()
+		_log_shown = 0
+		for l in feed_box.get_children():
+			l.queue_free()
 		report_events.clear()
 		map.speeches.clear()
 		map.effects.clear()
@@ -742,14 +772,9 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 	ai_info = data.get("ai", {})
 	goods = state.get("goods", {})
 	_fill_tiers()
-	var to_open = null
 	for ev in data.get("events", []):
-		_handle_event(ev)
-		if ev.has("_rid") and ev.get("player", false):
-			to_open = ev
+		_handle_event(ev)            # battle reports open from the chronicle's 〔战报〕 link, not by themselves
 	map.set_state(state, float(SPEEDS[speed_idx][1]) * 0.95)
-	if to_open != null:
-		report_popup.open(to_open, state)
 	if kind == "step" and auto_steps > 0:
 		auto_steps -= 1
 	if player.get("menu") != null and str(player.menu.get("type", "")) == "battle":
@@ -913,22 +938,44 @@ func _handle_event(ev: Dictionary) -> void:
 				map.add_effect("battle", wp, Color("d9b44a"))
 	if t == "siege_start" and ev.has("settlement"):
 		map.add_effect("siege", map.settlement_pos(ev.settlement), Color("e5534b"))
-	if t == "speech" and ev.has("hero"):
+	ev["_known"] = _heard_of(ev)
+	if t == "speech" and ev.has("hero") and _speaker_in_sight(str(ev.hero)):
 		var txt: String = ev.text
 		var i := txt.find("「")
 		map.say(ev.hero, txt.substr(i + 1).trim_suffix("」") if i >= 0 else txt)
-	if ev.get("player", false) and t in ["player", "player_war", "player_defeated", "ransom", "fief_granted", "quest_done", "quest_failed"]:
-		_toast(str(ev.text))
+	if t in FEED_TYPES and (ev.get("player", false) or t in NEWS) and ev.get("_known", true):
+		_feed(ev)
 	if t in REPORT_TYPES and ev.has("report"):
 		_report_seq += 1
 		ev["_rid"] = _report_seq
 		report_events[_report_seq] = ev
 		if report_events.size() > 400:
 			report_events.erase(report_events.keys()[0])
-	ev["_known"] = _heard_of(ev)
 	log_lines.append(ev)
 	if log_lines.size() > 800:
 		log_lines = log_lines.slice(log_lines.size() - 800)
+	_append_log(ev)
+
+
+## One line in the map feed (newest at the bottom), fading after FEED_LIFE seconds.
+func _feed(ev: Dictionary) -> void:
+	var l := Label.new()
+	l.text = str(ev.text)
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Color("#" + str(EVENT_COLORS.get(str(ev.type), "cfd8dc"))))
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	l.add_theme_constant_override("outline_size", 4)
+	l.set_meta("left", FEED_LIFE)
+	feed_box.add_child(l)
+	while feed_box.get_child_count() > FEED_MAX:
+		var old := feed_box.get_child(0)
+		feed_box.remove_child(old)
+		old.queue_free()
+
+
+func _speaker_in_sight(hid: String) -> bool:
+	var h = state.get("heroes", {}).get(hid)
+	return h != null and h.get("party") != null and map.party_known(str(h.party))
 
 
 # -------------------------------------------------------------- render
@@ -936,7 +983,6 @@ func _refresh_all() -> void:
 	var hour := int(state.hour) % 24
 	time_label.text = "第 %d 天 %02d时" % [int(state.day), hour]
 	_refresh_tabs()
-	_render_log()
 
 
 func _refresh_tabs() -> void:
@@ -1019,9 +1065,7 @@ func _target_text(order) -> String:
 			txt += " " + (_hero_link(q.hero) if q.hero != null else _esc(q.name))
 		elif state.heroes.has(tgt):
 			txt += " " + _hero_link(tgt)
-	if str(o.get("reason", "")) != "":
-		txt += " [color=#8c9a94]——%s[/color]" % _esc(o.reason)
-	return txt
+	return txt                       # what a party is doing, never why (that is in the lord's head)
 
 
 func _refresh_details() -> void:
@@ -1054,15 +1098,11 @@ func _hero_details(hid: String) -> String:
 	var kd: Dictionary = state.kingdoms[h.kingdom]
 	var out := "[b][font_size=19]%s[/font_size][/b]  %s%s\n" % [_esc(h.name), _kingdom_link(h.kingdom),
 		"  [color=#f2c75c]君主[/color]" if kd.ruler == hid else ""]
-	out += "[color=#8c9a94]%s[/color]\n" % _esc(h.persona)
-	var tr: Array[String] = []
-	for t in TRAITS:
-		tr.append("%s%+d" % [TRAITS[t], int(h.traits[t])])
-	out += "性格：%s · 统御 %d\n" % ["  ".join(tr), int(h.tactics)]
-	out += "金币 %d · 影响力 %d · 名望 %d" % [int(h.gold), int(h.influence), int(h.renown)]
-	if kd.ruler != hid:
-		out += " · 对君主好感 %+d" % int(h.relations.get(kd.ruler, 0))
-	out += "\n"
+	# like Warband's encyclopedia: what anyone could know. His character only once you have dealt with him;
+	# never his purse, his standing with his lord, his memories or why he does what he does.
+	var met: bool = hid in player.get("met", [])
+	out += ("[color=#8c9a94]%s[/color]\n" % _esc(h.persona)) if met else "[color=#8c9a94]（还没打过交道，不知其为人）[/color]\n"
+	out += "名望 %d · 对你好感 %+d\n" % [int(h.renown), int(player.get("relations", {}).get(hid, 0))]
 	if str(h.captive_of) == "__dead":
 		out += "[color=#ff8f8f]已被斩首[/color]\n"
 	elif h.captive_of != null:
@@ -1085,7 +1125,7 @@ func _hero_details(hid: String) -> String:
 		if int(p.prisoners) > 0:
 			out += "押送俘虏 %d 人\n" % int(p.prisoners)
 		out += _troop_table(p.troops)
-	if str(h.last_speech) != "":
+	if met and str(h.last_speech) != "":
 		out += "[i]「%s」[/i]\n" % _esc(h.last_speech)
 	var fiefs: Array[String] = []
 	for sid in state.settlements:
@@ -1095,20 +1135,6 @@ func _hero_details(hid: String) -> String:
 	out += "封地：%s\n" % ("、".join(fiefs) if fiefs.size() else "无")
 	if h.caravans.size():
 		out += "商队：%d 支\n" % h.caravans.size()
-	var rels: Array = []
-	for o in h.relations:
-		if state.heroes.has(o) and int(h.relations[o]) != 0:
-			rels.append([int(h.relations[o]), o])
-	rels.sort_custom(func(a, b): return abs(a[0]) > abs(b[0]))
-	if rels.size():
-		var parts: Array[String] = []
-		for r in rels.slice(0, 6):
-			parts.append("%s [color=#%s]%+d[/color]" % [_hero_link(r[1]), "8fd3a0" if r[0] > 0 else "ff8f8f", r[0]])
-		out += "人际：%s\n" % "  ".join(parts)
-	if h.memory.size():
-		out += "[color=#8c9a94]记忆：[/color]\n"
-		for m in h.memory:
-			out += "[color=#b8c4bf]  · %s[/color]\n" % _esc(m)
 	return out
 
 
@@ -1344,7 +1370,7 @@ func _realms() -> String:
 			continue
 		var wars: Array[String] = []
 		for e in k.wars:
-			wars.append("%s(%+d)" % [_kingdom_link(e), int(k.wars[e].score)])
+			wars.append(_kingdom_link(e))
 		out += "[color=#%s]■[/color] [b]%s[/b]  [color=#8c9a94]君主[/color] %s  [color=#8c9a94]城池 %d · 实力 %d[/color]\n" % [
 			_fcol(kid), _kingdom_link(kid), _hero_link(k.ruler), int(k.fiefs), int(k.strength)]
 		out += "    交战：%s\n" % ("、".join(wars) if wars.size() else "[color=#8fd3a0]和平[/color]")
@@ -1362,9 +1388,13 @@ func _realms() -> String:
 
 
 func _council() -> String:
-	var ds: Array = state.decisions.values()
+	# only your own realm's council: what other courts debate, and why anyone votes as he does, is not yours to know
+	var mine = player.get("kingdom")
+	if mine == null:
+		return "[color=#8c9a94]你不是任何一国的臣子，朝议的内情无从得知。各国宣战、议和、分封的结果会作为消息传到你耳中。[/color]"
+	var ds: Array = state.decisions.values().filter(func(d): return d.kingdom == mine)
 	if ds.is_empty():
-		return "[color=#8c9a94]各国朝议暂无议题。将军们会定期建言宣战或议和，新攻下的城池会交由朝议推举分封。[/color]"
+		return "[color=#8c9a94]本国朝议暂无议题。将军们会定期建言宣战或议和，新攻下的城池会交由朝议推举分封。[/color]"
 	ds.sort_custom(func(a, b): return int(a.created) > int(b.created))
 	var out := ""
 	var kinds := {"war": "宣战", "peace": "议和", "fief": "分封"}
@@ -1385,8 +1415,7 @@ func _council() -> String:
 			labels[o.id] = str(o.label).split("（")[0]
 		for hid in d.votes:
 			var v: Dictionary = d.votes[hid]
-			out += "  %s → %s [color=#8c9a94](权重%.1f)%s[/color]\n" % [_hero_link(hid), _esc(labels.get(v.option, v.option)),
-				float(v.weight), ("——" + _esc(v.reason)) if str(v.get("reason", "")) != "" else ""]
+			out += "  %s → %s\n" % [_hero_link(hid), _esc(labels.get(v.option, v.option))]
 		if d.resolved and d.result != null:
 			out += "  [color=#8fc6ff]裁决：%s[/color]%s\n" % [_esc(labels.get(d.result, d.result)), ""]
 		elif not d.resolved:
@@ -1421,27 +1450,52 @@ func _heard_of(ev: Dictionary) -> bool:
 	return map.sees(Vector2(pos[0], pos[1]))
 
 
+## The chronicle is appended line by line as events arrive (re-parsing hundreds of lines every time step
+## made the map stutter); it is rebuilt from scratch only when the 琐事 filter changes or it grows too long.
+func _append_log(ev: Dictionary) -> void:
+	var line := _log_line(ev)
+	if line == "":
+		return
+	_log_shown += 1
+	if _log_shown > LOG_KEEP + 100:
+		_render_log()
+		return
+	log_text.append_text(line)
+
+
+func _log_line(ev: Dictionary) -> String:
+	var t: String = ev.type
+	if t in SECRET or not ev.get("_known", true):
+		return ""                       # a lord's private decisions; things beyond the reach of your scouts
+	if t in MINOR and not show_minor:
+		return ""
+	var c: String = EVENT_COLORS.get(t, "cfd8dc")
+	var text := _esc(ev.text)
+	if t == "speech":
+		text = "[i]%s[/i]" % text
+	var pos = ev.get("pos")
+	if pos == null and ev.has("settlement") and state.get("settlements", {}).has(ev.settlement):
+		pos = state.settlements[ev.settlement].pos
+	if pos != null:
+		text = "[url=goto:%d,%d][color=#%s]%s[/color][/url]" % [int(pos[0]), int(pos[1]), c, text]
+	else:
+		text = "[color=#%s]%s[/color]" % [c, text]
+	if ev.has("_rid") and report_events.has(ev._rid):
+		text += " [url=report:%d][color=#f2c75c]〔战报〕[/color][/url]" % int(ev._rid)
+	return "[color=#5f6f69]%d日%02d时[/color] %s\n" % [int(ev.day), int(ev.hour) % 24, text]
+
+
 func _render_log() -> void:
-	var out := ""
-	for ev in log_lines:
-		var t: String = ev.type
-		if (t in MINOR or not ev.get("_known", true)) and not show_minor:
-			continue
-		var c: String = EVENT_COLORS.get(t, "cfd8dc")
-		var text := _esc(ev.text)
-		if t == "speech":
-			text = "[i]%s[/i]" % text
-		var pos = ev.get("pos")
-		if pos == null and ev.has("settlement") and state.settlements.has(ev.settlement):
-			pos = state.settlements[ev.settlement].pos
-		if pos != null:
-			text = "[url=goto:%d,%d][color=#%s]%s[/color][/url]" % [int(pos[0]), int(pos[1]), c, text]
-		else:
-			text = "[color=#%s]%s[/color]" % [c, text]
-		if ev.has("_rid") and report_events.has(ev._rid):
-			text += " [url=report:%d][color=#f2c75c]〔战报〕[/color][/url]" % int(ev._rid)
-		out += "[color=#5f6f69]%d日%02d时[/color] %s\n" % [int(ev.day), int(ev.hour) % 24, text]
-	log_text.text = out
+	var lines: Array[String] = []
+	for i in range(log_lines.size() - 1, -1, -1):
+		var line := _log_line(log_lines[i])
+		if line != "":
+			lines.append(line)
+			if lines.size() >= LOG_KEEP:
+				break
+	lines.reverse()
+	_log_shown = lines.size()
+	log_text.text = "".join(lines)
 
 
 func _on_meta(meta) -> void:

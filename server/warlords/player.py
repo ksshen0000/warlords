@@ -1672,6 +1672,7 @@ def view(w: World) -> dict:
         "busy": p.mode in ("siege", "raid"), "mode": p.mode,
         "classes": {CLASS_NAMES[k]: v for k, v in T.class_counts(p.troops).items()},
         "companions": CO.view(w),
+        "met": sorted(w.player.get("chats", {}).keys()),       # lords you have talked to: you know what they are like
         "char": ({"level": w.player["char"]["level"], "xp": w.player["char"]["xp"],
                   "next_xp": CH.xp_need(w.player["char"]["level"] + 1), "points": dict(w.player["char"]["points"])}
                  if w.player.get("char") else None),
