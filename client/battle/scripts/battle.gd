@@ -475,6 +475,8 @@ func _resolve_overlaps() -> void:
 	var works := field.has_works()
 	for a in _tick_agents:
 		a.overlap_pos = a.position
+		if a.mounted:
+			a.axis_f = Vector3(-sin(a.heading), 0.0, -cos(a.heading))
 	for a in _tick_agents:
 		if not a.alive():
 			continue
@@ -494,9 +496,24 @@ func _resolve_overlaps() -> void:
 					var d := other_pos - pa
 					d.y = 0.0
 					var need := radius + o.radius
+					if a.mounted or o.mounted:
+						# a horse is long, not round: push from the nearest point of its body (head to rump)
+						var ca := pa
+						var co := other_pos
+						if a.mounted:
+							ca = _on_horse_axis(a, pa, co)
+						if o.mounted:
+							co = _on_horse_axis(o, other_pos, ca)
+						if a.mounted:
+							ca = _on_horse_axis(a, pa, co)
+						d = co - ca
+						d.y = 0.0
+						need = (HORSE_HALF_W if a.mounted else radius) + (HORSE_HALF_W if o.mounted else o.radius)
 					var l2 := d.length_squared()
 					if l2 >= need * need or l2 < 1e-8:
 						continue
+					if (a.mounted and o.state == Agent.DOWN) or (o.mounted and a.state == Agent.DOWN):
+						continue          # a man knocked flat is ridden over, not shoved along by the horse
 					var l := sqrt(l2)
 					var push := d / l * (need - l)
 					var wa: float = 0.15 if a.mounted and not o.mounted else (0.85 if o.mounted and not a.mounted else 0.5)
@@ -524,6 +541,19 @@ func _resolve_overlaps() -> void:
 	for a in _tick_agents:
 		if a.position != a.overlap_pos:
 			a.position = a.overlap_pos
+
+
+const HORSE_HALF_W := 0.32          # half the width of a horse's body
+# the body axis, minus HORSE_HALF_W at each end: the head and neck reach ~1.3 m in front of the
+# centre, the rump ~0.85 m behind, so the axis is not centred
+const HORSE_FRONT := 0.98
+const HORSE_BACK := 0.53
+
+
+## The point of a rider's horse axis (through `center`, along his heading) nearest to `p`.
+func _on_horse_axis(a: Agent, center: Vector3, p: Vector3) -> Vector3:
+	var t := clampf((p - center).dot(a.axis_f), -HORSE_BACK, HORSE_FRONT)
+	return center + a.axis_f * t
 
 
 func agents_near(p: Vector3, r: float) -> Array:
@@ -1153,6 +1183,8 @@ func melee_hit(att: Agent, tgt: Agent, point: Vector3, part: String, thrust: boo
 	raw *= att.damage_mult()
 	_count_hit(att, att.prof_kind())
 	_apply(att, tgt, raw, dtype, part, point, early)
+	if att.state == Agent.STRIKE:
+		att._set_state(Agent.RECOVER, att.recover_time())    # the blade stops in him (Warband), not through him
 
 
 func couch_hit(att: Agent, tgt: Agent, point: Vector3, part: String) -> void:
@@ -1168,8 +1200,11 @@ func bump(att: Agent, tgt: Agent) -> void:
 	var H := "horse"
 	var raw := rules.num(H, "bump_damage", 6) * att.speed / rules.num(H, "bump_speed", 5.5)
 	stat("bump")
+	# Warband: a horse at the gallop bowls a footman over; only a slow one may fail to (bump_knock)
+	var full := rules.num(H, "bump_knock_speed", 6.0)
+	var p_knock := lerpf(rules.num(H, "bump_knock", 0.45), 1.0, clampf((att.speed - rules.num(H, "bump_speed", 5.5)) / maxf(0.1, full - rules.num(H, "bump_speed", 5.5)), 0.0, 1.0))
 	att.speed *= rules.num(H, "bump_slow", 0.45)
-	_apply(att, tgt, raw, "blunt", "body", tgt.chest(), false, randf() < rules.num(H, "bump_knock", 0.45))
+	_apply(att, tgt, raw, "blunt", "body", tgt.chest(), false, randf() < p_knock)
 
 
 func kick(att: Agent) -> void:

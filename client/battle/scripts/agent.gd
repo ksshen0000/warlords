@@ -143,6 +143,8 @@ func _check_mounted_kit() -> void:
 
 func _apply_shape() -> void:
 	radius = rules.num("horse", "radius", 0.55) if mounted else rules.num("human", "radius", 0.32)
+	if not mounted and not shield.is_empty():
+		radius += 0.06 * float(shield.get("size", 0.55)) / 0.55     # a shield on the arm takes room
 
 
 # ------------------------------------------------------------------ queries
@@ -266,6 +268,7 @@ func damage_shield(amount: float) -> void:
 ## The order group: a custom group (g4..g9, set in battle with Ctrl+number) or the division. Orders and
 ## formation slots go by this; the fighting style (BattleAI) still goes by the division.
 var group := ""
+var axis_f := Vector3.FORWARD         # the horse's heading this tick (Battle._resolve_overlaps)
 
 
 func order_key() -> String:
@@ -731,7 +734,7 @@ const SWING_BODY := [
 	[-0.45, 0.2, -0.06, 0.25, 0.32],    # thrust: shoulder back, then a lunge
 ]
 const PELVIS_Y := 0.92
-const FALL_TIME := 0.42
+const FALL_TIME := 0.6            # the topple when knocked out (was 0.42: too quick to follow)
 var fall_dir := Vector3(0, 0, 1)        # direction the body topples (own frame), set when hit
 
 
@@ -921,12 +924,16 @@ func _horse_contacts() -> void:
 			battle.couch_hit(self, hit[0], hit[1], hit[2])
 	if speed < rules.num("horse", "bump_speed", 5.5):
 		return
-	for o in battle.agents_near(global_position, 1.8):
+	# whoever is in front of the horse's chest (the overlap pass keeps men just clear of its head)
+	var f := forward()
+	var rt := right()
+	for o in battle.agents_near(global_position, 2.4):
 		if o == self or not o.alive() or o.mounted or o.state == DOWN or o.side == side:
 			continue
 		var d: Vector3 = o.global_position - global_position
 		d.y = 0
-		if d.length() < 1.3 and d.normalized().dot(forward()) > 0.4 and t > float(_bump_cd.get(o.get_instance_id(), 0.0)):
+		var along := d.dot(f)
+		if along > 0.3 and along < 1.95 and absf(d.dot(rt)) < 0.75 and t > float(_bump_cd.get(o.get_instance_id(), 0.0)):
 			_bump_cd[o.get_instance_id()] = t + 1.2
 			battle.bump(self, o)
 
