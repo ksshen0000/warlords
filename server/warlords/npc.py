@@ -118,7 +118,7 @@ def bandit(w: World, p: Party) -> None:
         return
     if p.mode in ("idle", "chase", "flee") or not p.target or M.arrived(w, p):
         home = w.settlements.get(p.home)
-        center = home.pos if home and home.active else p.pos
+        center = home.pos if home and home.active else p.memo.get("roam", p.pos)   # looters roam round a village
         if p.mode == "move" and M.arrived(w, p):
             p.mode = "idle"
             p.timer = w.rng.randint(2, 8)

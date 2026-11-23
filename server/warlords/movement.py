@@ -5,6 +5,8 @@ import math
 
 from .model import Party, World, party_speed
 from .terrain import NC
+from . import troops as T
+from .rules import B
 
 ARRIVE = 3.0       # distance at which a place counts as reached
 CONTACT = 4.5      # distance at which two parties engage
@@ -79,12 +81,53 @@ def _goal(w: World, p: Party, look: int = 4):
         return None
     if math.hypot(tp[0] - x, tp[1] - y) < 160 and tr.line_passable(x, y, tp[0], tp[1]):
         return tp
+    if p.kind == "player" and t["kind"] == "point":
+        return _path_goal(w, p, tp, look)
     # route via the flow field of the place nearest the target
     key = (round(tp[0] / 40), round(tp[1] / 40))
     if p.memo.get("route_key") != key:
         p.memo["route_key"] = key
         p.memo["route_place"] = _nearest_place(w, tp)
     return tr.waypoint(p.memo["route_place"], x, y, look)
+
+
+def _path_goal(w: World, p: Party, tp, look: int):
+    """Your click on open ground: a real path to that very spot (A* on the nav grid: roads, ferries,
+    round the mountains), not the way to whichever town is nearest to it. Heads for the farthest path
+    point in plain sight."""
+    from .terrain import _astar
+    tr = w.terrain
+    x, y = p.pos
+    key = [round(tp[0], 1), round(tp[1], 1)]
+    if p.memo.get("path_to") != key:
+        p.memo["path_to"] = key
+        cells = _astar(tr, tr.ncell(x, y), tr.ncell(tp[0], tp[1]))
+        p.memo["path"] = [list(tr.ncenter(c)) for c in cells[1:]]
+    path = p.memo.get("path") or []
+    if path:                                  # drop what is behind us: up to the nearest path point
+        k = min(range(min(len(path), 40)), key=lambda i: (path[i][0] - x) ** 2 + (path[i][1] - y) ** 2)
+        if math.hypot(path[k][0] - x, path[k][1] - y) < 6.0:
+            k += 1
+        del path[:k]
+    if not path:
+        return tp
+    best = path[0]
+    for q in path[1:look * 3]:
+        if tr.line_passable(x, y, q[0], q[1]):
+            best = q
+        else:
+            break
+    return tuple(best)
+
+
+def ferry_hours(p: Party) -> float:
+    """Hours to ferry a party over a great river: the boats carry so many men an hour, a horse
+    takes the room of two (balance.toml [movement] ferry_*)."""
+    m = B.movement
+    men = T.healthy(p.troops) + T.wounded(p.troops) + 1
+    cav = T.class_counts(p.troops).get("cav", 0)
+    load = men + (float(m.ferry_cav_weight) - 1.0) * cav
+    return min(float(m.ferry_max_hours), float(m.ferry_base_hours) + load / float(m.ferry_men_per_hour))
 
 
 def move(w: World, p: Party, hours: float = 1.0) -> None:
@@ -133,6 +176,31 @@ def move(w: World, p: Party, hours: float = 1.0) -> None:
                     nx, ny = tr.nearest_passable(nx, ny, 2)
                     if not tr.passable(nx, ny):
                         break
+        here = tr.ferry[tr.ncell(p.pos[0], p.pos[1])]
+        fid = tr.ferry[tr.ncell(nx, ny)]
+        if fid and fid != here and p.memo.get("ferried") != fid:
+            # at the landing of a great river's ferry: wait for the boats before crossing
+            need = p.memo.get("ferry_wait")
+            if need is None or p.memo.get("ferry_at") != fid:
+                need = ferry_hours(p)
+                p.memo["ferry_at"] = fid
+                if p.kind == "player":
+                    name = tr.fords[fid - 1][2] or "渡口"
+                    w.log("player", f"你在{name}等船渡河，人马要分批摆渡，约需 {need:.0f} 小时", player=True)
+            use = min(left, need)
+            left -= use
+            need -= use
+            if need > 1e-4:
+                p.memo["ferry_wait"] = need
+                break
+            p.memo.pop("ferry_wait", None)
+            p.memo["ferried"] = fid
+            continue
+        if not fid and not here:
+            p.memo.pop("ferry_wait", None)
+            done = p.memo.get("ferried")
+            if done and math.hypot(tr.fords[done - 1][0] - nx, tr.fords[done - 1][1] - ny) > 40:
+                p.memo.pop("ferried", None)     # well clear of that landing (not just wandering along the bank)
         p.pos[0], p.pos[1] = nx, ny
         left -= step / sp
 

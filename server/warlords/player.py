@@ -333,13 +333,20 @@ def menu(w: World) -> dict | None:
     if kind == "settlement":
         return _settlement_menu(w, p, w.settlements[pend["id"]])
     if kind in G.GEAR_MENUS:
-        return G.menu(w, pend, p.gold)
+        m = G.menu(w, pend, p.gold)
+        if "gear" in m:                     # Warband's inventory holds the trade goods too
+            m["gear"]["cargo"] = [{"id": g, "name": GOODS[g][0], "n": int(n), "price": GOODS[g][1]}
+                                  for g, n in p.cargo.items() if n > 0 and g in GOODS]
+            m["gear"]["cargo_cap"] = cargo_cap(p)
+        return m
     if kind == "character":
         return CH.menu(w, pend)
     if kind == "companion":
         return CO.menu(w, pend)
     if kind == "training":
         return _training_menu(p, pend)
+    if kind == "party":
+        return _party_menu(w, p, pend)
     if kind == "walk":
         from . import walk as WK
         st = w.settlements[pend["id"]]
@@ -642,6 +649,9 @@ def _settlement_menu(w: World, p: Party, s) -> dict:
         m["market"] = {g: {"name": GOODS[g][0], "stock": int(s.market.get(g, 0)), "price": w.price(s, g),
                            "carry": int(p.cargo.get(g, 0))} for g in GOODS}
         m["cargo_cap"] = cargo_cap(p)
+        m["gold"] = int(p.gold)
+        m["min_stock"] = __import__("warlords.economy", fromlist=["MIN_STOCK"]).MIN_STOCK
+        m["trade_disc"] = max(0.5, 1.0 - CH.personal(w, "trade"))
         opts.append(_opt("trade", "去市集交易"))
         opts.append(_opt("smith", "去兵器铺（买卖兵器、甲胄、马匹）"))
     here = [w.heroes[q.hero] for q in w.parties.values()
@@ -772,10 +782,11 @@ def act(w: World, action: str, data: dict) -> dict:
             return {"ok": False, "message": "现在不能查看角色"}
         w.player["pending"] = {"type": "character", "who": str(data.get("who", "player")), "back": pend}
         return {"ok": True}
-    if action == "training":
+    if action in ("training", "party"):
+        # the party screen (P, Warband's 部队): your men, their upgrades, prisoners; time stops meanwhile
         if p is None or captive(w) or (pend and pend["type"] != "settlement"):
-            return {"ok": False, "message": "现在不能整训部队"}
-        w.player["pending"] = {"type": "training", "back": pend}
+            return {"ok": False, "message": "现在不能查看部队"}
+        w.player["pending"] = {"type": "party", "back": pend}
         return {"ok": True}
     if not pend:
         return {"ok": False, "message": "当前没有打开的菜单"}
@@ -786,6 +797,47 @@ def act(w: World, action: str, data: dict) -> dict:
     if pend["type"] == "companion":
         return CO.act(w, pend, action, data)
     m = menu(w)
+    if pend["type"] == "party":
+        if action == "back":
+            w.player["pending"] = pend.get("back")
+            return {"ok": True}
+        if action == "party_select":
+            if data.get("choice") in p.troops:
+                pend["troop"] = data["choice"]
+            return {"ok": True}
+        if action == "promote":
+            source = pend.get("troop")
+            target, count = str(data.get("choice", "")).split(":")
+            unit = TROOPS.get(source or "")
+            if not unit or target not in unit["upgrades"]:
+                return {"ok": False, "message": "不能这样晋升"}
+            n = min(int(count), _promotable(p, source))
+            if unit["upgrade_cost"]:
+                n = min(n, int(p.gold // unit["upgrade_cost"]))
+            if n <= 0:
+                return {"ok": False, "message": "经验或钱不够"}
+            p.troops[source][0] -= n
+            T.add(p.troops, target, n)
+            p.xp[source] -= n * unit["xp"]
+            p.gold -= n * unit["upgrade_cost"]
+            T.prune(p.troops)
+            if source not in p.troops:
+                pend["troop"] = target
+            return {"ok": True, "message": f"{n} 名{unit['name']}晋升为{TROOPS[target]['name']}"}
+        if action == "dismiss":
+            tid, count = str(data.get("choice", "")).split(":")
+            v = p.troops.get(tid)
+            if not v:
+                return {"ok": False, "message": "没有这样的士兵"}
+            n = min(int(count), v[0] + v[1])
+            take_h = min(n, v[0])
+            v[0] -= take_h
+            v[1] -= n - take_h
+            T.prune(p.troops)
+            if tid not in p.troops:
+                pend.pop("troop", None)
+            return {"ok": True, "message": f"遣散了 {n} 名{TROOPS[tid]['name']}"}
+        return {"ok": False, "message": "现在不能这么做"}
     opt = next((o for o in (m or {}).get("options", []) if o["id"] == action
                 and (o.get("hero") is None or o.get("hero") == data.get("hero"))
                 and (o.get("choice") is None or o.get("choice") == data.get("choice"))), None)
@@ -1024,14 +1076,26 @@ def act(w: World, action: str, data: dict) -> dict:
             if g not in GOODS:
                 return {"ok": False, "message": "未知货物"}
             if action == "buy":
-                room = cargo_cap(p) - sum(p.cargo.values())
+                room = int(cargo_cap(p) - sum(p.cargo.values()))
                 t = CH.personal(w, "trade")             # 交易: cheaper buying, dearer selling
-                got, spent = E.buy(w, s, g, min(n, room), p.gold / max(0.5, 1.0 - t))
-                spent *= max(0.5, 1.0 - t)
+                disc = max(0.5, 1.0 - t)
+                name = GOODS[g][0]
+                if room <= 0:
+                    return {"ok": False, "message": f"载货已满（{cargo_cap(p)}份）：先卖掉些货，或多带些人（每人多带1份）"}
+                if s.market.get(g, 0) < E.MIN_STOCK:
+                    return {"ok": False, "message": f"{s.name}的{name}只剩{int(s.market.get(g, 0))}份，市集不肯再卖"}
+                if p.gold < w.price(s, g) * disc:
+                    return {"ok": False, "message": f"钱不够：{name}每份{w.price(s, g) * disc:.0f}金，你只有{p.gold:.0f}金"}
+                want = min(n, room)
+                got, spent = E.buy(w, s, g, want, p.gold / disc)
+                spent *= disc
                 p.gold -= spent
-                if got:
-                    p.cargo[g] = p.cargo.get(g, 0) + got
-                return {"ok": got > 0, "message": f"买入{got}份{GOODS[g][0]}，花费{spent:.0f}金" if got else "买不到（钱、库存或载货不足）"}
+                p.cargo[g] = p.cargo.get(g, 0) + got
+                msg = f"买入{got}份{name}，花费{spent:.0f}金"
+                if got < n:
+                    why = "载货满了" if got >= room else ("钱不够了" if s.market.get(g, 0) >= E.MIN_STOCK else "市集存货不多了")
+                    msg += f"（只买到{got}份：{why}）"
+                return {"ok": True, "message": msg}
             have = min(n, p.cargo.get(g, 0))
             if not have:
                 return {"ok": False, "message": "你没有这种货物"}
@@ -1378,6 +1442,39 @@ def _training_menu(p: Party, pend: dict) -> dict:
     return {"type": "training", "title": "部队整训", "text": text, "options": opts}
 
 
+def _party_menu(w: World, p: Party, pend: dict) -> dict:
+    """Warband's party screen: one row per troop type (healthy / wounded, experience toward the next
+    rank), the selected type's upgrade paths, prisoners, and the totals at the foot."""
+    rows = []
+    for tid, v in sorted(p.troops.items(), key=lambda kv: (-TROOPS[kv[0]]["tier"], kv[0])):
+        u = TROOPS[tid]
+        need = u["xp"] if u["upgrades"] else 0
+        rows.append({"id": tid, "name": u["name"], "tier": u["tier"], "cls": CLASS_NAMES.get(u["cls"], u["cls"]),
+                     "culture": CULTURES.get(u["culture"], {}).get("name", ""),
+                     "healthy": v[0], "wounded": v[1], "xp": int(p.xp.get(tid, 0)), "need": need,
+                     "ready": _promotable(p, tid), "wage": u["upkeep"], "power": u["power"],
+                     "cost": u["upgrade_cost"],
+                     "upgrades": [{"id": t, "name": TROOPS[t]["name"], "tier": TROOPS[t]["tier"],
+                                   "cls": CLASS_NAMES.get(TROOPS[t]["cls"], TROOPS[t]["cls"])} for t in u["upgrades"]]})
+    sel = pend.get("troop")
+    if sel not in p.troops:
+        sel = rows[0]["id"] if rows else None
+        pend["troop"] = sel
+    lead = CH.skill(w.player["char"], "leadership") if w.player.get("char") else 0
+    wage_cut = lead * float(CH.skills().get("leadership", {}).get("wage_per_level", 0.0))
+    return {"type": "party", "title": "部队", "text": "", "options": [_opt("back", "完成")],
+            "party": {"rows": rows, "selected": sel, "size": T.healthy(p.troops) + sum(v[1] for v in p.troops.values()),
+                      "healthy": T.healthy(p.troops), "limit": limit(w), "gold": int(p.gold),
+                      "wages": round(T.upkeep(p.troops) * max(0.5, 1.0 - wage_cut), 1),
+                      "prisoners": [{"id": t, "name": TROOPS[t]["name"] if t in TROOPS else t,
+                                     "tier": TROOPS[t]["tier"] if t in TROOPS else 1, "n": n}
+                                    for t, n in sorted(p.prisoners.items()) if n > 0],
+                      "captives": [{"id": h.id, "name": h.name} for h in captives(w)],
+                      "companions": [{"name": c["name"], "level": c["level"], "wounded": c["wounded"]}
+                                     for c in CO.view(w)],
+                      "speed": round(party_speed(w, p), 1)}}
+
+
 # ------------------------------------------------------------- the arena (比武)
 def _arena_menu(w: World, p: Party, s) -> dict:
     A = B.arena
@@ -1606,7 +1703,7 @@ def advice(w: World) -> list[str]:
     if renown < 40 and p.gold < 600 and len(out) < 3:
         out.append("手头紧、名声小：可以去城里的擂台比武（木兵器，不伤性命），赢了有赏钱和名望。")
     elif n < limit(w) * 0.6 and p.gold > 300:
-        out.append(f"部队还能扩充（{T.total(p.troops)}/{limit(w)}）：进城、进村招募，按 U 查看部队整训。")
+        out.append(f"部队还能扩充（{T.total(p.troops)}/{limit(w)}）：进城、进村招募，按 P 打开部队窗口给士兵晋升。")
     if wounded > n * 0.4 and wounded >= 8:
         out.append("伤员很多：进城休整（按住空格等待）恢复得最快，在野外恢复得慢。")
     if wage > 0 and p.gold < wage * 4:
@@ -1669,6 +1766,8 @@ def view(w: World) -> dict:
         "vision": vision(w), "night": not (B.vision.night_end <= w.hour % 24 < B.vision.night_start),
         "menu": menu(w), "moving": bool(p.target) and not p.inside, "advice": advice(w),
         "quests": [__import__("warlords.quests", fromlist=["describe"]).describe(w, q) for q in w.player.get("quests", [])],
+        "quest_list": [__import__("warlords.quests", fromlist=["detail"]).detail(w, q) for q in w.player.get("quests", [])],
+        "quest_log": list(w.player.get("quest_log", [])),
         "busy": p.mode in ("siege", "raid"), "mode": p.mode,
         "classes": {CLASS_NAMES[k]: v for k, v in T.class_counts(p.troops).items()},
         "companions": CO.view(w),

@@ -1570,6 +1570,8 @@ func pick_up(p: Agent) -> void:
 	if p.melee.is_empty():
 		p.melee.append(w)
 		p.melee_idx = 0
+		if not p.weapon_order.has("m0"):
+			p.weapon_order.push_front("m0")
 	else:
 		p.melee[p.melee_idx] = w
 	p.using_ranged = false
@@ -1666,7 +1668,7 @@ func spawn_arrow(owner: Agent, from: Vector3, vel: Vector3, dmg: float) -> void:
 		"node": node, "stuck": false})
 	if arrows.size() > 500:
 		var old: Dictionary = arrows.pop_front()
-		if old.node:
+		if old.node and is_instance_valid(old.node):
 			old.node.queue_free()
 
 
@@ -1676,9 +1678,11 @@ func _update_arrows(dt: float) -> void:
 	for ar in arrows:
 		ar.life -= dt
 		if ar.life <= 0.0:
-			if ar.node:
+			if ar.node and is_instance_valid(ar.node):
 				ar.node.queue_free()
 			continue
+		if ar.node and not is_instance_valid(ar.node):
+			continue                          # it was in a body part that was rebuilt (mount / dismount)
 		if ar.stuck:
 			keep.append(ar)
 			continue
@@ -1698,6 +1702,7 @@ func _update_arrows(dt: float) -> void:
 			ar.pos = hit[1]
 			stat("arrow_hits")
 			if _shield_stops(tgt, v, hit[2]):
+				ar.on_shield = true
 				stat("arrow_shield")
 				tgt.damage_shield(float(ar.dmg) * rules.num("combat", "shield_arrow", 0.5))
 				_effect(hit[1], Color("c8a060"), 3)
@@ -1710,6 +1715,7 @@ func _update_arrows(dt: float) -> void:
 					_count_hit(owner, "crossbow" if owner.ranged.get("kind", "") == "crossbow" else "bow")
 				sound("arrow_hit", hit[1], -2.0)
 			_place_arrow(ar)
+			_stick_in(ar, tgt, hit[2], v)
 			keep.append(ar)
 			continue
 		if siege_def >= 0 and p0.distance_to(ar.origin) > 2.5 and field.merlon_hit(p0, p1):
@@ -1736,6 +1742,30 @@ func _update_arrows(dt: float) -> void:
 		_place_arrow(ar)
 		keep.append(ar)
 	arrows = keep
+
+
+## An arrow / javelin that struck someone stays in him (Warband): pushed a little way in, then parented
+## to the body part it hit (shield, horse, hips or chest), so it moves, turns and falls with him.
+func _stick_in(ar: Dictionary, tgt: Agent, part: String, v: Vector3) -> void:
+	if ar.node == null or not is_instance_valid(tgt) or tgt.rig == null:
+		return
+	var r = tgt.rig
+	var dir := v.normalized()
+	var depth := 0.06 if part == "shield" else 0.16
+	ar.node.global_position = ar.pos + dir * depth
+	var host: Node3D = null
+	if part == "horse":
+		host = r.horse
+	elif bool(ar.get("on_shield", false)) and r.shield_node:
+		host = r.shield_node
+	elif ar.pos.y - tgt.global_position.y < (1.55 if tgt.mounted else 0.9) and r.pelvis:
+		host = r.pelvis
+	else:
+		host = r.spine
+	if host == null:
+		host = r
+	ar.node.reparent(host, true)
+	ar.life = rules.num("ranged", "stuck_life", 25.0)
 
 
 func _place_arrow(ar: Dictionary) -> void:

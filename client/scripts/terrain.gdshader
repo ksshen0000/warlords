@@ -8,6 +8,9 @@ shader_type canvas_item;
 uniform sampler2D heights : filter_linear, repeat_disable;
 uniform sampler2D biomes : filter_nearest, repeat_disable;
 uniform vec2 grid = vec2(300.0, 200.0);
+// rivers: a mask painted from the server's river lines and widths (map_view.gd RiverPainter), same extent
+uniform sampler2D rivers : filter_linear, repeat_disable;
+uniform float river_on = 0.0;
 
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -25,6 +28,18 @@ float fbm(vec2 p) {
 }
 
 float H(vec2 uv) { return texture(heights, uv).r * 255.0; }
+
+// the river mask blurred over a ring of `r` texels: softens the painted edge (small r) or, with a large r,
+// says how far inside the river a point is (1 mid-channel of a broad river, low in a thin stream)
+float river_mask(vec2 uv, float r) {
+	vec2 t = r / vec2(textureSize(rivers, 0));
+	float v = texture(rivers, uv).a * 2.0;
+	v += texture(rivers, uv + vec2(t.x, 0.0)).a + texture(rivers, uv - vec2(t.x, 0.0)).a;
+	v += texture(rivers, uv + vec2(0.0, t.y)).a + texture(rivers, uv - vec2(0.0, t.y)).a;
+	v += 0.7 * (texture(rivers, uv + t * 0.7).a + texture(rivers, uv - t * 0.7).a
+		+ texture(rivers, uv + vec2(t.x, -t.y) * 0.7).a + texture(rivers, uv + vec2(-t.x, t.y) * 0.7).a);
+	return v / 8.8;
+}
 
 vec3 land_color(int b, vec2 c, float elev) {
 	float n = fbm(c * 0.7);
@@ -99,6 +114,33 @@ void fragment() {
 		}
 		// soft dark rim along the coast
 		col *= mix(0.86, 1.0, smoothstep(100.0, 106.0, h));
+		if (river_on > 0.5) {
+			float near = river_mask(uv, 9.0);                 // anything river-ish around: damp banks
+			if (near > 0.001) {
+				float edge = river_mask(uv, 1.3);
+				float ragged = (noise(c * 5.0) - 0.5) * 0.30 + (noise(c * 13.0) - 0.5) * 0.12;
+				float water = smoothstep(0.40, 0.58, edge + ragged);
+				float deep = smoothstep(0.55, 1.0, river_mask(uv, 6.0));
+				// greener, darker ground along the water
+				col = mix(col, col * vec3(0.84, 0.92, 0.80), smoothstep(0.02, 0.35, near) * (1.0 - water));
+				float mid = river_mask(uv, 3.0);
+				vec3 shallow = vec3(0.38, 0.57, 0.55);
+				vec3 channel = vec3(0.16, 0.35, 0.46);
+				vec3 wcol = mix(shallow, channel, deep);
+				// slow, soft variation in the water (no blocky stipple): two drifting octaves
+				float n1 = fbm(c * 0.9 + vec2(TIME * 0.030, TIME * 0.018));
+				wcol *= 0.92 + 0.16 * n1;
+				// thin glints where two moving noises line up (only when zoomed in)
+				float g = noise(c * 3.3 + vec2(TIME * 0.11, -TIME * 0.06)) * noise(c * 2.1 - vec2(TIME * 0.05, TIME * 0.09));
+				wcol += vec3(0.11, 0.13, 0.12) * smoothstep(0.42, 0.62, g) * close_detail * (0.3 + 0.7 * deep);
+				// sandy-green shallows along the banks, a faint foam line right at the water's edge
+				float shoal = 1.0 - smoothstep(0.55, 0.97, mid);
+				wcol = mix(wcol, vec3(0.50, 0.63, 0.55), shoal * 0.45);
+				float foam = water * (1.0 - smoothstep(0.50, 0.68, edge + ragged));
+				wcol = mix(wcol, vec3(0.78, 0.83, 0.72), foam * 0.45);
+				col = mix(col, wcol, water);
+			}
+		}
 	}
 	COLOR = vec4(col, 1.0);
 }

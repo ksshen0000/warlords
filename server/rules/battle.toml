@@ -45,6 +45,7 @@ radius = 0.55
 barded_armor = 28             # 具装马的护甲
 
 [combat]
+switch_time = 0.55            # 换武器（收起一件、拔出另一件）要多久（秒）：期间不能出手、不能格挡
 kick_windup = 0.16
 kick_recovery = 0.36
 kick_reach = 1.15

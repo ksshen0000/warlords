@@ -179,13 +179,15 @@ func _draw() -> void:
 		wname += "（%s负于背）" % str(p.shield.get("name", "盾"))
 	if p.using_ranged and p.ranged.get("kind", "") == "crossbow" and not p.crossbow_loaded and not p.can_reload():
 		wname += "  马上无法上弦"
-	wname += "   （滚轮换武器）"
+	if p.switch_t > 0.0:
+		wname += "   换武器中…"
 	var y := vs.y - (98.0 if p.mounted else 78.0)
 	_panel(Rect2(12, y - 10, maxf(296.0, _width(wname, 15) + 24.0), 72 if p.mounted else 52))
 	_bar(Vector2(24, y), 180, p.hp / p.max_hp, Color("bd5444"), "生命 %d" % int(maxf(0, p.hp)))
 	if p.mounted:
 		_bar(Vector2(24, y + 20), 180, p.horse_hp / maxf(1.0, p.horse_max_hp), Color("a68652"), "坐骑 %d" % int(p.horse_hp))
 	_t(Vector2(24, vs.y - 45), wname, 15, CREAM)
+	_weapon_slots(p, vs)
 	if battle.has_method("interact_hint"):
 		var hint: String = battle.interact_hint(p)
 		if hint != "":
@@ -221,7 +223,7 @@ func _draw() -> void:
 			canvas.draw_arc(c, 40, 0, TAU, 32, Color(GOLD, 0.6), 2.0, true)
 	if _marker > 0.0:
 		_t(c + Vector2(0, -46), _marker_txt, 16, Color(1, 0.85, 0.5, _marker / 0.6), true)
-	_t(Vector2(c.x, vs.y - 14), "鼠标方向+左键 攻击 · 右键 格挡 · 1/2/3/0 选兵 F1-F9 下令 · Tab 撤离 · Esc 释放鼠标", 13, Color(1, 1, 1, 0.5), true)
+	_t(Vector2(c.x, vs.y - 14), "鼠标方向+左键 攻击（往哪看就往哪砍：往下看劈向下方）· 右键 格挡 · 1/2/3/0 选兵 F1-F9 下令 · Tab 撤离 · Esc 释放鼠标", 13, Color(1, 1, 1, 0.5), true)
 
 
 func show_result(r: Dictionary) -> void:
@@ -341,3 +343,42 @@ func _draw_map(vs: Vector2) -> void:
 		var txt := "%s %d 人" % [battle.side_names[s], alive]
 		canvas.draw_string(font, r.position + Vector2(0 if s == battle.player_side else size * 0.55, size + 26), txt,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, battle.side_colors[s])
+
+
+## Warband's weapon slots, bottom right: one row per slot in order, the one in hand marked; the shield
+## says where it is (left arm / back); kit that can't be used now (on horseback, out of ammo) is greyed.
+func _weapon_slots(p, vs: Vector2) -> void:
+	var order: Array = p.weapon_order
+	if order.is_empty():
+		return
+	var w := 230.0
+	var h := 26.0
+	var top := vs.y - 20.0 - h * order.size() - 24.0
+	_panel(Rect2(vs.x - w - 12, top - 8, w, h * order.size() + 38))
+	var cur: String = p.current_slot()
+	var target: String = p._switch_to
+	for i in order.size():
+		var k: String = order[i]
+		var y := top + 4 + i * h
+		var name: String = p._slot_name(k)
+		var col := CREAM
+		var note := ""
+		if k == "s":
+			note = "（左臂）" if p.shield_up() else "（背上）"
+			col = MUTED
+		else:
+			if k == "r" and not p.ranged.is_empty():
+				note = "  %d" % p.ammo
+			var prob: String = p.slot_problem(k)
+			if prob != "":
+				note += "（%s）" % prob
+				col = Color(MUTED, 0.7)
+		var mark := "   "
+		if k == cur and target == "":
+			mark = "▶ "
+			col = GOLD
+		elif k == target:
+			mark = "… "
+			col = GOLD.darkened(0.2)
+		_t(Vector2(vs.x - w, y + 13), "%d %s%s%s" % [i + 1, mark, name, note], 15, col)
+	_t(Vector2(vs.x - w, top + h * order.size() + 14), "滚轮 切换武器", 12, MUTED)

@@ -8,7 +8,7 @@
 [terrain]
 river_speed = 0.45   # 无桥涉水
 road_speed = 1.35
-ford_speed = 0.35   # 大江渡口（即使有路也这么慢：大军渡江要等船）
+ford_speed = 0.9             # 大河津渡：等到船（见 balance.toml ferry_*）后按正常速度过河（渡口在地图上仍是水面）
 
 [terrain.deep_water]
 name = "深海"

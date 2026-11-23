@@ -112,6 +112,9 @@ def field_battle(w: World, att: Party, dfn: Party) -> dict:
 def aftermath(w: World, win: list[Party], lose: list[Party], lose_rows: list[dict], enemy_losses: int,
               own_losses: int, rep: dict, ev: dict) -> None:
     w.player["_battle_by_player"] = any(p.kind == "player" for p in win)   # quests: who destroyed a band
+    if w.player["_battle_by_player"]:
+        for q in lose:
+            q.memo["beaten_by_player"] = w.hour
     try:
         _aftermath(w, win, lose, lose_rows, enemy_losses, own_losses, rep, ev)
     finally:
@@ -542,6 +545,9 @@ def _lurkers(w: World, h: Settlement) -> list[Party]:
 def _hideout_outcome(w: World, p: Party, attackers: list[Party], h: Settlement, won: bool, rep: dict,
                      a_losses: int, d_losses: int) -> None:
     lurkers = _lurkers(w, h)
+    if won and p.kind == "player":
+        for q in lurkers:
+            q.memo["beaten_by_player"] = w.hour          # bands caught in their lair: the player's doing
     if won:
         loot = 250 + h.stock
         prisoners: dict = {}
@@ -650,6 +656,7 @@ def apply_hideout_result(w: World, setup: dict, result: dict) -> None:
         T.prune(roster)
     for q in lurkers:
         if T.healthy(q.troops) == 0:
+            q.memo["beaten_by_player"] = w.hour          # cut down in the lair by the player in person
             destroy_party(w, q)
     won = int(result.get("winner", 1)) == 0 and result.get("how") != "retreat"
     from .battle import Result

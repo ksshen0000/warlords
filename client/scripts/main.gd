@@ -10,7 +10,8 @@ const MapViewScript := preload("res://scripts/map_view.gd")
 const BattleReportScript := preload("res://scripts/battle_report.gd")
 const PlayerMenuScript := preload("res://scripts/player_menu.gd")
 const SettingsScript := preload("res://scripts/settings.gd")
-const SavePanelScript := preload("res://scripts/save_panel.gd")
+const FrontMenuScript := preload("res://scripts/front_menu.gd")
+const QuestScreenScript := preload("res://scripts/quest_screen.gd")
 
 # real seconds per game hour. Doubled for the slower levels with the map's 2x close-up scale (map_view MAP_SCALE):
 # a party crosses the screen at the same pace as before; 极快 stays as fast as ever.
@@ -51,7 +52,8 @@ var api: Node
 var map: Control
 var report_popup: Control
 var menu_panel: PanelContainer
-var save_panel: PanelContainer
+var quest_screen: Control          # the quest log (Q)
+var front: Control                 # title / new game / pause / save & load pages (front_menu.gd)
 var settings: Control
 var state: Dictionary = {}
 var player: Dictionary = {}
@@ -93,9 +95,8 @@ const FEED_TYPES := ["war", "peace", "conquest", "rebellion", "kingdom_destroyed
 const LOG_KEEP := 300                 # lines shown in the chronicle (the newest)
 var _log_shown := 0
 var speed_opt: OptionButton
-var seed_box: SpinBox
-var tier_opt: OptionButton
 var tabs: TabContainer
+var side_panel: PanelContainer          # the information panel over the right of the map (hidden by default)
 var party_text: RichTextLabel
 var detail_text: RichTextLabel
 var realms_text: RichTextLabel
@@ -119,6 +120,27 @@ func _ready() -> void:
 	_parse_args()
 	api.get_map()
 	api.get_state()
+	# a player launching the game gets the title screen; test runs (--capture, --steps …) go straight in
+	var auto := false
+	for a in OS.get_cmdline_user_args():
+		if not a.begins_with("--server=") and a != "--title" and not a.begins_with("--capture"):
+			auto = true
+	if show_title or not auto:
+		front.show_title()
+	match front_test:
+		"new":
+			front.show_new()
+		"create":                            # tests: the creation step the server is at, as in a new game
+			front.page = "new"
+			front._busy = "正在生成天下…"
+			front.visible = true
+			front._build()
+		"pause":
+			front.show_pause.call_deferred()
+		"load":
+			front.show_saves(false, "title")
+		"save":
+			front.show_saves.call_deferred(true, "pause")
 
 
 func _parse_args() -> void:
@@ -149,8 +171,11 @@ func _parse_args() -> void:
 		elif a == "--report=last":
 			pending_report = true
 		elif a.begins_with("--seed="):
-			seed_box.value = int(a.substr(7))
-			api.reset(int(seed_box.value), -1)
+			api.reset(int(a.substr(7)), -1)
+		elif a == "--title":
+			show_title = true
+		elif a.begins_with("--front="):          # tests: open a front-menu page
+			front_test = a.substr(8)
 
 
 # ------------------------------------------------------------------ UI
@@ -245,19 +270,19 @@ func _build_ui() -> void:
 	root.add_child(map_holder)
 	map = MapViewScript.new()
 	map.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	map.hint = "左键 行军 · 按住空格 等待 · 1 暂停 2 正常 3 快进 · P 部队 I 装备 N 百科 K 朝议 L 日志 · 按住 Alt 显示名字 · F 回到自己 · Esc 菜单"
+	map.hint = "左键 行军 · Shift+左键 查看 · 按住空格 等待 · 1 暂停 2 正常 3 快进 · I 物品 C 角色 P 部队 Q 差事 N 天下 K 朝议 L 编年史 · Alt 显示名字 · F 回到自己 · Esc 菜单"
 	map.selection_changed.connect(func(_k, _i):
-		if _k != "" and _k != "player":
+		if _k != "" and _k != "player" and side_panel.visible:
 			tabs.current_tab = 1
 		_refresh_details())
 	map.map_clicked.connect(_on_map_clicked)
 	map_holder.add_child(map)
 
 	clock_label = _label("", 15, GOLD)
-	clock_label.position = Vector2(14, 10)
+	clock_label.position = Vector2(14, 50)
 	map_holder.add_child(clock_label)
 	toast_label = _label("", 15, Color("9ff0b0"))
-	toast_label.position = Vector2(14, 34)
+	toast_label.position = Vector2(14, 74)
 	map_holder.add_child(toast_label)
 	# Warband's message feed: the few things that matter to you scroll up in the corner and fade
 	feed_box = VBoxContainer.new()
@@ -279,123 +304,93 @@ func _build_ui() -> void:
 	menu_panel.action.connect(func(id, data): api.act(id, data))
 	menu_panel.say.connect(func(hero, text): api.talk(hero, text))
 	menu_anchor.add_child(menu_panel)
-	var save_anchor := CenterContainer.new()
-	save_anchor.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	save_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	map_holder.add_child(save_anchor)
-	save_panel = SavePanelScript.new()
-	save_panel.save_requested.connect(func(slot): api.save_game(slot))
-	save_panel.load_requested.connect(func(slot):
-		save_panel.close()
-		status_label.text = "正在读档…"
-		api.load_game(slot))
-	save_anchor.add_child(save_panel)
 
-	var side_margin := MarginContainer.new()
-	side_margin.custom_minimum_size = Vector2(500, 0)
-	for m in ["left", "right", "top", "bottom"]:
-		side_margin.add_theme_constant_override("margin_" + m, 8)
-	root.add_child(side_margin)
-	var side := VBoxContainer.new()
-	side.add_theme_constant_override("separation", 6)
-	side_margin.add_child(side)
-
+	# ---- top bar over the map: date and time controls on the left, the screens on the right
+	var bar := PanelContainer.new()
+	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	var bsb := StyleBoxFlat.new()
+	bsb.bg_color = Color(0.06, 0.08, 0.09, 0.82)
+	bsb.border_color = Color("6b5a3a")
+	bsb.border_width_bottom = 1
+	bsb.content_margin_left = 12
+	bsb.content_margin_right = 10
+	bsb.content_margin_top = 4
+	bsb.content_margin_bottom = 4
+	bar.add_theme_stylebox_override("panel", bsb)
+	map_holder.add_child(bar)
 	var head := HBoxContainer.new()
-	head.add_child(_label("流民帅：南北朝", 22, GOLD))
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(spacer)
-	time_label = _label("第 0 天", 20, CREAM)
+	head.add_theme_constant_override("separation", 8)
+	bar.add_child(head)
+	time_label = _label("第 0 天", 18, GOLD)
 	head.add_child(time_label)
-	var gear := Button.new()
-	gear.text = "设置"
-	gear.tooltip_text = "显示模式、分辨率、界面缩放、鼠标锁定（F11 全屏，F10 锁/解鼠标）"
-	gear.focus_mode = Control.FOCUS_NONE
-	gear.pressed.connect(func(): settings.open())
-	var kit := Button.new()
-	kit.text = "装备"
-	kit.tooltip_text = "你本人的兵器、甲胄、坐骑（I）"
-	kit.focus_mode = Control.FOCUS_NONE
-	kit.pressed.connect(_open_gear)
-	var me := Button.new()
-	me.text = "角色"
-	me.tooltip_text = "角色：等级、属性、技能、武器熟练度（C）"
-	me.focus_mode = Control.FOCUS_NONE
-	me.pressed.connect(_open_character)
-	head.add_child(me)
-	head.add_child(kit)
-	# in the header row (a row of its own pushed the title off a 1080-high window)
-	var training := Button.new()
-	training.text = "整训"
-	training.tooltip_text = "部队整训：给经验足够的士兵选择晋升路线（U）"
-	training.focus_mode = Control.FOCUS_NONE
-	training.pressed.connect(_open_training)
-	head.add_child(training)
-	var saves := Button.new()
-	saves.text = "存档"
-	saves.tooltip_text = "存档 / 读档（F5）"
-	saves.focus_mode = Control.FOCUS_NONE
-	saves.pressed.connect(_open_saves)
-	head.add_child(saves)
-	head.add_child(gear)
-	side.add_child(head)
-	status_label = _label("连接中…", 13, MUTED)
-	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	side.add_child(status_label)
-
-	var row := HBoxContainer.new()
-	row.add_child(_label("时间流速", 14, MUTED))
 	speed_opt = OptionButton.new()
-	for s in SPEEDS:
-		speed_opt.add_item(s[0])
+	speed_opt.focus_mode = Control.FOCUS_NONE
+	speed_opt.tooltip_text = "时间流速（1 暂停 · 2 正常 · 3 快进）"
+	for sp in SPEEDS:
+		speed_opt.add_item(sp[0])
 	speed_opt.selected = speed_idx
 	speed_opt.item_selected.connect(func(i): speed_idx = i)
-	row.add_child(speed_opt)
+	head.add_child(speed_opt)
 	var fol := CheckBox.new()
 	fol.text = "跟随"
+	fol.focus_mode = Control.FOCUS_NONE
 	fol.button_pressed = true
 	fol.tooltip_text = "行军时镜头跟随你的部队"
 	fol.toggled.connect(func(on): follow = on)
-	row.add_child(fol)
-	var minor := CheckBox.new()
-	minor.text = "琐事"
-	minor.tooltip_text = "编年史里加上你身边的琐事：招募、劫掠开始、流民、逃兵、将军的台词等（只记你看得到、听得到的）"
-	minor.toggled.connect(func(on): show_minor = on; _render_log())
-	row.add_child(minor)
+	head.add_child(fol)
 	var terr := CheckBox.new()
 	terr.text = "政区"
+	terr.focus_mode = Control.FOCUS_NONE
 	terr.button_pressed = true
+	terr.tooltip_text = "在地图上显示各国的势力范围"
 	terr.toggled.connect(func(on): map.show_territory = on)
-	row.add_child(terr)
-	side.add_child(row)
+	head.add_child(terr)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(spacer)
+	for spec in [["物品 I", "物品：兵器、甲胄、坐骑与货物", _open_gear],
+			["角色 C", "角色：等级、属性、技能、武器熟练度", _open_character],
+			["部队 P", "部队：兵种、晋升、遣散、俘虏", _open_party],
+			["差事 Q", "差事：进行中的与已了结的，委托人、期限、酬劳、进展", _open_quests],
+			["天下 N", "天下大势：你的概况、所选目标详情、诸国、朝议、编年史", func(): _toggle_side(2)],
+			["存档 F5", "保存游戏；读档在暂停菜单（Esc）里", _open_saves],
+			["菜单 Esc", "暂停菜单：保存、读取、设置、返回主菜单", func(): front.show_pause()]]:
+		var b := Button.new()
+		b.text = spec[0]
+		b.tooltip_text = spec[1]
+		b.focus_mode = Control.FOCUS_NONE
+		var cb: Callable = spec[2]
+		b.pressed.connect(func(): cb.call())
+		head.add_child(b)
 
-	var row2 := HBoxContainer.new()
-	row2.add_child(_label("AI", 14, MUTED))
-	tier_opt = OptionButton.new()
-	tier_opt.tooltip_text = "AI 参与程度（rules/ai.toml）"
-	tier_opt.item_selected.connect(func(i): api.set_tier(tier_opt.get_item_id(i)))
-	row2.add_child(tier_opt)
-	row2.add_child(_label(" 种子", 14, MUTED))
-	seed_box = SpinBox.new()
-	seed_box.min_value = 0
-	seed_box.max_value = 99999
-	seed_box.value = 3
-	row2.add_child(seed_box)
-	var reset_btn := Button.new()
-	reset_btn.text = "新的一局"
-	reset_btn.pressed.connect(func():
-		api.reset(int(seed_box.value), int(ai_info.get("tier", -1)))
-		status_label.text = "正在生成新世界…")
-	row2.add_child(reset_btn)
-	var reload_btn := Button.new()
-	reload_btn.text = "重载规则"
-	reload_btn.tooltip_text = "重新读取 rules/balance.toml、doctrine.toml、ai.toml（不重开游戏）"
-	reload_btn.pressed.connect(func(): api.reload_rules())
-	row2.add_child(reload_btn)
-	side.add_child(row2)
+	# ---- the information panel: floats over the right of the map, opened on demand (N / K / L)
+	side_panel = PanelContainer.new()
+	side_panel.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
+	side_panel.offset_left = -480
+	side_panel.offset_top = 48
+	side_panel.offset_right = -8
+	side_panel.offset_bottom = -8
+	side_panel.add_theme_stylebox_override("panel", _style(Color(0.07, 0.09, 0.10, 0.94)))
+	side_panel.visible = false
+	map_holder.add_child(side_panel)
+	var side := VBoxContainer.new()
+	side.add_theme_constant_override("separation", 6)
+	side_panel.add_child(side)
+	var shead := HBoxContainer.new()
+	status_label = _label("连接中…", 12, MUTED)
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	shead.add_child(status_label)
+	var xb := Button.new()
+	xb.text = "×"
+	xb.focus_mode = Control.FOCUS_NONE
+	xb.tooltip_text = "关闭（Esc）"
+	xb.pressed.connect(func(): side_panel.visible = false)
+	shead.add_child(xb)
+	side.add_child(shead)
 
 	tabs = TabContainer.new()
-	tabs.custom_minimum_size = Vector2(0, 360)
+	tabs.custom_minimum_size = Vector2(0, 300)
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_stretch_ratio = 1.3
 	party_text = _rich()
@@ -409,7 +404,7 @@ func _build_ui() -> void:
 	for r in [party_text, detail_text, realms_text, council_text]:
 		tabs.add_child(r)
 	for i in 4:
-		tabs.set_tab_title(i, ["部队 P", "详情 N", "诸国 N", "朝议 K"][i])
+		tabs.set_tab_title(i, ["概况", "详情", "诸国 N", "朝议 K"][i])
 	tabs.tab_changed.connect(func(_i): _refresh_tabs())
 	side.add_child(tabs)
 
@@ -417,7 +412,17 @@ func _build_ui() -> void:
 	lp.add_theme_stylebox_override("panel", _style(PANEL_BG))
 	lp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var lv := VBoxContainer.new()
-	lv.add_child(_label("编年史（点击跳转地图位置）", 12, MUTED))
+	var lh := HBoxContainer.new()
+	var lt := _label("编年史 L（点击跳转地图位置）", 12, MUTED)
+	lt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lh.add_child(lt)
+	var minor := CheckBox.new()
+	minor.text = "琐事"
+	minor.focus_mode = Control.FOCUS_NONE
+	minor.tooltip_text = "编年史里加上你身边的琐事：招募、劫掠开始、流民、逃兵、将军的台词等（只记你看得到、听得到的）"
+	minor.toggled.connect(func(on): show_minor = on; _render_log())
+	lh.add_child(minor)
+	lv.add_child(lh)
 	log_text = _rich()
 	log_text.scroll_following = true
 	lv.add_child(log_text)
@@ -426,23 +431,84 @@ func _build_ui() -> void:
 
 	report_popup = BattleReportScript.new()
 	add_child(report_popup)
+	quest_screen = QuestScreenScript.new()
+	quest_screen.host = self
+	add_child(quest_screen)
+	front = FrontMenuScript.new()
+	front.host = self
+	add_child(front)                    # under the settings window, which it opens
 	settings = SettingsScript.new()
 	add_child(settings)
 	map.settings = settings
 
 
-func _fill_tiers() -> void:
-	var tiers: Dictionary = ai_info.get("tiers", {})
-	if tiers.is_empty():
+## The quest log (Q).
+func _open_quests() -> void:
+	if quest_screen.visible:
+		quest_screen.close()
+	elif session_active():
+		quest_screen.open(player)
+
+
+func look_at_map(pos: Vector2) -> void:
+	map.follow_id = ""
+	map.focus(pos, maxf(map.zoom, map.close_zoom(2.0)))
+
+
+func go_to_place(id: String) -> void:
+	if _menu_open() or player.get("captive", false):
+		_toast("先关掉当前的菜单")
 		return
-	var keys := tiers.keys()
-	keys.sort()
-	if tier_opt.item_count != keys.size():
-		tier_opt.clear()
-		for k in keys:
-			tier_opt.add_item("%s 档 · %s" % [k, tiers[k].name], int(k))
-			tier_opt.set_item_tooltip(tier_opt.item_count - 1, str(tiers[k].description))
-	tier_opt.select(tier_opt.get_item_index(int(ai_info.get("tier", 0))))
+	hold = false
+	api.move({"kind": "place", "id": id})
+	if follow:
+		map.follow_id = "player"
+
+
+## The information panel (N / K / L): open it on a tab; the same key again closes it.
+func _show_side(tab: int) -> void:
+	side_panel.visible = true
+	tabs.current_tab = clampi(tab, 0, tabs.get_tab_count() - 1)
+	_refresh_tabs()
+
+
+func _toggle_side(tab: int) -> void:
+	if side_panel.visible and tabs.current_tab == tab:
+		side_panel.visible = false
+	else:
+		_show_side(tab)
+
+
+# ------------------------------------------------------------- front menu (front_menu.gd) helpers
+var show_title := false
+var front_test := ""
+
+
+func session_active() -> bool:
+	return connected and not player.is_empty() and not bool(player.get("creating", false))
+
+
+func can_save() -> bool:
+	return session_active() and not _menu_open()
+
+
+func clock_text() -> String:
+	return time_label.text if time_label else ""
+
+
+func current_seed() -> int:
+	return map_seed if map_seed >= 0 else 3
+
+
+func load_slot(slot: String) -> void:
+	status_label.text = "正在读档…"
+	front.close()
+	api.load_game(slot)
+
+
+func new_game(seed: int, tier: int) -> void:
+	status_label.text = "正在生成新世界…"
+	api.reset(seed, tier)
 
 
 # ------------------------------------------------------------- control
@@ -454,13 +520,12 @@ func _open_character() -> void:
 		api.act("character")
 
 
-## The save / load panel (F5). Saving is refused while a menu is open or during character creation.
+## Save (F5): the save page of the front menu; time stops while it is open.
 func _open_saves() -> void:
-	if save_panel.visible:
-		save_panel.close()
-		return
-	save_panel.open(not _menu_open() and not bool(player.get("creating", false)) and not player.is_empty())
-	api.list_saves()
+	if front.visible and front.page == "saves":
+		front.back()
+	elif not front.visible:
+		front.show_saves(true, "")
 
 
 func _menu_open() -> bool:
@@ -475,13 +540,15 @@ func _typing() -> bool:
 func _on_map_clicked(world_pos: Vector2, kind: String, id: String, shift: bool) -> void:
 	if shift:
 		map.select(kind, id)
+		if kind != "":
+			_show_side(1)                    # Shift-click: look the target up
 		return
 	if kind != "":
 		map.select(kind, id)
 	if _menu_open() or player.get("captive", false):
 		return
 	if kind == "party" and id == "player":
-		tabs.current_tab = 0
+		_toggle_side(0)
 		return
 	hold = false
 	if kind == "settlement":
@@ -508,25 +575,34 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if settings.visible or _typing():
 		return
+	if quest_screen.visible and not front.visible:
+		if key in [KEY_ESCAPE, KEY_Q]:
+			quest_screen.close()
+		get_viewport().set_input_as_handled()
+		return
+	if front.visible:
+		# the front menu owns the keyboard: Esc steps back, nothing reaches the map
+		if key == KEY_ESCAPE:
+			front.back()
+		get_viewport().set_input_as_handled()
+		return
 	var handled := true
 	match key:
 		KEY_F5:
 			_open_saves()
 		KEY_ESCAPE:
-			if save_panel.visible:
-				save_panel.close()
-				get_viewport().set_input_as_handled()
-				return
-			if map.sel_kind != "":
+			if side_panel.visible:
+				side_panel.visible = false
+			elif map.sel_kind != "":
 				map.select("", "")
 			elif _menu_open() and _menu_has("leave"):
 				api.act("leave")
 			elif _menu_open() and _menu_has("ok"):
 				api.act("ok")
-			elif _menu_open() and (menu_panel.menu.has("gear") or menu_panel.menu.type in ["training", "character"]):
+			elif _menu_open() and (menu_panel.menu.has("gear") or menu_panel.menu.type in ["training", "character", "party"]):
 				api.act("back")
 			else:
-				settings.open()
+				front.show_pause()
 		KEY_1:
 			hold = true
 			_toast("暂停（2 继续 · 3 快进）")
@@ -539,7 +615,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_5:
 			_set_speed(4)
 		KEY_P:
-			tabs.current_tab = 0
+			_open_party()
 		KEY_C:
 			_open_character()
 		KEY_I:
@@ -547,12 +623,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_U:
 			_open_training()
 		KEY_N:
-			tabs.current_tab = 1 if map.sel_kind != "" else 2
+			_toggle_side(1 if map.sel_kind != "" else 2)
 		KEY_K:
-			tabs.current_tab = 3
-		KEY_L, KEY_Q:
+			_toggle_side(3)
+		KEY_Q:
+			_open_quests()
+		KEY_L:
+			_show_side(tabs.current_tab)
 			log_text.scroll_to_line(max(0, log_text.get_line_count() - 1))
-			log_text.grab_focus()
 		KEY_T:
 			# Warband "Camp": wait here (time passes while held; tap to show the hint)
 			_toast("按住空格在此扎营等待")
@@ -578,10 +656,15 @@ func _open_gear() -> void:
 
 
 func _open_training() -> void:
-	if _menu_open() and menu_panel.menu.type == "training":
+	_open_party()
+
+
+## The party screen (P): Warband's 部队 window, troops / upgrades / prisoners; time stops while it is open.
+func _open_party() -> void:
+	if _menu_open() and str(menu_panel.menu.get("type", "")) in ["party", "training"]:
 		api.act("back")
 	elif not _menu_open() or menu_panel.menu.type == "settlement":
-		api.act("training")
+		api.act("party")
 
 
 func _menu_has(id: String) -> bool:
@@ -606,7 +689,7 @@ func _focus_selection() -> void:
 
 
 func _time_wanted() -> bool:
-	if not connected or _menu_open() or report_popup.visible or settings.visible or map_seed < 0:
+	if not connected or _menu_open() or report_popup.visible or settings.visible or front.visible or quest_screen.visible or map_seed < 0:
 		return false
 	var space := Input.is_key_pressed(KEY_SPACE) and not _typing()
 	if hold and not space:
@@ -726,10 +809,12 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 	if kind == "talk":
 		menu_panel.set_waiting(false)
 	if kind == "saves":
-		save_panel.show_list(data.get("saves", []), str(data.get("dir", "")))
+		front.set_saves(data.get("saves", []), str(data.get("dir", "")))
 		return
 	if kind == "save":
 		api.list_saves()                    # refresh the slot list
+	if kind == "load":
+		front.close()
 	var result: Dictionary = data.get("result", {})
 	if str(result.get("message", "")) != "":
 		_toast(str(result.message))
@@ -749,7 +834,6 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 		map.effects.clear()
 		report_popup.close()
 		menu_panel.close()
-		seed_box.value = seed
 		if seed != map_seed:
 			api.get_map()
 		map.follow_id = "player"
@@ -758,20 +842,27 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 	player = data.get("player", {})
 	if not has_meta("saves_hook") and OS.get_cmdline_user_args().has("--open-saves"):   # tests: open the save panel
 		set_meta("saves_hook", true)
-		_open_saves.call_deferred()
+		front.show_saves.call_deferred(false, "")
 	# fog of war: only what the player's scouts can see is drawn (creating a character = see all)
 	map.vision = 0.0 if player.is_empty() or bool(player.get("creating", false)) else float(player.get("vision", 0.0))
 	map.my_kingdom = player.get("kingdom")
 	map.my_fiefs = player.get("fiefs", [])
 	map.known_hideouts = player.get("known_hideouts", [])
+	if was_creating and not bool(player.get("creating", false)) and front.page == "new":
+		front.close()                       # the new game has begun
 	if was_creating and not bool(player.get("creating", false)) and state.has("parties"):
 		# character creation just finished: fly the camera to where you start
 		var pp: Dictionary = data.get("state", {}).get("parties", {}).get("player", {})
 		if pp.has("pos"):
 			map.focus.call_deferred(Vector2(pp.pos[0], pp.pos[1]), map.close_zoom(3.0))
 	ai_info = data.get("ai", {})
+	front.ai_ready()
+	quest_screen.show_player(player)
+	if OS.get_cmdline_user_args().has("--quests") and not has_meta("quests_hook") and session_active():
+		set_meta("quests_hook", true)                       # tests: open the quest log
+		quest_screen.open(player)
+	front.refresh()
 	goods = state.get("goods", {})
-	_fill_tiers()
 	for ev in data.get("events", []):
 		_handle_event(ev)            # battle reports open from the chronicle's 〔战报〕 link, not by themselves
 	map.set_state(state, float(SPEEDS[speed_idx][1]) * 0.95)
@@ -785,6 +876,10 @@ func _on_response_inner(kind: String, data: Dictionary) -> void:
 		menu_panel.close()
 		map.follow_id = ""
 		_start_walk(player.menu)
+	elif player.get("menu") != null and str(player.menu.get("type", "")) == "create" and front.visible:
+		menu_panel.close()
+		if front.wants_create():
+			front.show_create(player.menu)
 	elif player.get("menu") != null:
 		menu_panel.open(player.menu)
 		map.follow_id = ""
@@ -894,7 +989,7 @@ func _apply_pending_actions() -> void:
 		pending_select = ""
 		map.select(parts[0], parts[1])
 	if pending_tab >= 0:
-		tabs.current_tab = pending_tab
+		_show_side(pending_tab)
 		pending_tab = -1
 	if pending_menu != "" and player.get("menu") != null and not api.pending():
 		# --menu=origin:zhao,background:lowborn,leave  — one step per state update (tests / screenshots)
@@ -1212,7 +1307,7 @@ func _player_panel() -> String:
 		out += "诸将对你的看法：%s\n" % "  ".join(parts)
 	var qs: Array = player.get("quests", [])
 	if qs.size():
-		out += "\n[color=#f2c75c]差事[/color]\n"
+		out += "\n[color=#f2c75c]差事[/color] [color=#8c9a94]（按 Q 看详情）[/color]\n"
 		for line in qs:
 			out += "[color=#efe6d2]· %s[/color]\n" % _esc(line)
 	var adv: Array = player.get("advice", [])

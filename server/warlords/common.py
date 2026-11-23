@@ -36,8 +36,11 @@ def safe_haven(w: World, p: Party, kinds=("town", "castle")) -> Settlement | Non
 
 def destroy_party(w: World, p: Party) -> None:
     if p.kind == "bandit" and w.player.get("quests"):
+        # the player's doing if he beat them just now — even when the last wounded only scatter an hour later
         from .quests import on_party_destroyed
-        on_party_destroyed(w, p.id, bool(w.player.get("_battle_by_player")))
+        beaten = p.memo.get("beaten_by_player")
+        by_player = bool(w.player.get("_battle_by_player")) or (beaten is not None and w.hour - beaten <= 48)
+        on_party_destroyed(w, p.id, by_player)
     p.alive = False
     p.target = None
     if p.hero:

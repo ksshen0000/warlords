@@ -20,6 +20,8 @@ var char_box: VBoxContainer
 var gear_layer: CanvasLayer
 var gear_screen: Control
 const GearScreenScript := preload("res://scripts/gear_screen.gd")
+const PartyScreenScript := preload("res://scripts/party_screen.gd")
+var party_screen: Control
 var chat_box: VBoxContainer
 var chat_log: RichTextLabel
 var chat_input: LineEdit
@@ -132,6 +134,8 @@ func close() -> void:
 	visible = false
 	if gear_screen:
 		gear_screen.visible = false
+	if party_screen:
+		party_screen.visible = false
 	_sig = ""
 	menu = {}
 	trading = false
@@ -218,8 +222,20 @@ func _build_trade() -> void:
 			var qty: int = spec[2]
 			if act == "sell":
 				b.disabled = int(m.carry) <= 0
+				if b.disabled:
+					b.tooltip_text = "你没有这种货物"
 			else:
-				b.disabled = int(m.stock) < 4
+				# same rules as the server (player.py "buy"): the market keeps a few, your cargo, your purse
+				var price := float(m.price) * float(menu.get("trade_disc", 1.0))
+				if float(m.stock) < float(menu.get("min_stock", 3)):
+					b.disabled = true
+					b.tooltip_text = "存货太少，市集不肯再卖"
+				elif carried >= int(menu.get("cargo_cap", 0)):
+					b.disabled = true
+					b.tooltip_text = "载货已满（%d 份）" % int(menu.get("cargo_cap", 0))
+				elif float(menu.get("gold", 1e9)) < price:
+					b.disabled = true
+					b.tooltip_text = "钱不够：每份 %d 金" % int(round(price))
 			b.pressed.connect(func(): action.emit(act, {"good": good, "qty": qty}))
 			trade_grid.add_child(b)
 
@@ -228,7 +244,8 @@ func _build_trade() -> void:
 ## Menus carrying "gear" are shown full-screen, Warband-inventory style (gear_screen.gd), above everything;
 ## this panel steps aside meanwhile. The screen's drags come back out through the usual action signal.
 func _build_gear() -> void:
-	var on: bool = menu.has("gear")
+	var party_on: bool = str(menu.get("type", "")) == "party"
+	var on: bool = menu.has("gear") or party_on
 	content.visible = not on
 	self_modulate.a = 0.0 if on else 1.0
 	mouse_filter = Control.MOUSE_FILTER_IGNORE if on else Control.MOUSE_FILTER_STOP
@@ -241,9 +258,18 @@ func _build_gear() -> void:
 			gear_screen = GearScreenScript.new()
 			gear_layer.add_child(gear_screen)
 			gear_screen.request.connect(func(a, d): action.emit(a, d))
-		gear_screen.show_menu(menu)
+			party_screen = PartyScreenScript.new()
+			gear_layer.add_child(party_screen)
+			party_screen.request.connect(func(a, d): action.emit(a, d))
+		if party_on:
+			gear_screen.visible = false
+			party_screen.show_menu(menu)
+		else:
+			party_screen.visible = false
+			gear_screen.show_menu(menu)
 	elif gear_screen:
 		gear_screen.visible = false
+		party_screen.visible = false
 
 
 func _exit_tree() -> void:

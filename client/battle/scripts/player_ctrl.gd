@@ -79,6 +79,9 @@ func _unhandled_input(e: InputEvent) -> void:
 					else:
 						last_dir = _attack_dir()
 						p.start_attack(last_dir)
+						p.tilt_target = null
+						p.swing_tilt = swing_tilt_for(p)
+						p.swing_yaw = swing_yaw_for(p)
 				else:
 					if p.state == Agent.AIM:
 						p.aim_point = _aim_point()
@@ -94,7 +97,7 @@ func _unhandled_input(e: InputEvent) -> void:
 					p.stop_block()
 		elif mb.pressed and mb.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			if p and p.alive() and p.is_player:
-				p.switch_weapon()
+				p.switch_weapon(1 if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN else -1)
 	if e is InputEventKey and e.pressed and not e.echo:
 		var k := (e as InputEventKey).keycode
 		match k:
@@ -324,7 +327,25 @@ func drive(p: Agent, dt: float) -> void:
 func _process(dt: float) -> void:
 	if battle == null:
 		return
+	var p := battle.player
+	if p and p.alive() and p.is_player and p.state == Agent.READY:
+		p.swing_tilt = swing_tilt_for(p)        # aim the swing while winding up; it is fixed once it flies
+		p.swing_yaw = swing_yaw_for(p)
 	_place_camera(dt)
+
+
+## Warband: a swing goes where you look. The camera's pitch (relative to its resting angle) pitches the
+## swing; from the saddle it starts a little low, so a plain side swing reaches a man on foot.
+## Which way the camera looks, off the body's nose (+ = right): the swing is pitched that way.
+func swing_yaw_for(p: Agent) -> float:
+	var look := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	var l := p.global_transform.basis.inverse() * look
+	return clampf(atan2(l.x, -l.z), -1.7, 1.7)
+
+
+func swing_tilt_for(p: Agent) -> float:
+	var t := (pitch + 0.18) * 1.4 + (-0.3 if p.mounted else 0.0)
+	return clampf(t, Agent.TILT_MIN, Agent.TILT_MAX)
 
 
 func _place_camera(dt: float) -> void:

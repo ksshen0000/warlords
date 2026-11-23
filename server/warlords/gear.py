@@ -174,7 +174,7 @@ def loadout(w: World, who: str = "player") -> dict:
     """The 3D battle loadout of you or a companion from what is equipped (client: rules.gd loadout())."""
     ensure(w)
     eq = equip_of(w, who)
-    out: dict = {"melee": [], "armor": 0, "head_armor": 0}
+    out: dict = {"melee": [], "armor": 0, "head_armor": 0, "order": []}
     look = {}
     for s in WEAPON_SLOTS:
         iid = eq.get(s)
@@ -182,11 +182,15 @@ def loadout(w: World, who: str = "player") -> dict:
             continue
         it = item(iid)
         spec = {k: v for k, v in it.items() if k not in ("type", "price", "tier", "cultures")}
+        # "order": the weapon slots as they are laid out (Warband's mouse wheel goes through them in turn)
         if it["type"] == "melee":
+            out["order"].append(f"m{len(out['melee'])}")
             out["melee"].append(spec)
         elif it["type"] == "ranged":
+            out["order"].append("r")
             out["ranged"] = spec
         elif it["type"] == "shield":
+            out["order"].append("s")
             out["shield"] = spec
     # no melee weapon at all: the client hands him a club (bare fists would be Warband's answer)
     for s, key in (("head", "head_armor"), ("body", "armor")):

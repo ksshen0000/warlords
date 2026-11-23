@@ -141,13 +141,24 @@ def _complete(w: World, q: dict, how: str = "") -> None:
     if h:
         h.adjust_rel(PID, B.quests.relation_gain)
         h.remember(w.day, f"玩家办妥了差事：{q['title']}")
+    _record(w, q, "完成", how.strip("（）") or f"得赏{q['reward']}金，名望+{q['renown']}")
     w.log("quest_done", f"差事完成：{q['title']}{how}——得赏{q['reward']}金，名望+{q['renown']}"
           + (f"，{h.name}对你更加器重" if h else ""), player=True, settlement=q["town"])
+
+
+def _record(w: World, q: dict, result: str, note: str) -> None:
+    """Keep the closed job for the quest log (Warband's finished quests), newest first."""
+    log = w.player.setdefault("quest_log", [])
+    s = w.settlements.get(q["town"])
+    log.insert(0, {"title": q["title"], "result": result, "note": note, "day": w.day, "giver": _giver_name(w, q),
+                   "town": s.name if s else "", "reward": q["reward"] if result == "完成" else 0})
+    del log[30:]
 
 
 def _cancel(w: World, q: dict, why: str) -> None:
     """The job went away through no fault of yours: no reward, no blame."""
     active(w).remove(q)
+    _record(w, q, "作罢", why)
     w.log("quest_failed", f"差事作罢：{q['title']}（{why}）", player=True, settlement=q["town"])
 
 
@@ -157,6 +168,7 @@ def _fail(w: World, q: dict, why: str) -> None:
     if h:
         h.adjust_rel(PID, -B.quests.relation_loss)
         h.remember(w.day, f"玩家没办成差事：{q['title']}")
+    _record(w, q, "失败", why)
     w.log("quest_failed", f"差事失败：{q['title']}（{why}）", player=True, settlement=q["town"])
 
 
@@ -228,3 +240,57 @@ def describe(w: World, q: dict) -> str:
         have = w.parties[PID].cargo.get(q["good"], 0) if PID in w.parties else 0
         where = f"（已备{min(have, q['qty'])}/{q['qty']}）"
     return f"{q['title']}{where} · 赏{q['reward']}金 · 剩{left}天 · 委托人{_giver_name(w, q)}（{KIND_NAMES.get(w.settlements[q['town']].kind, '')}{w.settlements[q['town']].name}）"
+
+
+def T_size(b) -> int:
+    from .troops import healthy
+    return healthy(b.troops)
+
+
+KIND_LABELS = {"hideout": "剿匪巢", "bandits": "追剿", "letter": "送信", "goods": "运货"}
+
+
+def detail(w: World, q: dict) -> dict:
+    """Everything the quest log shows about one job: who asked, where, by when, for what, how far along,
+    what to do next, and where on the map it points (only what the player can know)."""
+    s = w.settlements[q["town"]]
+    left = q["deadline"] - w.day
+    out = {"id": q["id"], "kind": q["kind"], "kind_name": KIND_LABELS.get(q["kind"], ""), "title": q["title"],
+           "text": q.get("text", ""), "giver": q["giver"], "giver_name": _giver_name(w, q),
+           "town": s.id, "town_name": s.name, "deadline": q["deadline"],
+           "left": left, "reward": q["reward"], "renown": q["renown"], "progress": "", "todo": "", "target_pos": None}
+    if q["kind"] == "hideout":
+        h = w.settlements.get(q["target"])
+        if h:
+            out["todo"] = f"找到{h.name}的匪巢，打下它。"
+            out["target_pos"] = list(h.pos)
+    elif q["kind"] == "bandits":
+        b = w.parties.get(q["target"])
+        out["todo"] = f"追上{b.name}，把他们击溃。" if b else "那伙人已经不知去向。"
+        out["progress"] = "去向不明"
+        if b:
+            # word from the road, as the giver would hear it: the place they were last seen near
+            near = min((t for t in w.settlements.values() if t.kind in ("town", "castle", "village")),
+                       key=lambda t: dist(t.pos, b.pos))
+            out["progress"] = f"有人看见他们在{near.name}一带出没（{b.name}，约{T_size(b)}人）"
+            out["target_pos"] = list(near.pos)
+    elif q["kind"] == "letter":
+        h = w.heroes.get(q["target"])
+        if h:
+            k = w.kingdoms.get(h.kingdom)
+            out["todo"] = f"找到{k.name if k else ''}的{h.name}，与他交谈即可交信。"
+            hp = w.hero_party(h.id)
+            if hp and hp.inside in w.settlements:
+                out["progress"] = f"听说他在{w.settlements[hp.inside].name}"
+                out["target_pos"] = list(w.settlements[hp.inside].pos)
+            elif hp:
+                near = min((t for t in w.settlements.values() if t.kind in ("town", "castle", "village")),
+                           key=lambda t: dist(t.pos, hp.pos))
+                out["progress"] = f"听说他的人马在{near.name}一带"
+                out["target_pos"] = list(near.pos)
+    elif q["kind"] == "goods":
+        have = w.parties[PID].cargo.get(q["good"], 0) if PID in w.parties else 0
+        out["progress"] = f"已备 {min(have, q['qty'])} / {q['qty']} 份{GOODS[q['good']][0]}"
+        out["todo"] = f"把{q['qty']}份{GOODS[q['good']][0]}运到{s.name}，进城交货。"
+        out["target_pos"] = list(s.pos)
+    return out

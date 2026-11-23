@@ -63,6 +63,25 @@ def new_bandits(w: World, hideout: Settlement, size: int | None = None) -> Party
     return p
 
 
+def new_looters(w: World, village: Settlement) -> Party:
+    """A small band of looters with no lair (Warband's looters): roams round a village of the heartland."""
+    pid = w.new_id("bd")
+    lo, hi = B.bandits.looter_size
+    size = w.rng.randint(int(lo), int(hi))
+    a = w.rng.uniform(0, 6.283)
+    r = w.rng.uniform(15, 35)
+    pos = [village.pos[0] + r * math.cos(a), village.pos[1] + r * math.sin(a)]
+    if not w.terrain.passable(*pos):
+        pos = list(village.pos)
+    roster: dict = {}
+    T.add(roster, D.BANDIT_TYPES["liukou"][1], size)
+    p = Party(pid, "bandit", D.BANDIT_TYPES["liukou"][0], BANDIT, pos, roster, home=None,
+              gold=float(w.rng.randint(5, 40)))
+    p.memo["roam"] = list(village.pos)
+    w.parties[pid] = p
+    return p
+
+
 def spawn_refugees(w: World, v: Settlement) -> Party | None:
     """A raided village empties onto the roads: 流民 walking to the nearest town of their realm."""
     from .common import nearest_settlement
@@ -202,6 +221,10 @@ def default_world(seed: int = 0, with_player: bool = True) -> World:
         if s.kind == "hideout" and s.active:
             for _ in range(rng.randint(1, 2)):
                 new_bandits(w, s)
+    # looters roaming the heartland from the start (half the cap; the rest come day by day)
+    heart = [v for v in w.settlements.values() if v.kind == "village" and v.faction in set(B.bandits.looter_regions)]
+    for _ in range(int(B.bandits.looters_max) // 2 if heart else 0):
+        new_looters(w, rng.choice(heart))
     towns = [s for s in w.settlements.values() if s.kind == "town"]
     for town in rng.sample(towns, 3):
         new_hunters(w, town)

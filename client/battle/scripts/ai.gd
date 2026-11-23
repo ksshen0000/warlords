@@ -264,6 +264,9 @@ static func _melee(a: Agent, b: Battle, tgt: Agent) -> void:
 		if tgt.state == Agent.BLOCK and not tgt.shield_up() and dirs.size() > 1 and dir == tgt.block_dir:
 			dir = dirs[(dirs.find(dir) + 1) % dirs.size()]
 		a.start_attack(dir)
+		a.tilt_target = tgt
+		a.swing_tilt = a.tilt_at(tgt)
+		a.swing_yaw = a.yaw_at(tgt)
 		a.ai["hold"] = randf_range(0.0, 0.25)
 	elif a.state == Agent.READY and a.state_t >= a.ready_time() + float(a.ai.get("hold", 0.0)) and d <= r:
 		a.release_attack()
@@ -364,6 +367,9 @@ static func _cavalry(a: Agent, b: Battle, tgt: Agent) -> void:
 		_steer(a, b, lead, 1.0)
 		if d < 3.0 and a.speed < 4.0 and a.state == Agent.IDLE:
 			a.start_attack(Agent.Dir.RIGHT if to.dot(a.right()) > 0 else Agent.Dir.LEFT)
+			a.tilt_target = tgt
+			a.swing_tilt = a.tilt_at(tgt)
+			a.swing_yaw = a.yaw_at(tgt)
 		elif a.state == Agent.READY and a.state_t >= a.ready_time():
 			a.release_attack()
 		return
@@ -372,8 +378,12 @@ static func _cavalry(a: Agent, b: Battle, tgt: Agent) -> void:
 	_steer(a, b, tgt.global_position - side_off * 0.0 + side_off, 1.0)
 	if a.state == Agent.IDLE and d < 9.0 and not behind:
 		a.start_attack(Agent.Dir.RIGHT if to.dot(a.right()) > 0 else Agent.Dir.LEFT)
-	elif a.state == Agent.READY and a.state_t >= a.ready_time() and d < a.reach() + a.speed * 0.12 + 0.4:
-		a.release_attack()
+		a.tilt_target = tgt                      # a rider cuts down at a man on foot
+		a.swing_tilt = a.tilt_at(tgt)
+		a.swing_yaw = a.yaw_at(tgt)
+	elif a.state == Agent.READY and a.state_t >= a.ready_time() and not behind \
+			and d < a.reach() + a.speed * a.strike_time() * 0.6 + 0.4:
+		a.release_attack()                       # lead the swing: the horse closes while the blade comes round
 
 
 # ------------------------------------------------------------------ archers

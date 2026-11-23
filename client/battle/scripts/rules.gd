@@ -160,6 +160,16 @@ func loadout(tid: String, override: Dictionary = {}) -> Dictionary:
 		out.ranged = _resolve(spec.ranged, "weapons")
 	if spec.has("shield"):
 		out.shield = _resolve(spec.shield, "shields")
+	# the weapon slots in order ("m0", "r", "s"…): the player's from his equipment screen; troops: melee, then ranged
+	var order: Array = spec.get("order", [])
+	if order.is_empty():
+		for i in out.melee.size():
+			order.append("m%d" % i)
+		if not out.ranged.is_empty():
+			order.append("r")
+		if not out.shield.is_empty():
+			order.append("s")
+	out["order"] = order
 	return out
 
 

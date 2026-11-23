@@ -31,6 +31,12 @@ var head_armor := 0
 var look: Dictionary = {}            # {head, body}: gear tier shown on the model (the player's items)
 var melee: Array = []
 var melee_idx := 0
+## Warband's weapon slots in their order ("m0" melee, "r" bow/crossbow/javelins, "s" the shield, which is
+## never drawn by hand: it rides on the left arm with a one-handed weapon, on the back otherwise).
+var weapon_order: Array = []
+var switch_t := 0.0                      # sheathing one weapon and drawing the next (can't strike or block)
+var switch_len := 0.0
+var _switch_to := ""
 var ranged: Dictionary = {}
 var ammo := 0
 var shield: Dictionary = {}
@@ -48,6 +54,14 @@ var state := IDLE
 var state_t := 0.0
 var state_len := 0.0
 var attack_dir := Dir.RIGHT
+## Warband aims a swing where you look: the arc is pitched by this (radians, < 0 = down), so a side swing
+## from the saddle cuts down at a man on foot and a look downwards turns it into a slash to the lower left
+## or right. The player's comes from the camera (player_ctrl), the AI's from its foe's height (tilt_at).
+var swing_tilt := 0.0
+var swing_yaw := 0.0                    # which way (own frame, + = right) the swing is pitched towards
+var tilt_target: Agent = null
+const TILT_MIN := -1.0
+const TILT_MAX := 0.55
 var block_dir := Dir.UP
 var release_pending := false
 var hit_done := false
@@ -108,6 +122,7 @@ func setup(b: Node, r: BattleRules, tid: String, sd: int, col: Color, override: 
 	horse_speed = float(lo.get("horse_speed", 1.0)) * float(lo.get("char", {}).get("horse", 1.0))   # 骑术
 	horse_armor = float(lo.get("horse_armor", -1.0))
 	melee = lo.melee
+	weapon_order = (lo.get("order", []) as Array).duplicate()
 	ranged = lo.ranged
 	ammo = int(ranged.get("ammo", 0))
 	shield = lo.shield
@@ -354,7 +369,7 @@ func busy() -> bool:
 
 # ------------------------------------------------------------------ actions (controllers call these)
 func start_attack(dir: int) -> void:
-	if using_ranged or not (state == IDLE or state == BLOCK):
+	if using_ranged or not (state == IDLE or state == BLOCK) or switch_t > 0.0:
 		return
 	if not dir in allowed_dirs():
 		dir = allowed_dirs()[0]
@@ -366,10 +381,31 @@ func start_attack(dir: int) -> void:
 	_prev_seg = []
 
 
+## The pitch that brings a swing to `t`'s chest (or a horse's flank-high rider): + up, - down.
+## Where `t` is, as an angle off our nose (+ = to the right), for pitching the swing towards him.
+func yaw_at(t: Agent) -> float:
+	if t == null or not is_instance_valid(t):
+		return 0.0
+	var l := global_transform.basis.inverse() * (t.global_position - global_position)
+	return clampf(atan2(l.x, -l.z), -1.7, 1.7)
+
+
+func tilt_at(t: Agent) -> float:
+	if t == null or not is_instance_valid(t):
+		return 0.0
+	var from := global_position + Vector3(0, SHOULDER.y + (RIDER_LIFT if mounted else 0.0), 0)
+	var aim := t.global_position + Vector3(0, 1.15 + (RIDER_LIFT if t.mounted else 0.0), 0)
+	var d := aim - from
+	var flat := Vector2(d.x, d.z).length()
+	return clampf(atan2(d.y, maxf(flat, 0.6)), TILT_MIN, TILT_MAX)
+
+
 func release_attack() -> void:
 	if state != READY:
 		return
 	battle.stat("swings")
+	if mounted and not couched:
+		battle.stat("cav_swings")
 	if state_t >= ready_time():
 		_set_state(STRIKE, strike_time())
 		_prev_seg = []
@@ -379,6 +415,8 @@ func release_attack() -> void:
 
 
 func start_block(dir: int) -> void:
+	if switch_t > 0.0:
+		return
 	if using_ranged:
 		return                  # bow / crossbow in hand: no guard
 	if state == IDLE or state == READY or (state == BLOCK and dir != block_dir):
@@ -393,6 +431,8 @@ func stop_block() -> void:
 
 
 func begin_aim() -> void:
+	if switch_t > 0.0:
+		return
 	if not using_ranged or ammo <= 0 or not (state == IDLE or state == BLOCK):
 		return
 	if ranged.kind == "crossbow" and not crossbow_loaded:
@@ -443,29 +483,84 @@ func release_shot(extra_error: float = 0.0) -> void:
 	_set_state(RECOVER, 0.35)
 
 
-func switch_weapon() -> void:
-	## mouse wheel: cycle bow/crossbow -> melee weapons
-	if state in [READY, STRIKE, AIM, STUN, DOWN, DEAD, KICK]:
+## The slot in hand ("m0"…, "r").
+func current_slot() -> String:
+	return "r" if using_ranged else "m%d" % melee_idx
+
+
+## Whether the weapon in slot `k` can be taken in hand now (a shield never is; some kit is no use mounted).
+func slot_ready(k: String) -> bool:
+	if k == "r":
+		return can_use_ranged()
+	if k.begins_with("m"):
+		var i := int(k.substr(1))
+		return i < melee.size() and usable(melee[i])
+	return false
+
+
+## Why slot `k` can't be used (for the HUD / a message), "" if it can.
+func slot_problem(k: String) -> String:
+	if k == "r":
+		if ranged.is_empty():
+			return ""
+		if not usable(ranged):
+			return "马上用不了"
+		if ammo <= 0:
+			return "没有箭了" if not is_thrower() else "扔完了"
+		return ""
+	if k.begins_with("m"):
+		var i := int(k.substr(1))
+		if i < melee.size() and not usable(melee[i]):
+			return "马上用不了"
+	return ""
+
+
+## Mouse wheel (Warband): the next (step 1) or previous (-1) weapon slot that can be used, skipping the
+## shield. Takes a moment: the old weapon goes away, the new one comes out, then you can fight again.
+func switch_weapon(step := 1) -> void:
+	if state in [READY, STRIKE, AIM, STUN, DOWN, DEAD, KICK, RELOAD] or switch_t > 0.0:
 		return
-	var nxt := -1                      # next usable melee weapon after the current one
-	if not using_ranged:
-		for i in range(melee_idx + 1, melee.size()):
-			if usable(melee[i]):
-				nxt = i
-				break
-	if using_ranged:
-		using_ranged = false
-		melee_idx = _first_usable(0)
-	elif nxt >= 0:
-		melee_idx = nxt
-	elif can_use_ranged():
+	var order: Array = weapon_order.filter(func(k): return k != "s")
+	if order.size() < 2:
+		return
+	var at := order.find(current_slot())
+	if at < 0:
+		at = 0 if step > 0 else order.size()
+	for n in range(1, order.size()):
+		var k: String = order[posmod(at + step * n, order.size())]
+		if slot_ready(k):
+			_begin_switch(k)
+			return
+		if is_player and slot_problem(k) != "":
+			battle.message(_slot_name(k) + slot_problem(k), Color("e0b070"))
+
+
+func _slot_name(k: String) -> String:
+	if k == "r":
+		return str(ranged.get("name", "弓弩"))
+	if k.begins_with("m") and int(k.substr(1)) < melee.size():
+		return str(melee[int(k.substr(1))].get("name", "兵器"))
+	return str(shield.get("name", "盾"))
+
+
+func _begin_switch(k: String) -> void:
+	if state == BLOCK:
+		stop_block()
+	_switch_to = k
+	switch_len = rules.num("combat", "switch_time", 0.55)
+	switch_t = switch_len
+
+
+## Halfway through the switch: the new weapon is in hand.
+func _finish_switch() -> void:
+	var k := _switch_to
+	_switch_to = ""
+	if k == "r":
 		using_ranged = true
-	else:
-		if is_player and not ranged.is_empty() and ammo > 0 and not can_use_ranged():
-			battle.message("马上用不了" + str(ranged.get("name", "")) if not usable(ranged) else "马上无法给弩上弦", Color("e0b070"))
-		melee_idx = _first_usable(0)
+	elif k.begins_with("m"):
+		using_ranged = false
+		melee_idx = clampi(int(k.substr(1)), 0, maxi(0, melee.size() - 1))
 	rig.set_weapon(weapon())
-	_set_state(RECOVER, 0.3)
 
 
 func use_melee(idx := -1) -> void:
@@ -520,8 +615,17 @@ func regroup(facing: float) -> void:
 # ------------------------------------------------------------------ simulation
 func step(dt: float) -> void:
 	state_t += dt
+	if switch_t > 0.0:
+		switch_t -= dt
+		if _switch_to != "" and switch_t <= switch_len * 0.5:
+			_finish_switch()
+		if switch_t <= 0.0:
+			switch_t = 0.0
 	match state:
 		READY:
+			if tilt_target != null and not is_player:
+				swing_tilt = lerpf(swing_tilt, tilt_at(tilt_target), clampf(dt * 8.0, 0.0, 1.0))
+				swing_yaw = lerp_angle(swing_yaw, yaw_at(tilt_target), clampf(dt * 8.0, 0.0, 1.0))
 			if release_pending and state_t >= ready_time():
 				_set_state(STRIKE, strike_time())
 				_prev_seg = []
@@ -841,6 +945,26 @@ func pose() -> Dictionary:
 			larm = Vector3(-0.75, 0.15, 0.3)
 			reach = 0.6
 			lreach = 0.6
+	if state in [READY, STRIKE, RECOVER] and absf(swing_tilt) > 0.001 and not couched:
+		# pitch the whole swing about the shoulders' left-right axis; lean into a low cut
+		var k := 1.0
+		if state == READY:
+			k = _ease_out(state_t / ready_time())
+		elif state == RECOVER:
+			k = 1.0 - _smooth(state_t / maxf(0.01, state_len))
+		# the axis lies flat, square to where we aim: pitching about it brings the arc down (or up) there
+		var aim_dir := Vector3(sin(swing_yaw), 0.0, -cos(swing_yaw))
+		var tb := Basis(aim_dir.cross(Vector3.UP).normalized(), swing_tilt * k)
+		arm = tb * arm
+		if wdir != Vector3.ZERO:
+			wdir = tb * wdir
+		lean += -0.35 * minf(swing_tilt, 0.0) * k
+	if switch_t > 0.0 and state in [IDLE, BLOCK]:
+		# sheathing / drawing: the right hand goes down to the hip and comes back up with the other weapon
+		var u := 1.0 - absf(switch_t / maxf(0.01, switch_len) - 0.5) * 2.0
+		arm = _sl(REST, Vector3(0.45, -0.85, 0.3), u)
+		wdir = _sl(Vector3(0.1, 0.55, -0.85), Vector3(0.15, -0.5, 0.85), u)
+		reach = 0.5
 	if couched:
 		arm = Vector3(0.18, -0.12, -1.0)
 		reach = 0.55
@@ -906,6 +1030,8 @@ func _check_strike() -> void:
 		if not hit.is_empty():
 			hit_done = true
 			var early := p < rules.num("combat", "active_from", 0.22)
+			if mounted and not (hit[0] as Agent).mounted:
+				battle.stat("cav_hits_on_foot")            # tuning: do riders' swings reach men on foot?
 			battle.melee_hit(self, hit[0], hit[1], hit[2], attack_dir == Dir.DOWN, early, motion.normalized())
 			return
 

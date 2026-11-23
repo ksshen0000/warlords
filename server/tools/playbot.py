@@ -249,23 +249,20 @@ def choose_goal(w) -> dict | None:
     return None
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--seed", type=int, default=3)
-    ap.add_argument("--origin", default="zhao")
-    ap.add_argument("--background", default="lowborn")
-    ap.add_argument("--days", type=int, default=120)
-    a = ap.parse_args()
-    w = default_world(a.seed)
+def run(seed: int = 3, origin: str = "zhao", background: str = "lowborn", days: int = 120):
+    """Play `days` days as the bot; returns the world (tools/itest.py checks its books)."""
+    log.clear()
+    seen.clear()
+    w = default_world(seed)
     sim = Simulation(w, AIRouter(w, 0))
-    P.act(w, "origin", {"choice": a.origin})
-    P.act(w, "background", {"choice": a.background})
+    P.act(w, "origin", {"choice": origin})
+    P.act(w, "background", {"choice": background})
     p = P.party(w)
     stuck = 0
     milestones = [(30, "renown30"), (60, "renown60"), (B.player.vassal_renown, "renownV")]
     spins, last_hour = 0, -1
     status_day = -1
-    while w.day < a.days:
+    while w.day < days:
         p = P.party(w)                                # re-read: the party can be rebuilt after a defeat
         if w.day % 30 == 0 and w.day != status_day:
             status_day = w.day
@@ -316,6 +313,18 @@ def main() -> None:
                 note(w, key, f"名望达到{r}")
         if w.fiefs_of("player"):
             note(w, "fief", f"获得封地：{'、'.join(s.name for s in w.fiefs_of('player'))}")
+    return w
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seed", type=int, default=3)
+    ap.add_argument("--origin", default="zhao")
+    ap.add_argument("--background", default="lowborn")
+    ap.add_argument("--days", type=int, default=120)
+    a = ap.parse_args()
+    w = run(a.seed, a.origin, a.background, a.days)
+    p = P.party(w)
     # summary
     done = sum(1 for e in w.events if e["type"] == "quest_done")
     failed = sum(1 for e in w.events if e["type"] == "quest_failed")

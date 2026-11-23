@@ -20,6 +20,7 @@ const TIER_COL := [Color("b9b4a8"), Color("b9b4a8"), Color("efe6d2"), Color("8fc
 var g: Dictionary = {}
 var title := ""
 var _bag_grid: GridContainer
+var _bag_title: Label
 var _shop_grid: GridContainer
 var _shop_title: Label
 var _shop_box: Control
@@ -67,6 +68,7 @@ func _ready() -> void:
 
 	# left: the bag
 	var left := _panel_box(cols, "包裹")
+	_bag_title = left.get_child(0) as Label
 	_bag_grid = _grid(left, "bag")
 	# middle: weapons | model | armour
 	var mid := VBoxContainer.new()
@@ -168,9 +170,17 @@ func _fill() -> void:
 	for it in g.get("bag", []):
 		for _k in int(it.n):
 			bag_items.append(it)
+	# trade goods and grain share the bag, as in Warband (one square per kind; bought and sold at the market)
+	var load := 0
+	for cg in g.get("cargo", []):
+		load += int(cg.n)
+		bag_items.append({"id": cg.id, "name": cg.name, "n": int(cg.n), "price": int(cg.price), "type": "goods",
+			"tier": 1, "cargo": true})
+	_bag_title.text = "包裹　[货物 %d / %d]" % [load, int(g.get("cargo_cap", 0))] if g.has("cargo_cap") else "包裹"
 	var cols := maxi(_bag_grid.columns, 1)
 	for i in maxi(cols * 7, (bag_items.size() / cols + 2) * cols):
-		_bag_grid.add_child(_cell("bag", bag_items[i] if i < bag_items.size() else null))
+		var it = bag_items[i] if i < bag_items.size() else null
+		_bag_grid.add_child(_cell("cargo" if it != null and it.get("cargo", false) else "bag", it))
 	# slots
 	for c in _weapon_col.get_children() + _armor_col.get_children():
 		c.queue_free()
@@ -247,7 +257,7 @@ func drop(target: ItemCell, d: Dictionary) -> void:
 
 
 func activate(c: ItemCell) -> void:
-	if c.item.is_empty():
+	if c.item.is_empty() or c.where == "cargo":
 		return
 	match c.where:
 		"bag":
@@ -266,6 +276,9 @@ func _fits(t: String, slot: String) -> bool:
 
 func tooltip_for(c: ItemCell) -> String:
 	var it: Dictionary = c.item
+	if c.where == "cargo":
+		return "%s × %d\n货物 · 每份约 %d 金\n到城里的市集买卖%s" % [it.name, int(it.n), int(it.price),
+			"；粮食在军中可当口粮" if str(it.id) == "grain" else ""]
 	var s := "%s\n%s · %s\n" % [it.name, it.type_name, ["", "一", "二", "三", "四"][clampi(int(it.tier), 0, 4)] + "等"]
 	s += str(it.desc) + "\n"
 	match c.where:
@@ -470,7 +483,7 @@ class ItemCell extends Control:
 			accept_event()
 
 	func _get_drag_data(_p: Vector2) -> Variant:
-		if item.is_empty():
+		if item.is_empty() or where == "cargo":
 			return null
 		var prev := ItemCell.new()
 		prev.screen = screen
@@ -506,6 +519,8 @@ class ItemCell extends Control:
 		var f2 := get_theme_default_font()
 		var col: Color = [Color("b9b4a8"), Color("b9b4a8"), Color("efe6d2"), Color("8fc6ff"), Color("f2c75c")][clampi(tier, 0, 4)]
 		draw_string(f2, Vector2(0, size.y - 5), str(item.get("name", "")), HORIZONTAL_ALIGNMENT_CENTER, size.x, 11, col)
+		if where == "cargo":
+			draw_string(f2, Vector2(0, 14), "×%d " % int(item.get("n", 0)), HORIZONTAL_ALIGNMENT_RIGHT, size.x, 12, Color("f2c75c"))
 
 
 # ================================================================== item icons (drawn, no image files)
@@ -519,6 +534,13 @@ class Icons:
 		var b := str(it.get("base", ""))
 		var p := func(x: float, y: float) -> Vector2: return r.position + Vector2(x * r.size.x, y * r.size.y)
 		match t:
+			"goods":
+				# a tied sack
+				var sack := Color("b08a58") if str(it.get("id", "")) != "salt" else Color("d8d4c8")
+				c.draw_colored_polygon(PackedVector2Array([p.call(0.3, 0.3), p.call(0.7, 0.3), p.call(0.86, 0.75),
+					p.call(0.76, 0.95), p.call(0.24, 0.95), p.call(0.14, 0.75)]), sack)
+				c.draw_line(p.call(0.36, 0.3), p.call(0.64, 0.3), Color("5a4026"), 3.0)
+				c.draw_colored_polygon(PackedVector2Array([p.call(0.38, 0.28), p.call(0.5, 0.08), p.call(0.62, 0.28)]), sack.darkened(0.15))
 			"melee":
 				match b:
 					"sword":

@@ -110,6 +110,7 @@ func set_map(m: Dictionary) -> void:
 	terrain_rect.texture = htex
 	terrain_rect.material = mat
 	rivers = m.rivers
+	_paint_rivers(mat)
 	fords = m.get("fords", [])
 	roads = m.roads
 	_has_map = true
@@ -433,8 +434,7 @@ func _draw() -> void:
 	var s := _scale()
 	if show_territory:
 		_draw_territory()
-	_draw_lines(rivers, true)
-	_draw_lines(roads, false)
+	_draw_lines(roads)
 	_draw_fords()
 	_draw_fog()
 	_draw_route()
@@ -459,7 +459,6 @@ func _draw() -> void:
 		_text(Vector2(size.x * 0.5, 28), status_text, 16, GOLD)
 
 
-## Ferry crossings: the only places to cross the great river.
 ## Dims the world beyond the player's sight radius, with a soft edge.
 func _draw_fog() -> void:
 	if vision <= 0.0 or not _cur.has(player_id):
@@ -487,17 +486,27 @@ func _draw_fords() -> void:
 		if not Rect2(Vector2(-30, -30), size + Vector2(60, 60)).has_point(p):
 			continue
 		var k := s * 1.1
-		# ferry boat with a little sail
-		var hull := PackedVector2Array([p + Vector2(-7, -1) * k, p + Vector2(7, -1) * k,
-			p + Vector2(5, 3) * k, p + Vector2(-5, 3) * k])
-		var ring := hull.duplicate()
-		ring.append(hull[0])
-		draw_polyline(ring, OUTLINE, 2.0 * k, true)
-		draw_colored_polygon(hull, Color("8a5a32"))
-		draw_line(p + Vector2(0, -1) * k, p + Vector2(0, -11) * k, OUTLINE, 1.6 * k)
-		draw_colored_polygon(PackedVector2Array([p + Vector2(0.5, -10.5) * k, p + Vector2(6, -3) * k, p + Vector2(0.5, -3) * k]), CREAM)
+		var bridge: bool = f.size() > 3 and str(f[3]) == "bridge"
+		if bridge:
+			# a pontoon bridge: a plank road laid over a row of moored boats
+			for i in 5:
+				var c := p + Vector2(-8 + i * 4, 0) * k
+				draw_rect(Rect2(c - Vector2(1.6, 3.5) * k, Vector2(3.2, 7) * k), Color("6e4526"))
+			draw_rect(Rect2(p - Vector2(10, 1.4) * k, Vector2(20, 2.8) * k), Color("c9a46a"))
+			draw_rect(Rect2(p - Vector2(10, 1.4) * k, Vector2(20, 2.8) * k), OUTLINE, false, 1.0)
+		else:
+			# ferry boat with a little sail
+			var hull := PackedVector2Array([p + Vector2(-7, -1) * k, p + Vector2(7, -1) * k,
+				p + Vector2(5, 3) * k, p + Vector2(-5, 3) * k])
+			var ring := hull.duplicate()
+			ring.append(hull[0])
+			draw_polyline(ring, OUTLINE, 2.0 * k, true)
+			draw_colored_polygon(hull, Color("8a5a32"))
+			draw_line(p + Vector2(0, -1) * k, p + Vector2(0, -11) * k, OUTLINE, 1.6 * k)
+			draw_colored_polygon(PackedVector2Array([p + Vector2(0.5, -10.5) * k, p + Vector2(6, -3) * k, p + Vector2(0.5, -3) * k]), CREAM)
 		if zoom > close_zoom(1.5):
-			_text(p + Vector2(0, 15) * k, "渡口", int(11 * s), Color("cfe3f0"))
+			var nm: String = str(f[2]) if f.size() > 2 and str(f[2]) != "" else ("浮桥" if bridge else "渡口")
+			_text(p + Vector2(0, 15) * k, nm, int(11 * s), Color("cfe3f0"))
 
 
 func _draw_territory() -> void:
@@ -510,7 +519,7 @@ func _draw_territory() -> void:
 		draw_arc(p, 70.0 * zoom, 0, TAU, 48, Color(c, 0.18), 1.5, true)
 
 
-func _draw_lines(lines: Array, is_river: bool) -> void:
+func _draw_lines(lines: Array) -> void:
 	var view := Rect2(Vector2(-50, -50), size + Vector2(100, 100))
 	for l in lines:
 		var pts: Array = l.points
@@ -523,58 +532,59 @@ func _draw_lines(lines: Array, is_river: bool) -> void:
 				visible = true
 		if not visible or poly.size() < 2:
 			continue
-		if is_river:
-			_draw_river(l, poly)
-		else:
-			var main: bool = l.kind == "road"
-			draw_polyline(poly, ROAD if main else TRACK, max(1.0, (1.6 if main else 1.0) * min(zoom, 2.5)), true)
+		var main: bool = l.kind == "road"
+		draw_polyline(poly, ROAD if main else TRACK, max(1.0, (1.6 if main else 1.0) * min(zoom, 2.5)), true)
 
 
-## Rivers share one look with the terrain shader's water (terrain.gdshader): the shallow-water blue with a
-## pale rim like its foam along the shore — the thin upper reaches and the open lower stretches of the great
-## rivers alike (the open stretch is drawn over its water cells, with gaps at the fords for the sandbars).
-## Points run from the source to the mouth; the width grows evenly along the way.
-const RIVER_CORE := Color(0.22, 0.42, 0.55)
-const RIVER_RIM := Color(0.50, 0.63, 0.68)
+## Rivers are water in the terrain shader, like the sea and the lakes: their shapes (the server's centre
+## lines and widths) are painted once into a mask texture, which terrain.gdshader turns into banks with a
+## ragged edge, shallows, a darker channel and drifting ripples.
+const RIVER_PX := 2.0                 # mask pixels per world unit
+var _river_vp: SubViewport
 
 
-func _draw_river(l: Dictionary, poly: PackedVector2Array) -> void:
-	var pts: Array = l.points
-	var w0 := float(l.width)
-	var w1 := float(l.get("width_end", l.width))
-	var gaps: Array = l.get("gaps", [])
-	var gap_r := float(l.get("gap_r", 0.0))
-	var total := 0.0
-	for i in range(1, poly.size()):
-		total += poly[i - 1].distance_to(poly[i])
-	if total <= 0.0:
-		return
-	# segments to draw: [a, b, width px]
-	var segs: Array = []
-	var run := 0.0
-	for i in range(1, poly.size()):
-		var a := poly[i - 1]
-		var b := poly[i]
-		run += a.distance_to(b)
-		if not gaps.is_empty():
-			var mid := (Vector2(pts[i - 1][0], pts[i - 1][1]) + Vector2(pts[i][0], pts[i][1])) * 0.5
-			var skip := false
-			for g in gaps:
-				if mid.distance_to(Vector2(g[0], g[1])) < gap_r:
-					skip = true
-					break
-			if skip:
+func _paint_rivers(mat: ShaderMaterial) -> void:
+	if _river_vp:
+		_river_vp.queue_free()
+	_river_vp = SubViewport.new()
+	_river_vp.size = Vector2i(int(world_size.x * RIVER_PX), int(world_size.y * RIVER_PX))
+	_river_vp.transparent_bg = true
+	_river_vp.disable_3d = true
+	_river_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var painter := RiverPainter.new()
+	painter.rivers = rivers
+	painter.k = RIVER_PX
+	_river_vp.add_child(painter)
+	add_child(_river_vp)
+	mat.set_shader_parameter("rivers", _river_vp.get_texture())
+	mat.set_shader_parameter("river_on", 1.0)
+
+
+class RiverPainter extends Node2D:
+	var rivers: Array = []
+	var k := 2.0
+
+	func _draw() -> void:
+		for r in rivers:
+			var pts: Array = r.points
+			var ws: Array = r.get("w", [])
+			if pts.size() < 2 or ws.size() != pts.size():
 				continue
-		segs.append([a, b, maxf(1.2, lerpf(w0, w1, run / total) * 0.7 * zoom)])
-	var rim := maxf(1.0, 0.9 * minf(zoom, 3.0))         # the pale shore line on each bank
-	for pass_i in 2:
-		for sg in segs:
-			var w: float = sg[2] + (2.0 * rim if pass_i == 0 else 0.0)
-			var c := RIVER_RIM if pass_i == 0 else RIVER_CORE
-			draw_line(sg[0], sg[1], c, w, true)
-			if w > 3.0:
-				draw_circle(sg[1], w * 0.5, c)
-				draw_circle(sg[0], w * 0.5, c)
+			var prev_l := Vector2.ZERO
+			var prev_r := Vector2.ZERO
+			for i in pts.size():
+				var p := Vector2(pts[i][0], pts[i][1]) * k
+				var a := Vector2(pts[maxi(0, i - 1)][0], pts[maxi(0, i - 1)][1]) * k
+				var b := Vector2(pts[mini(pts.size() - 1, i + 1)][0], pts[mini(pts.size() - 1, i + 1)][1]) * k
+				var n := (b - a).normalized().orthogonal()
+				var h := float(ws[i]) * 0.5 * k
+				var l := p + n * h
+				var rr := p - n * h
+				if i > 0:
+					draw_colored_polygon(PackedVector2Array([prev_l, l, rr, prev_r]), Color.WHITE)
+				draw_circle(p, h, Color.WHITE)          # round joins: no notches where the line bends
+				prev_l = l
+				prev_r = rr
 
 
 func _draw_route() -> void:

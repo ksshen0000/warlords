@@ -21,7 +21,7 @@ TERRAIN_BATTLE = {i: dict(_T[k]["battle"]) for i, k in enumerate(TERRAIN_KEYS) i
 VILLAGE_GOODS = {i: list(_T[k]["village_goods"]) for i, k in enumerate(TERRAIN_KEYS) if "village_goods" in _T[k]}
 RIVER_SPEED = float(_T["river_speed"])
 ROAD_SPEED = float(_T["road_speed"])
-FORD_SPEED = float(_T.get("ford_speed", 0.35))
+FORD_SPEED = float(_T.get("ford_speed", 0.9))
 
 # ------------------------------------------------------------------ goods
 GOODS = {g: (v["name"], v["price"]) for g, v in _U["goods"].items()}

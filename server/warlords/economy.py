@@ -40,10 +40,13 @@ def sell(w: World, town: Settlement, good: str, n: int) -> float:
     return got * (1 - B.economy.tariff)
 
 
+MIN_STOCK = 3          # a market keeps this much of a good for its own people
+
+
 def buy(w: World, town: Settlement, good: str, n: int, budget: float) -> tuple[int, float]:
     bought, spent = 0, 0.0
     for _ in range(n):
-        if town.market.get(good, 0) < 3:
+        if town.market.get(good, 0) < MIN_STOCK:
             break
         pr = w.price(town, good)
         if spent + pr > budget:
@@ -307,6 +310,15 @@ def daily(w: World) -> None:
             s.garrison = bandit_band(s.bandit_type, rng.randint(14, 24), rng)
             w.log("hideout_new", f"一伙{BANDIT_TYPES[s.bandit_type][0]}在{s.name}落草为寇",
                   settlement=s.id, pos=list(s.pos))
+
+    # looters: small bands with no lair, wandering between the villages of the heartland (Warband)
+    looters = sum(1 for q in w.parties.values() if q.alive and q.kind == "bandit" and "roam" in q.memo)
+    if looters < B.bandits.looters_max and rng.random() < B.bandits.looter_spawn_chance:
+        regions = set(B.bandits.looter_regions)
+        vill = [s for s in w.settlements.values() if s.kind == "village" and s.faction in regions]
+        if vill:
+            from .scenario import new_looters
+            new_looters(w, rng.choice(vill))
 
     # keep the neutral economy alive
     towns = [s for s in w.settlements.values() if s.kind == "town"]

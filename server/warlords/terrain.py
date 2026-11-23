@@ -22,7 +22,7 @@ RW, RH = W // RC, H // RC   # 480 x 320 render grid
 NC = 8                      # navigation cell size
 NW, NH = W // NC, H // NC   # 240 x 160 nav grid
 INF = float("inf")
-CACHE_VERSION = 14  # bump whenever generation (geography, sites, kingdoms) changes
+CACHE_VERSION = 18  # bump whenever generation (geography, sites, kingdoms) changes
 
 _N8 = [(-1, 0, 1.0), (1, 0, 1.0), (0, -1, 1.0), (0, 1, 1.0),
        (-1, -1, 1.4142), (1, -1, 1.4142), (-1, 1, 1.4142), (1, 1, 1.4142)]
@@ -66,13 +66,14 @@ class Terrain:
         self.biome = bytearray(RW * RH)
         self.river = bytearray(RW * RH)    # 1 = river cell
         self.sea_level = 0.0
-        self.rivers: list[dict] = []       # {"points": [[x,y]...], "width": w}
+        self.rivers: list[dict] = []       # {"points": [[x,y]...], "w": [full width at each point], "name", "great"}
         self.roads: list[dict] = []        # {"points": [[x,y]...], "kind": "road"|"track"}
         self.speed = array("f", [0.0]) * (NW * NH)   # nav grid speed multiplier (0 = impassable)
         self.is_road = bytearray(NW * NH)
         self.sites: dict = {}              # generated placement (see _place_sites)
         self.places: dict[str, tuple[float, float]] = {}   # place id -> pos (for flow fields)
-        self.fords: list[list[float]] = []    # [x, y] of each ford across a great river
+        self.fords: list[list] = []           # [x, y, name, "ferry"|"bridge"] of each crossing of a great river
+        self.ferry = array("H", [0]) * (NW * NH)   # nav cell -> 1 + index into fords of the ferry it belongs to
         self.basin: tuple | None = None       # (cx, cy, rx, ry) in world units
         self._flow: dict[str, array] = {}
 
@@ -148,8 +149,8 @@ class Terrain:
                     if 0 <= nx < NW and 0 <= ny < NH:
                         j = ny * NW + nx
                         sj = speed[j]
-                        if sj > 0:
-                            row.append((j, w * NC * 2.0 / (si + sj)))
+                        if sj > 0 and (dx == 0 or dy == 0 or speed[cy * NW + nx] > 0 or speed[ny * NW + cx] > 0):
+                            row.append((j, w * NC * 2.0 / (si + sj)))   # no slipping diagonally through a river line
                 adj.append(row)
             self._adj = adj
         return adj
@@ -526,85 +527,118 @@ def _shape_basin(t: Terrain, s: int) -> None:
                 t.height[i] = t.sea_level + (0.22 if t.biome[i] == D.HILLS else 0.1)
 
 
-def _cells_near_line(pts, radius: float):
-    """render cells whose centre is within `radius` world units of the polyline"""
-    out = set()
-    for (ax, ay), (bx, by) in zip(pts, pts[1:]):
-        x0 = max(0, int((min(ax, bx) - radius) // RC))
-        x1 = min(RW - 1, int((max(ax, bx) + radius) // RC))
-        y0 = max(0, int((min(ay, by) - radius) // RC))
-        y1 = min(RH - 1, int((max(ay, by) + radius) // RC))
+def _river_shape(r: dict) -> tuple[list, list]:
+    """One river as the map shows it: a smooth, gently meandering centre line from source to mouth and
+    its full width (world units) at every point. The width grows all the way down and swells most around
+    `wide_from` (where a great river opens out), with a slow natural wobble, so there is no seam between
+    a thin upper course and a broad lower one."""
+    raw = _poly(r["points"])
+    pts = _chaikin(raw, 3)
+    great = bool(r.get("great"))
+    # arc length, and where wide_from falls along it
+    run = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        run.append(run[-1] + math.dist(a, b))
+    total = run[-1] or 1.0
+    wf = int(r.get("wide_from", len(raw))) if great else len(raw)
+    if great and 0 < wf < len(raw):
+        k = min(range(len(pts)), key=lambda i: math.dist(pts[i], raw[wf]))
+        f = run[k] / total
+    else:
+        f = 1.0
+    ws, wm = (2.2, 2.0 * float(r.get("half_width", 2.0)) * RC) if great else (1.0, 3.2)
+    seed = sum(ord(ch) for ch in r.get("name", "")) * 0.37
+    out_pts, widths = [], []
+    for i, (x, y) in enumerate(pts):
+        u = run[i] / total
+        if great:
+            grow = 0.22 * u + 0.78 * _smooth(f - 0.38, f + 0.14, u)
+        else:
+            grow = u ** 0.8
+        s_ = run[i]
+        wobble = (math.sin(s_ / 41.0 + seed) + 0.6 * math.sin(s_ / 15.3 + seed * 2.1)) / 1.6
+        w = (ws + (wm - ws) * grow) * (1.0 + 0.13 * wobble)
+        # a gentle meander across the drawn line (not at the very ends: the source and the mouth stay put)
+        if 0 < i < len(pts) - 1:
+            ax, ay = pts[i - 1]
+            bx, by = pts[i + 1]
+            dx, dy = bx - ax, by - ay
+            d = math.hypot(dx, dy) or 1.0
+            m = (math.sin(s_ / 23.0 + seed * 1.7) + 0.5 * math.sin(s_ / 9.1 + seed)) / 1.5
+            amp = (0.8 + 0.18 * w) * min(1.0, run[i] / 30.0, (total - run[i]) / 30.0)
+            x, y = x - dy / d * m * amp, y + dx / d * m * amp
+        out_pts.append([round(x, 1), round(y, 1)])
+        widths.append(round(w, 2))
+    return out_pts, widths
+
+
+def _smooth(a: float, b: float, x: float) -> float:
+    t = min(1.0, max(0.0, (x - a) / ((b - a) or 1.0)))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _cells_near_river(pts: list, widths: list, min_half: float) -> dict:
+    """render cell -> the river's half width there, for every cell whose centre lies inside the river
+    (at least `min_half` either side of the line, so even a thin upper course is a continuous line)"""
+    out: dict[int, float] = {}
+    for i in range(len(pts) - 1):
+        (ax, ay), (bx, by) = pts[i], pts[i + 1]
+        half = max(min_half, max(widths[i], widths[i + 1]) * 0.5)
+        x0 = max(0, int((min(ax, bx) - half) // RC))
+        x1 = min(RW - 1, int((max(ax, bx) + half) // RC))
+        y0 = max(0, int((min(ay, by) - half) // RC))
+        y1 = min(RH - 1, int((max(ay, by) + half) // RC))
         for cy in range(y0, y1 + 1):
             for cx in range(x0, x1 + 1):
-                if _seg_dist((cx + 0.5) * RC, (cy + 0.5) * RC, ax, ay, bx, by) <= radius:
-                    out.add(cy * RW + cx)
+                if _seg_dist((cx + 0.5) * RC, (cy + 0.5) * RC, ax, ay, bx, by) <= half:
+                    c = cy * RW + cx
+                    out[c] = max(out.get(c, 0.0), half)
     return out
 
 
 def _carve_rivers(t: Terrain) -> None:
-    """Rivers from geography.toml: ordinary rivers are wadeable (slow); the great stretches of the
-    Yellow River and the Yangtze are open water that can only be crossed at their fords."""
+    """Rivers from geography.toml. Ordinary rivers are wadeable (slow). The Yellow River and the Yangtze
+    can't be waded anywhere: only crossed at their ferries (wait for the boats) or pontoon bridges.
+    The ground under a river keeps its height and biome: the client paints the water from t.rivers
+    (points + widths) in the terrain shader, and the blocking cells follow the same widths."""
     sea = t.sea_level
     for r in D.GEO.get("rivers", []):
-        raw = _poly(r["points"])
-        wide_from = int(r.get("wide_from", len(raw))) if r.get("great") else len(raw)
-        narrow = _chaikin(raw[:wide_from + 1], 2) if wide_from > 0 else []
-        wide = _chaikin(raw[wide_from:], 2) if wide_from < len(raw) - 1 else []
-        if len(narrow) > 1:
-            for c in _cells_near_line(narrow, RC * 0.6):
-                if t.height[c] >= sea:
-                    t.river[c] = 1
-            # drawn as a line that widens downstream; a great river's line ends as wide as the open water it
-            # becomes (client draws width × 0.7), so there is no jump from a thread to a lake at wide_from
-            open_w = 2.0 * float(r.get("half_width", 2.0)) * RC / 0.7
-            end = open_w if (r.get("great") and wide) else (4.0 if r.get("great") else 3.2)
-            t.rivers.append({"points": narrow, "width": 1.6 if r.get("great") else 1.2, "width_end": round(end, 2),
-                             "name": r["name"]})
-        if not wide:
+        great = bool(r.get("great"))
+        pts, widths = _river_shape(r)
+        t.rivers.append({"points": pts, "w": widths, "name": r["name"], "great": great})
+        cells = _cells_near_river(pts, widths, RC * 0.6)
+        for c in cells:
+            if t.height[c] < sea:
+                continue
+            if great:
+                t.river[c] = 2
+            elif t.river[c] == 0:
+                t.river[c] = 1                     # a tributary doesn't make its great river wadeable
+        if not great:
             continue
-        half = float(r.get("half_width", 2.0)) * RC
-        water = set()
-        for c in _cells_near_line(wide, half):
-            if t.biome[c] not in (D.WATER, D.DEEP_WATER):
-                water.add(c)
-                t.biome[c] = D.WATER
-                t.height[c] = sea - 0.012
-        ford_start = len(t.fords)
-        for fx, fy in (geo(*f) for f in r.get("fords", [])):
-            # snap to the river, then lay a sandbar / ferry landing across it
-            c0 = min(water, key=lambda c: math.hypot((c % RW + 0.5) * RC - fx, (c // RW + 0.5) * RC - fy), default=None)
+        whole = {c: h for c, h in cells.items() if t.height[c] >= sea}
+        crossings = [(f, "ferry") for f in r.get("fords", [])] + [(f, "bridge") for f in r.get("bridges", [])]
+        for f, kind in crossings:
+            fx, fy = geo(f[0], f[1])
+            c0 = min(whole, key=lambda c: math.hypot((c % RW + 0.5) * RC - fx, (c // RW + 0.5) * RC - fy), default=None)
             if c0 is None:
                 continue
             ox, oy = (c0 % RW + 0.5) * RC, (c0 // RW + 0.5) * RC
-            for c in water:
-                if math.hypot((c % RW + 0.5) * RC - ox, (c // RW + 0.5) * RC - oy) <= half + RC * 1.6:
-                    t.biome[c] = D.BEACH
-                    t.height[c] = sea + 0.004
-                    t.river[c] = 1
-            t.fords.append([round(ox, 1), round(oy, 1)])
-        # the open stretch is drawn with the same line as upstream (one look for the whole river), over the
-        # water cells; the client leaves gaps at the fords so the sandbars and ferries show
-        ow = round(2.0 * half / 0.7, 2)
-        t.rivers.append({"points": wide, "width": ow, "width_end": ow, "name": r["name"], "open": True,
-                         "gaps": t.fords[ford_start:], "gap_r": round(half + RC * 1.6, 1)})
+            reach = whole[c0] + RC * 1.6
+            for c in whole:
+                if math.hypot((c % RW + 0.5) * RC - ox, (c // RW + 0.5) * RC - oy) <= reach:
+                    t.river[c] = 4 if kind == "bridge" else 3     # still water on the map either way
+            t.fords.append([round(ox, 1), round(oy, 1), str(f[2]) if len(f) > 2 else "", kind])
 
 
 def _slow_fords(t: Terrain) -> None:
-    """Crossing a great river is slow even where a road leads to the ford."""
-    for fx, fy in t.fords:
-        for dy in range(-3, 4):
-            for dx in range(-3, 4):
-                x, y = fx + dx * NC, fy + dy * NC
-                if 0 <= x < W and 0 <= y < H and math.hypot(dx, dy) * NC <= 14:
-                    i = t.ncell(x, y)
-                    if t.speed[i] > 0:
-                        t.speed[i] = min(t.speed[i], D.FORD_SPEED)
-
+    """Fords used to slow everyone down; now the ferry is the normal way across (see _build_nav)."""
+    return
 
 def _build_nav(t: Terrain) -> None:
     for ny in range(NH):
         for nx in range(NW):
-            sp, n, blocked, river = 0.0, 0, 0, False
+            sp, n, blocked, river, great, ford, bridge = 0.0, 0, 0, False, False, False, False
             for dy in (0, 1):
                 for dx in (0, 1):
                     r = (ny * 2 + dy) * RW + nx * 2 + dx
@@ -614,9 +648,21 @@ def _build_nav(t: Terrain) -> None:
                     else:
                         sp += v
                         n += 1
-                    river = river or bool(t.river[r])
+                    river = river or t.river[r] == 1
+                    great = great or t.river[r] == 2
+                    ford = ford or t.river[r] == 3
+                    bridge = bridge or t.river[r] == 4
             i = ny * NW + nx
-            if blocked >= 2 or n == 0:
+            if bridge:
+                t.speed[i] = 1.0                           # a pontoon bridge: across at a marching pace
+            elif ford:
+                t.speed[i] = D.FORD_SPEED                  # the ferry: wait for the boats (movement.py), then across
+                cx, cy = (nx + 0.5) * NC, (ny + 0.5) * NC
+                k = min(range(len(t.fords)), key=lambda j: (t.fords[j][0] - cx) ** 2 + (t.fords[j][1] - cy) ** 2)
+                t.ferry[i] = k + 1
+            elif great:
+                t.speed[i] = 0.0                           # no wading or swimming the Yellow River or the Yangtze
+            elif blocked >= 2 or n == 0:
                 t.speed[i] = 0.0
             else:
                 v = sp / n
@@ -646,8 +692,27 @@ def _place_sites(t: Terrain, rng: random.Random) -> None:
     start = t.ncell(*t.nearest_passable(*geo(first[2], first[3]), 12))
     main = _land_component(t, start)
 
+    # the rivers as the map draws them (points + full widths): [ax, ay, bx, by, half width] per
+    # segment, so no village ends up under a drawn river
+    river_segs = []
+    for r in t.rivers:
+        pts, ws = r["points"], r["w"]
+        for i in range(len(pts) - 1):
+            river_segs.append((*pts[i], *pts[i + 1], max(ws[i], ws[i + 1]) * 0.5))
+
+    def river_clear(x, y, margin=4.0):
+        for ax, ay, bx, by, half in river_segs:
+            need = half + margin
+            if x < min(ax, bx) - need or x > max(ax, bx) + need or y < min(ay, by) - need or y > max(ay, by) + need:
+                continue
+            if _seg_dist(x, y, ax, ay, bx, by) < need:
+                return False
+        return True
+
     def ok_site(x, y, bad=(D.MARSH, D.DUNES, D.BEACH)):
         if not (0 <= x < W and 0 <= y < H) or t.ncell(x, y) not in main or t.speed_at(x, y) <= 0:
+            return False
+        if not river_clear(x, y):
             return False
         if t.biome_at(x, y) in bad or t.river[min(RH - 1, int(y // RC)) * RW + min(RW - 1, int(x // RC))]:
             return False
@@ -695,6 +760,8 @@ def _place_sites(t: Terrain, rng: random.Random) -> None:
     def lair_ok(x, y):
         if not (0 <= x < W and 0 <= y < H) or t.ncell(x, y) not in main or t.speed_at(x, y) <= 0:
             return False
+        if not river_clear(x, y):
+            return False
         if min(math.dist((x, y), f[3]) for f in fortified) < 55:
             return False
         if villages and min(math.dist((x, y), v[1]) for v in villages) < 26:
@@ -737,11 +804,15 @@ def _astar(t: Terrain, a: int, b: int) -> list[int]:
             sp = t.speed[j]
             if sp <= 0 and j != b:
                 continue
+            if dx and dy and t.speed[cy * NW + nx] <= 0 and t.speed[ny * NW + cx] <= 0:
+                continue                 # no slipping diagonally between two blocked cells (a river line)
             if t.is_road[j]:
                 cost = w * 0.45
             else:
                 cost = w / max(sp, 0.2)
-                if sp <= D.RIVER_SPEED:
+                if t.ferry[j]:
+                    cost += 6.0          # waiting for the boats
+                elif sp <= D.RIVER_SPEED:
                     cost *= 3.0          # bridges are expensive: cross rivers rarely
             ng = gi + cost
             if ng < g.get(j, INF):
@@ -786,7 +857,8 @@ def _lay_road(t: Terrain, p, q, kind: str) -> None:
         return
     for c in path:
         t.is_road[c] = 1
-        t.speed[c] = D.ROAD_SPEED
+        if t.speed[c] > 0:            # a town on the bank: the road ends there, it doesn't bridge the river
+            t.speed[c] = D.ROAD_SPEED
     pts = [list(p)] + [list(t.ncenter(c)) for c in path[1:-1]] + [list(q)]
     t.roads.append({"points": _chaikin(_simplify(pts), 2), "kind": kind})
 

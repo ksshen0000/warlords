@@ -408,7 +408,8 @@ func _horse_gait(walk_phase: float, speed: float) -> void:
 	horse.position.y = (0.08 if gallop else 0.04) * absf(rock) * hamp
 	horse.rotation.x = (0.05 * rock if gallop else 0.0) * hamp
 	horse_neck.rotation.x = (0.12 * sin(ph + 0.6) if gallop else 0.04 * sin(ph * 2.0)) * hamp
-	rider.position.y = 0.68 + horse.position.y * 0.8
+	if rider:                                  # a riderless horse (Battle.loose_horses) has none
+		rider.position.y = 0.68 + horse.position.y * 0.8
 
 
 ## Toppling over: `amount` 0..1 (upright .. flat), in direction `dir` (own frame). Pivots at the feet.

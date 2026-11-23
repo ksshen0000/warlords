@@ -11,9 +11,15 @@ urgent_replan_hours = 6       # 自己的封地被围时，多快放下手头的
 [movement]
 base_speed = 5.5              # 普通部队在平原上的速度（地图单位/小时）
 cavalry_bonus = 0.5           # 全骑兵部队的额外速度（按骑兵比例折算：骑兵多走得快，全是步卒就慢）
-size_penalty_per_troop = 0.002  # 每名士兵带来的减速
-min_size_factor = 0.6
+size_penalty_per_troop = 0.004  # 每名士兵带来的减速（伤员算半个）：小股人马跑得快，大军慢（仿战团）
+min_size_factor = 0.55
 kind_speed = { lord = 1.0, caravan = 0.75, villager = 0.7, bandit = 1.0, hunter = 1.15, merc = 1.0, player = 1.1, refugee = 0.6 }   # 快慢主要看兵种：马匪靠骑兵比例跑得快，步行的流寇就慢
+
+# 津渡摆渡（黄河、长江只能坐船过，少数浮桥除外）：到了渡口要等船，人马越多越久
+ferry_base_hours = 1.0        # 小股人马也要等一两个时辰
+ferry_men_per_hour = 25       # 每个时辰能运过多少人
+ferry_cav_weight = 2.0        # 一骑当两人运（马难上船）
+ferry_max_hours = 36.0
 
 [battle]
 max_rounds = 6
@@ -158,9 +164,13 @@ tribute_max = 220
 tribute_days = 20
 
 [bandits]
-max_active_hideouts = 6
+max_active_hideouts = 10
 spawn_chance = 0.4            # 每个匪巢每天派出新匪帮的概率
-max_parties_per_hideout = 3
+max_parties_per_hideout = 4
+looters_max = 20              # 不属于任何匪巢、在腹地村落之间游荡的小股流寇（仿战团的 looters）
+looter_spawn_chance = 0.6     # 不够数时每天冒出一伙的概率
+looter_size = [5, 15]
+looter_regions = ["zhou", "zhao", "shu", "yan"]   # 只在这些国家的村落附近出没（中原、江南、巴蜀、辽东；草原荒漠归马贼）
 hideout_respawn_days = 10
 reactivate_chance = 0.35
 bounty_per_bandit = 15
